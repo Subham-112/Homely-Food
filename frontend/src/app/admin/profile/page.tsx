@@ -22,19 +22,19 @@ export default function AdminProfilePage() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#FAF6ED] relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#FAF6ED] relative">
       {/* Header */}
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 pb-20">
-        <h1 className="text-xl font-bold text-[#0B251C] font-poppins">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-4xl w-full mx-auto flex flex-col gap-4 pb-20">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
           Store Settings
         </h1>
 
         {/* Store Information Card */}
-        <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-2xs flex flex-col gap-4">
-          <h2 className="text-base font-bold text-[#0B251C] border-b border-gray-100 pb-3">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-2xs flex flex-col gap-4">
+          <h2 className="text-base sm:text-lg font-extrabold text-[#0B251C] border-b border-gray-100 pb-3">
             Store Information
           </h2>
 

@@ -35,19 +35,19 @@ export default function AdminHomePage() {
   ];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F4F8FA] relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#F4F8FA] relative">
       {/* Header */}
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-5 pb-20">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-5 pb-20">
         {/* Title */}
-        <h1 className="text-xl font-bold text-[#0B251C] font-poppins">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
           Overview
         </h1>
 
         {/* Overview Stat Cards */}
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           {/* Card 1: Today's Orders */}
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
             <div>
@@ -106,11 +106,11 @@ export default function AdminHomePage() {
             </Link>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recentOrders.map((order) => (
               <div
                 key={order.id}
-                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col gap-3"
+                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col justify-between gap-3"
               >
                 {/* Header Row */}
                 <div className="flex items-start justify-between">

@@ -17,51 +17,86 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="shrink-0 z-40 bg-[#F4F9FA] border-b border-[#E3EEF0] px-4 py-2.5 flex items-center justify-between shadow-xs">
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="p-1 text-[#0B392B] hover:bg-[#E3EEF0] rounded-md transition-colors cursor-pointer"
-          aria-label="Open menu"
-        >
-          <Menu className="w-6 h-6" />
-        </button>
+      <header className="sticky top-0 z-40 bg-[#F4F9FA] border-b border-[#E3EEF0] shadow-xs">
+        <div className="max-w-7xl w-full mx-auto px-3 sm:px-5 py-2.5 flex items-center justify-between">
+          {/* Left Side: Mobile Menu Button & Desktop Logo */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="md:hidden p-1.5 text-[#0B392B] hover:bg-[#E3EEF0] rounded-lg transition-colors cursor-pointer"
+              aria-label="Open menu"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
 
-        {/* Center Title */}
-        {isAdmin ? (
-          <Link href="/admin" className="flex items-center justify-center">
-            <span className="font-extrabold text-lg sm:text-xl text-[#0B392B] tracking-tight font-poppins leading-none">
-              Admin Panel
-            </span>
-          </Link>
-        ) : (
-          <Link href="/" className="flex flex-col items-center justify-center group">
-            <span className="font-extrabold text-lg sm:text-xl text-[#0B392B] tracking-tight font-poppins leading-none">
-              Homely Foods
-            </span>
-            <div className="pure-veg-ribbon mt-0.5">
-              <Leaf className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400" />
-              <span>PURE VEG</span>
-              <Leaf className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400 -scale-x-100" />
-            </div>
-          </Link>
-        )}
-
-        {/* Right Side Cart Button (Hidden on admin) */}
-        {isAdmin ? (
-          <div className="w-8 h-8 pointer-events-none" />
-        ) : (
-          <Link
-            href="/cart"
-            className="relative p-1 text-[#0B392B] hover:bg-[#E3EEF0] rounded-md transition-colors"
-          >
-            <ShoppingCart className="w-6 h-6" />
-            {totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#C51E1E] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
-                {totalItems}
-              </span>
+            {/* Logo / Brand Name */}
+            {isAdmin ? (
+              <Link href="/admin" className="flex items-center gap-2">
+                <span className="font-extrabold text-lg sm:text-xl text-[#0B392B] tracking-tight font-poppins leading-none">
+                  Admin Panel
+                </span>
+              </Link>
+            ) : (
+              <Link href="/" className="flex items-center gap-2 group">
+                <span className="font-extrabold text-lg sm:text-xl text-[#0B392B] tracking-tight font-poppins leading-none">
+                  Homely Foods
+                </span>
+                <div className="pure-veg-ribbon">
+                  <Leaf className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400" />
+                  <span>PURE VEG</span>
+                  <Leaf className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400 -scale-x-100" />
+                </div>
+              </Link>
             )}
-          </Link>
-        )}
+          </div>
+
+          {/* Right Side Cart & Auth Buttons */}
+          <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <Link
+                href="/cart"
+                className="relative p-2 text-[#0B392B] hover:bg-[#E3EEF0] rounded-xl transition-colors flex items-center gap-2"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                <span className="hidden md:inline text-xs font-bold">Cart</span>
+                {totalItems > 0 && (
+                  <span className="bg-[#C51E1E] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center">
+                    {totalItems}
+                  </span>
+                )}
+              </Link>
+            )}
+
+            {!isAdmin && (
+              <div className="hidden md:flex items-center gap-2">
+                {!isAuthenticated ? (
+                  <>
+                    <Link
+                      href="/login"
+                      className="text-xs font-bold text-[#0B392B] hover:bg-[#0B392B]/10 px-3.5 py-2 rounded-xl transition-all"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="text-xs font-bold bg-[#0B392B] text-white hover:bg-[#07281E] px-4 py-2 rounded-xl transition-all shadow-xs"
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => logout()}
+                    className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       {/* Side Navigation Drawer Overlay */}
@@ -196,9 +231,9 @@ export const Header: React.FC = () => {
               </nav>
             </div>
 
-            {/* Bottom Link */}
-            <div className="pt-4 border-t border-gray-200 mt-auto">
-              {isAdmin ? (
+            {/* Bottom Link for Admin Drawer */}
+            {isAdmin && (
+              <div className="pt-4 border-t border-gray-200 mt-auto">
                 <Link
                   href="/"
                   onClick={() => setDrawerOpen(false)}
@@ -207,17 +242,8 @@ export const Header: React.FC = () => {
                   <Home className="w-3.5 h-3.5" />
                   <span>Switch to Customer View</span>
                 </Link>
-              ) : (
-                <Link
-                  href="/admin/login"
-                  onClick={() => setDrawerOpen(false)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-[#0B392B] hover:bg-[#0B392B]/5 transition-all"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Admin Access</span>
-                </Link>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

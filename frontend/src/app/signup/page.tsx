@@ -86,8 +86,8 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="flex-1 bg-[#FAF6ED] p-4 sm:p-6 flex items-center justify-center min-h-full">
-      <div className="w-full bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-[#EFE9DA]/60 flex flex-col items-center my-auto">
+    <div className="flex-1 bg-[#FAF6ED] p-4 sm:p-6 lg:p-8 flex items-center justify-center min-h-screen">
+      <div className="w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 md:p-10 shadow-lg border border-[#EFE9DA]/60 flex flex-col items-center my-auto">
         {/* Top Logo Icon */}
         <div className="w-16 h-16 rounded-full bg-[#EAF5EE] flex items-center justify-center mb-6 shrink-0">
           <Utensils className="w-8 h-8 text-[#0B392B]" />
@@ -97,7 +97,7 @@ export default function SignupPage() {
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0B251C] text-center tracking-tight font-poppins mb-2">
           Create Account
         </h1>
-        <p className="text-center text-sm text-gray-500 max-w-xs mb-6 leading-relaxed">
+        <p className="text-center text-xs sm:text-sm text-gray-500 max-w-xs mb-6 leading-relaxed">
           Join Homely Foods for authentic, pure-vegetarian meals delivered to your door.
         </p>
 
@@ -164,7 +164,7 @@ export default function SignupPage() {
         </form>
 
         {/* Footer Link */}
-        <p className="text-sm text-gray-600 mt-8 text-center">
+        <p className="text-xs sm:text-sm text-gray-600 mt-8 text-center">
           Already have an account?{" "}
           <Link href="/login" className="font-bold text-[#0B392B] hover:underline">
             Log in here

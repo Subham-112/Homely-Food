@@ -54,6 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isPublicUserRoute && !isAdminLoginRoute) {
         router.replace("/login");
       }
+    } else if (hasAdminAccess && isPublicUserRoute) {
+      // Admin is logged in but tries to open user /login or /signup -> Redirect to /admin
+      router.replace("/admin");
     } else if (isAdminRoute) {
       if (!hasAdminAccess && !isAdminLoginRoute) {
         router.replace("/admin/login");

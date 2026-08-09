@@ -3,7 +3,6 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
-import PageSwitcher from "@/components/PageSwitcher";
 
 const poppins = Poppins({
   weight: ["300", "400", "500", "600", "700", "800"],
@@ -24,11 +23,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={poppins.variable}>
-      <body className={`${poppins.className} text-[#0f261c] antialiased flex flex-col items-center justify-start sm:justify-center p-0 sm:p-4`}>
+      <body className={`${poppins.className} text-[#0f261c] antialiased bg-[#FAF6ED] min-h-screen`}>
         <AuthProvider>
           <CartProvider>
-            <PageSwitcher />
-            <main className="mobile-viewport relative flex flex-col">
+            <main className="mobile-viewport relative flex flex-col min-h-screen">
               {children}
             </main>
           </CartProvider>

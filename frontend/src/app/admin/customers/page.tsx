@@ -67,16 +67,16 @@ export default function AdminCustomersPage() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#FAF6ED] relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#FAF6ED] relative">
       {/* Header */}
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-4 pb-20">
         {/* Title Row */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-[#0B251C] font-poppins">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
               Customers
             </h1>
             <p className="text-xs text-gray-500 font-medium">
@@ -84,8 +84,8 @@ export default function AdminCustomersPage() {
             </p>
           </div>
 
-          <button className="border-2 border-[#0B392B] text-[#0B392B] hover:bg-[#0B392B]/5 font-bold text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer">
-            <Download className="w-3.5 h-3.5" /> Export
+          <button className="border-2 border-[#0B392B] text-[#0B392B] hover:bg-[#0B392B]/5 font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer">
+            <Download className="w-4 h-4" /> Export
           </button>
         </div>
 
@@ -101,12 +101,12 @@ export default function AdminCustomersPage() {
           />
         </div>
 
-        {/* Customer Cards List */}
-        <div className="flex flex-col gap-3.5">
+        {/* Customer Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map((customer) => (
             <div
               key={customer.id}
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col gap-3"
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col justify-between gap-3"
             >
               {/* Profile Header */}
               <div className="flex items-center justify-between">

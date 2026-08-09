@@ -93,6 +93,10 @@ api.interceptors.request.use(
       if (token && config.headers) {
         config.headers["Authorization"] = `Bearer ${token}`;
       }
+      if (config.data instanceof FormData && config.headers) {
+        delete config.headers["Content-Type"];
+        delete config.headers["content-type"];
+      }
     } catch (error) {
       console.error("❌ Error retrieving token in interceptor:", error);
     }
@@ -101,15 +105,26 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor: Automatically catch 401 Unauthorized, clear tokens, and redirect to /login
+// Interceptor: Automatically catch 401 Unauthorized, clear tokens, and redirect if not on login endpoints
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      console.warn("⚠️ 401 Unauthorized: Clearing tokens and redirecting to /login");
-      TokenStorage.clearAll();
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
+      const requestUrl = error?.config?.url || "";
+      const isLoginRequest = requestUrl.includes("/login");
+
+      // Don't auto-redirect on 401 if it's a login attempt (credentials error)
+      if (!isLoginRequest) {
+        console.warn("⚠️ 401 Unauthorized: Clearing tokens");
+        TokenStorage.clearAll();
+        if (typeof window !== "undefined") {
+          const currentPath = window.location.pathname;
+          if (currentPath.startsWith("/admin") && !currentPath.startsWith("/admin/login")) {
+            window.location.href = "/admin/login";
+          } else if (!currentPath.startsWith("/login") && !currentPath.startsWith("/signup")) {
+            window.location.href = "/login";
+          }
+        }
       }
     }
     return Promise.reject(error);
@@ -118,8 +133,13 @@ api.interceptors.response.use(
 
 const request = async <T>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> => {
   try {
-    if (config.data instanceof FormData && config.headers) {
-      config.headers["Content-Type"] = "multipart/form-data";
+    if (config.data instanceof FormData) {
+      if (config.headers) {
+        delete config.headers["Content-Type"];
+        delete config.headers["content-type"];
+      } else {
+        config.headers = {};
+      }
     }
 
     const response = await api.request<T>({

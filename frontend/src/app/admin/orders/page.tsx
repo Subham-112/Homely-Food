@@ -51,12 +51,12 @@ export default function AdminOrdersManagementPage() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F4F8FA] relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#F4F8FA] relative">
       {/* Header */}
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-4 pb-20">
         {/* Search Bar */}
         <div className="relative flex items-center">
           <Search className="w-5 h-5 absolute left-3.5 text-gray-400 pointer-events-none" />
@@ -90,11 +90,11 @@ export default function AdminOrdersManagementPage() {
         </div>
 
         {/* Order Cards */}
-        <div className="flex flex-col gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredOrders.map((order) => (
             <div
               key={order.id}
-              className="bg-white rounded-2xl p-4 border border-gray-100/90 shadow-2xs flex flex-col gap-3"
+              className="bg-white rounded-2xl p-4 border border-gray-100/90 shadow-2xs flex flex-col justify-between gap-3"
             >
               {/* Header row */}
               <div className="flex items-start justify-between">
@@ -163,7 +163,7 @@ export default function AdminOrdersManagementPage() {
                 )}
 
                 {(order.status === "Completed" || order.status === "Ready") && (
-                  <button className="w-full border border-gray-200 text-gray-700 font-bold text-xs py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                  <button className="w-full border border-gray-200 text-[#0B392B] font-bold text-xs py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
                     View Details
                   </button>
                 )}
