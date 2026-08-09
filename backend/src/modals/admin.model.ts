@@ -1,43 +1,39 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
+import { UserRole, UserStatus } from "../common/enum";
 
-// Interface
 export interface IAdmin extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
   password?: string;
-  role: "admin";
+  role: UserRole.ADMIN;
   permissions: string[];
-  status: "active" | "inactive" | "blocked";
+  status: UserStatus;
   refreshToken?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Schema definition
 const AdminSchema: Schema<IAdmin> = new Schema(
   {
     name: {
       type: String,
-      required: [true, "Name is required"],
       trim: true,
     },
     email: {
       type: String,
-      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
       select: false,
     },
     role: {
       type: String,
-      enum: ["admin"],
-      default: "admin",
+      enum: [UserRole.ADMIN],
+      default: UserRole.ADMIN,
     },
     permissions: {
       type: [String],
@@ -45,8 +41,8 @@ const AdminSchema: Schema<IAdmin> = new Schema(
     },
     status: {
       type: String,
-      enum: ["active", "inactive", "blocked"],
-      default: "active",
+      enum: Object.values(UserStatus),
+      default: UserStatus.ACTIVE,
     },
     refreshToken: {
       type: String,

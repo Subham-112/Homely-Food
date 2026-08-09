@@ -1,31 +1,30 @@
-import mongoose, { Document, Schema, Model } from "mongoose";
+import mongoose, { Schema } from "mongoose";
+import mongooseDelete from "mongoose-delete";
+import { UserRole, UserStatus } from "../common/enum";
+import { ISoftDeleteDocument, ISoftDeleteModel } from "../types/softDelete";
 
-// Interface
-export interface IUser extends Document {
+export interface IUser extends ISoftDeleteDocument {
   _id: mongoose.Types.ObjectId;
   name: string;
   phone: string;
   email?: string;
   password?: string;
-  role: "user" | "admin";
-  status: "active" | "inactive" | "blocked";
+  role: UserRole;
+  status: UserStatus;
   avatar?: string;
   refreshToken?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Schema definition
 const UserSchema: Schema<IUser> = new Schema(
   {
     name: {
       type: String,
-      required: [true, "Name is required"],
       trim: true,
     },
     phone: {
       type: String,
-      required: [true, "Phone number is required"],
       unique: true,
       trim: true,
     },
@@ -38,18 +37,17 @@ const UserSchema: Schema<IUser> = new Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
       select: false,
     },
     role: {
       type: String,
-      enum: ["user", "admin"],
-      default: "user",
+      enum: Object.values(UserRole),
+      default: UserRole.USER,
     },
     status: {
       type: String,
-      enum: ["active", "inactive", "blocked"],
-      default: "active",
+      enum: Object.values(UserStatus),
+      default: UserStatus.ACTIVE,
     },
     avatar: {
       type: String,
@@ -65,5 +63,8 @@ const UserSchema: Schema<IUser> = new Schema(
   }
 );
 
-export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+UserSchema.plugin(mongooseDelete, { overrideMethods: "all", deletedAt: true, deletedBy: true });
+
+export const User: ISoftDeleteModel<IUser> =
+  (mongoose.models.User as any) || mongoose.model<IUser, ISoftDeleteModel<IUser>>("User", UserSchema);
 export default User;
