@@ -1,5 +1,5 @@
 import { Mongoose } from "../config/database";
-import Category from "../modals/category.model";
+import Category from "../models/category.model";
 import { CategoryStatus } from "../common/enum";
 
 const categoriesToSeed = [

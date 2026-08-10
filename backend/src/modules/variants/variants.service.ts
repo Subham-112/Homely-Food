@@ -1,5 +1,5 @@
-import MenuItemVariant from "../../modals/menuItemVariant.model";
-import MenuItem from "../../modals/menuItem.model";
+import MenuItemVariant from "../../models/menuItemVariant.model";
+import MenuItem from "../../models/menuItem.model";
 import ApiError from "../../utils/ApiError";
 import { VariantStatus } from "../../common/enum";
 

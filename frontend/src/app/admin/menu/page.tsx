@@ -87,6 +87,23 @@ export default function AdminMenuPage() {
     allergens: "",
   });
 
+  // Variants State
+  const [formVariants, setFormVariants] = useState<{ label: string; price: string }[]>([]);
+
+  const handleAddVariantRow = () => {
+    setFormVariants((prev) => [...prev, { label: "", price: "" }]);
+  };
+
+  const handleRemoveVariantRow = (index: number) => {
+    setFormVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleVariantChange = (index: number, field: "label" | "price", value: string) => {
+    setFormVariants((prev) =>
+      prev.map((v, i) => (i === index ? { ...v, [field]: value } : v))
+    );
+  };
+
   // Debounce search input
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -165,6 +182,7 @@ export default function AdminMenuPage() {
     setEditingItem(null);
     setImageFile(null);
     setImagePreview("");
+    setFormVariants([]);
     setFormData({
       name: "",
       category: categories.length > 0 ? categories[0]._id : "",
@@ -187,6 +205,11 @@ export default function AdminMenuPage() {
 
     setImageFile(null);
     setImagePreview(imageUrl);
+    if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
+      setFormVariants(item.variants.map((v) => ({ label: v.label, price: String(v.price) })));
+    } else {
+      setFormVariants([]);
+    }
 
     setFormData({
       name: item.name || "",
@@ -228,6 +251,13 @@ export default function AdminMenuPage() {
       return;
     }
 
+    const validVariants = formVariants
+      .filter((v) => v.label.trim())
+      .map((v) => ({
+        label: v.label.trim(),
+        price: parseFloat(v.price) || 0,
+      }));
+
     const payload: CreateMenuItemPayload = {
       name: formData.name.trim(),
       category: effectiveCategory,
@@ -240,6 +270,7 @@ export default function AdminMenuPage() {
       allergens: formData.allergens ? formData.allergens.split(",").map((a) => a.trim()).filter(Boolean) : [],
       imageFile,
       image: !imageFile && imagePreview ? imagePreview : undefined,
+      variants: validVariants.length > 0 ? validVariants : undefined,
     };
 
     try {
@@ -509,6 +540,11 @@ export default function AdminMenuPage() {
                       <span className="text-[10px] font-semibold text-gray-400 block -mt-0.5">
                         {categoryName}
                       </span>
+                      {item.variants && item.variants.length > 0 && (
+                        <span className="inline-block bg-emerald-50 text-[#0B392B] text-[9px] font-extrabold px-1.5 py-0.5 rounded-md mt-0.5">
+                          {item.variants.length} {item.variants.length === 1 ? "Variant" : "Variants"}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-baseline justify-between">
@@ -811,6 +847,69 @@ export default function AdminMenuPage() {
                     className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
                   />
                 </div>
+              </div>
+
+              {/* Variants Section */}
+              <div className="border-t border-b border-gray-100 py-3 my-1">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-gray-800">
+                      Item Variants (e.g., Half, Full, Small, Large)
+                    </h4>
+                    <p className="text-[10px] text-gray-400">
+                      Add portion or size options. Status will be active by default.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddVariantRow}
+                    className="px-2.5 py-1 text-[11px] font-bold text-[#0B392B] bg-emerald-50 hover:bg-emerald-100 rounded-lg cursor-pointer transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Variant
+                  </button>
+                </div>
+
+                {formVariants.length > 0 ? (
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                    {formVariants.map((variant, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100"
+                      >
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            placeholder="Variant Label (e.g. Half)"
+                            value={variant.label}
+                            onChange={(e) => handleVariantChange(idx, "label", e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B392B]"
+                          />
+                        </div>
+                        <div className="w-28">
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="Price (₹)"
+                            value={variant.price}
+                            onChange={(e) => handleVariantChange(idx, "price", e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B392B]"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVariantRow(idx)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                          title="Remove Variant"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-400 italic">No variants added yet. Click "+ Add Variant" to create size/portion options.</p>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-2">

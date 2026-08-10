@@ -17,6 +17,13 @@ export interface ImageObject {
   mimetype?: string;
 }
 
+export interface MenuItemVariantItem {
+  _id?: string;
+  label: string;
+  price: number;
+  status?: "active" | "inactive";
+}
+
 export interface MenuItem {
   _id: string;
   name: string;
@@ -29,6 +36,7 @@ export interface MenuItem {
   allergens?: string[];
   image?: ImageObject | string;
   isTodaySpecial?: boolean;
+  variants?: MenuItemVariantItem[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -45,6 +53,7 @@ export interface CreateMenuItemPayload {
   image?: string;
   imageFile?: File | null;
   isTodaySpecial?: boolean;
+  variants?: MenuItemVariantItem[];
 }
 
 export type UpdateMenuItemPayload = Partial<CreateMenuItemPayload>;
@@ -138,6 +147,9 @@ const buildFormDataFromPayload = (payload: CreateMenuItemPayload | UpdateMenuIte
   }
   if (payload.allergens && Array.isArray(payload.allergens)) {
     formData.append("allergens", JSON.stringify(payload.allergens));
+  }
+  if (payload.variants && Array.isArray(payload.variants) && payload.variants.length > 0) {
+    formData.append("variants", JSON.stringify(payload.variants));
   }
 
   // Handle image File vs existing image string/object

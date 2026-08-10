@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import jwt, { TokenExpiredError, JsonWebTokenError } from "jsonwebtoken";
-import { User } from "../modals/user.model";
-import Admin from "../modals/admin.model";
+import { User } from "../models/user.model";
+import Admin from "../models/admin.model";
 import { config } from "../config/config";
 import { generateAccessToken } from "../utils/token";
 

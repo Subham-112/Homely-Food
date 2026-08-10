@@ -1,4 +1,4 @@
-import { User } from "../../modals/user.model";
+import User from "../../models/user.model";
 import { hashPassword, comparePassword } from "../../utils/auth";
 import { generateAccessToken, generateRefreshToken } from "../../utils/token";
 import ApiError from "../../utils/ApiError";

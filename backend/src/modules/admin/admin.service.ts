@@ -1,4 +1,4 @@
-import Admin from "../../modals/admin.model";
+import Admin from "../../models/admin.model";
 import { hashPassword, comparePassword } from "../../utils/auth";
 import { generateAccessToken, generateRefreshToken } from "../../utils/token";
 import ApiError from "../../utils/ApiError";

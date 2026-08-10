@@ -1,9 +1,15 @@
-import MenuItem from "../../modals/menuItem.model";
-import Category from "../../modals/category.model";
-import MenuItemVariant from "../../modals/menuItemVariant.model";
+import MenuItem from "../../models/menuItem.model";
+import Category from "../../models/category.model";
+import MenuItemVariant from "../../models/menuItemVariant.model";
 import ApiError from "../../utils/ApiError";
-import { MenuItemStatus } from "../../common/enum";
+import { MenuItemStatus, VariantStatus } from "../../common/enum";
 import { IImage } from "../../common/image.schema";
+
+export interface IVariantInput {
+  label: string;
+  price: number;
+  status?: VariantStatus;
+}
 
 export interface IMenuItemPayload {
   name: string;
@@ -16,6 +22,7 @@ export interface IMenuItemPayload {
   allergens?: string[];
   image?: IImage | string;
   isTodaySpecial?: boolean;
+  variants?: IVariantInput[];
 }
 
 export class MenuItemService {
@@ -45,7 +52,24 @@ export class MenuItemService {
       isTodaySpecial: payload.isTodaySpecial || false,
     });
 
-    return menuItem;
+    let createdVariants: any[] = [];
+    if (payload.variants && Array.isArray(payload.variants) && payload.variants.length > 0) {
+      createdVariants = await Promise.all(
+        payload.variants.map((v) =>
+          MenuItemVariant.create({
+            menuItem: menuItem._id,
+            label: v.label,
+            price: v.price,
+            status: v.status || VariantStatus.ACTIVE,
+          })
+        )
+      );
+    }
+
+    return {
+      ...menuItem.toObject(),
+      variants: createdVariants,
+    };
   }
 
   static async getAll(query: {

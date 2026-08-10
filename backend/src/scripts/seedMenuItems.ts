@@ -1,6 +1,6 @@
 import { Mongoose } from "../config/database";
-import Category from "../modals/category.model";
-import MenuItem from "../modals/menuItem.model";
+import Category from "../models/category.model";
+import MenuItem from "../models/menuItem.model";
 import { MenuItemStatus } from "../common/enum";
 
 const sampleMenuItems = [

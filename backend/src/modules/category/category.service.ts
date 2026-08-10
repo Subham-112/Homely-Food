@@ -1,5 +1,5 @@
-import Category from "../../modals/category.model";
-import MenuItem from "../../modals/menuItem.model";
+import Category from "../../models/category.model";
+import MenuItem from "../../models/menuItem.model";
 import ApiError from "../../utils/ApiError";
 import { CategoryStatus } from "../../common/enum";
 

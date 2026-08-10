@@ -1,6 +1,6 @@
 import { config } from "../config/config";
 import { Mongoose } from "../config/database";
-import Admin from "../modals/admin.model";
+import Admin from "../models/admin.model";
 import { hashPassword } from "../utils/auth";
 
 const email = config.admin.email;

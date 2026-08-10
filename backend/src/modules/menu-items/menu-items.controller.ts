@@ -38,6 +38,27 @@ const createMenuItemSchema = z.object({
   }, z.array(z.string()).optional()),
   image: z.any().optional(),
   isTodaySpecial: z.preprocess((val) => (typeof val === "string" ? val === "true" : val), z.boolean().optional()),
+  variants: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        try {
+          return JSON.parse(val);
+        } catch {
+          return val;
+        }
+      }
+      return val;
+    },
+    z.array(
+      z.object({
+        label: z.string({ required_error: "Variant label is required" }).min(1, "Variant label is required"),
+        price: z.preprocess(
+          (p) => (typeof p === "string" ? parseFloat(p) : p),
+          z.number({ required_error: "Variant price is required" }).min(0, "Variant price cannot be negative")
+        ),
+      })
+    ).optional()
+  ),
 });
 
 const updateMenuItemSchema = createMenuItemSchema.partial();
