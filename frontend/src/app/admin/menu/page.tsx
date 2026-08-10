@@ -14,6 +14,8 @@ import {
   ChevronRight,
   Filter,
   Upload,
+  Clock,
+  Eye,
 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
@@ -23,6 +25,7 @@ import {
   MenuItemStatus,
   PaginationMeta,
   getMenuItems,
+  getMenuItemById,
   createMenuItem,
   updateMenuItem,
   toggleMenuItemStatus,
@@ -58,6 +61,11 @@ export default function AdminMenuPage() {
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // View Item Modal State
+  const [isViewModalOpen, setIsViewModalOpen] = useState<boolean>(false);
+  const [selectedViewItem, setSelectedViewItem] = useState<MenuItem | null>(null);
+  const [loadingViewItemId, setLoadingViewItemId] = useState<string | null>(null);
 
   // Image File Upload State
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -198,32 +206,47 @@ export default function AdminMenuPage() {
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (item: MenuItem) => {
-    setEditingItem(item);
-    const categoryId = typeof item.category === "object" ? item.category._id : item.category;
-    const imageUrl = typeof item.image === "object" ? item.image?.url || "" : item.image || "";
+  const [loadingEditItemId, setLoadingEditItemId] = useState<string | null>(null);
 
-    setImageFile(null);
-    setImagePreview(imageUrl);
-    if (item.variants && Array.isArray(item.variants) && item.variants.length > 0) {
-      setFormVariants(item.variants.map((v) => ({ label: v.label, price: String(v.price) })));
-    } else {
-      setFormVariants([]);
+  const handleOpenEditModal = async (item: MenuItem) => {
+    try {
+      setLoadingEditItemId(item._id);
+      const fetchedItem = await getMenuItemById(item._id);
+
+      if (fetchedItem) {
+        setEditingItem(fetchedItem);
+        const categoryId = typeof fetchedItem.category === "object" ? fetchedItem.category._id : fetchedItem.category;
+        const imageUrl = typeof fetchedItem.image === "object" ? fetchedItem.image?.url || "" : fetchedItem.image || "";
+
+        setImageFile(null);
+        setImagePreview(imageUrl);
+
+        if (fetchedItem.variants && Array.isArray(fetchedItem.variants) && fetchedItem.variants.length > 0) {
+          setFormVariants(fetchedItem.variants.map((v) => ({ label: v.label, price: String(v.price) })));
+        } else {
+          setFormVariants([]);
+        }
+
+        setFormData({
+          name: fetchedItem.name || "",
+          category: categoryId || (categories.length > 0 ? categories[0]._id : ""),
+          description: fetchedItem.description || "",
+          price: fetchedItem.price !== undefined ? fetchedItem.price.toString() : "",
+          preparationTime: fetchedItem.preparationTime ? fetchedItem.preparationTime.toString() : "15",
+          status: fetchedItem.status || "available",
+          isTodaySpecial: !!fetchedItem.isTodaySpecial,
+          tags: fetchedItem.tags ? fetchedItem.tags.join(", ") : "",
+          allergens: fetchedItem.allergens ? fetchedItem.allergens.join(", ") : "",
+        });
+
+        setFormError(null);
+        setIsModalOpen(true);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch menu item details:", err);
+    } finally {
+      setLoadingEditItemId(null);
     }
-
-    setFormData({
-      name: item.name || "",
-      category: categoryId || (categories.length > 0 ? categories[0]._id : ""),
-      description: item.description || "",
-      price: item.price !== undefined ? item.price.toString() : "",
-      preparationTime: item.preparationTime ? item.preparationTime.toString() : "15",
-      status: item.status || "available",
-      isTodaySpecial: !!item.isTodaySpecial,
-      tags: item.tags ? item.tags.join(", ") : "",
-      allergens: item.allergens ? item.allergens.join(", ") : "",
-    });
-    setFormError(null);
-    setIsModalOpen(true);
   };
 
   useEffect(() => {
@@ -231,6 +254,21 @@ export default function AdminMenuPage() {
       setFormData((prev) => ({ ...prev, category: categories[0]._id }));
     }
   }, [categories, formData.category]);
+
+  const handleOpenViewModal = async (item: MenuItem) => {
+    try {
+      setLoadingViewItemId(item._id);
+      const fetchedItem = await getMenuItemById(item._id);
+      if (fetchedItem) {
+        setSelectedViewItem(fetchedItem);
+        setIsViewModalOpen(true);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch menu item detail for viewing:", err);
+    } finally {
+      setLoadingViewItemId(null);
+    }
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -487,7 +525,8 @@ export default function AdminMenuPage() {
               return (
                 <div
                   key={item._id}
-                  className="bg-white rounded-2xl p-3 border border-gray-100/90 shadow-xs flex items-center gap-3 relative group hover:shadow-md transition-shadow"
+                  onClick={() => handleOpenViewModal(item)}
+                  className="bg-white rounded-2xl p-3 border border-gray-100/90 shadow-xs flex items-center gap-3 relative group hover:shadow-md transition-shadow cursor-pointer"
                 >
                   {/* Image with Veg badge overlay */}
                   <div className="relative w-24 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100 border border-gray-100">
@@ -503,6 +542,11 @@ export default function AdminMenuPage() {
                           "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80";
                       }}
                     />
+                    {loadingViewItemId === item._id && (
+                      <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      </div>
+                    )}
                     <div className="absolute top-1.5 left-1.5">
                       <VegBadge size={14} />
                     </div>
@@ -522,14 +566,25 @@ export default function AdminMenuPage() {
                         </h3>
                         <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={() => handleOpenEditModal(item)}
-                            className="text-gray-400 hover:text-[#0B392B] p-1 rounded-md hover:bg-gray-100 cursor-pointer transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditModal(item);
+                            }}
+                            disabled={loadingEditItemId === item._id}
+                            className="text-gray-400 hover:text-[#0B392B] p-1 rounded-md hover:bg-gray-100 cursor-pointer transition-colors disabled:opacity-50"
                             title="Edit"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            {loadingEditItemId === item._id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0B392B]" />
+                            ) : (
+                              <Edit2 className="w-3.5 h-3.5" />
+                            )}
                           </button>
                           <button
-                            onClick={() => setDeletingItemId(item._id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingItemId(item._id);
+                            }}
                             className="text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-gray-100 cursor-pointer transition-colors"
                             title="Delete"
                           >
@@ -569,7 +624,10 @@ export default function AdminMenuPage() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleToggleStatus(item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleStatus(item);
+                        }}
                         className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
                           isAvailable ? "bg-[#2563EB]" : "bg-gray-300"
                         }`}
@@ -850,65 +908,71 @@ export default function AdminMenuPage() {
               </div>
 
               {/* Variants Section */}
-              <div className="border-t border-b border-gray-100 py-3 my-1">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="text-xs font-extrabold text-gray-800">
-                      Item Variants (e.g., Half, Full, Small, Large)
-                    </h4>
-                    <p className="text-[10px] text-gray-400">
-                      Add portion or size options. Status will be active by default.
-                    </p>
+              <div className="pt-2 pb-1 border-t border-gray-100">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-gray-700">
+                      Variants
+                    </label>
+                    <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                      Optional
+                    </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleAddVariantRow}
-                    className="px-2.5 py-1 text-[11px] font-bold text-[#0B392B] bg-emerald-50 hover:bg-emerald-100 rounded-lg cursor-pointer transition-colors flex items-center gap-1"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#0B392B] bg-emerald-50 hover:bg-emerald-100 rounded-lg cursor-pointer transition-colors whitespace-nowrap shrink-0"
                   >
-                    <Plus className="w-3 h-3" /> Add Variant
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Variant</span>
                   </button>
                 </div>
 
                 {formVariants.length > 0 ? (
-                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-0.5">
                     {formVariants.map((variant, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100"
+                        className="flex items-center gap-2 bg-gray-50/70 p-1.5 rounded-xl border border-gray-200/60"
                       >
-                        <div className="flex-1">
-                          <input
-                            type="text"
-                            placeholder="Variant Label (e.g. Half)"
-                            value={variant.label}
-                            onChange={(e) => handleVariantChange(idx, "label", e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B392B]"
-                          />
-                        </div>
-                        <div className="w-28">
+                        <input
+                          type="text"
+                          placeholder="Variant label (e.g. Half / Full)"
+                          value={variant.label}
+                          onChange={(e) => handleVariantChange(idx, "label", e.target.value)}
+                          className="flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B392B]"
+                        />
+                        <div className="relative w-28 shrink-0">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                            ₹
+                          </span>
                           <input
                             type="number"
                             min="0"
                             step="any"
-                            placeholder="Price (₹)"
+                            placeholder="Price"
                             value={variant.price}
                             onChange={(e) => handleVariantChange(idx, "price", e.target.value)}
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B392B]"
+                            className="w-full pl-6 pr-2 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#0B392B]"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={() => handleRemoveVariantRow(idx)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer transition-colors shrink-0"
                           title="Remove Variant"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-gray-400 italic">No variants added yet. Click "+ Add Variant" to create size/portion options.</p>
+                  <div className="text-center py-2 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                    <p className="text-xs text-gray-400">
+                      No variants added. Click <span className="font-semibold text-gray-600">+ Add Variant</span> to offer portion options.
+                    </p>
+                  </div>
                 )}
               </div>
 
@@ -975,6 +1039,145 @@ export default function AdminMenuPage() {
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 Delete Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Item Detail Modal */}
+      {isViewModalOpen && selectedViewItem && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto relative">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2 min-w-0 pr-2">
+                <VegBadge size={16} />
+                <h2 className="text-base font-extrabold text-[#0B251C] truncate" title={selectedViewItem.name}>
+                  {selectedViewItem.name}
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Item Image */}
+            <div className="relative w-full h-48 rounded-2xl overflow-hidden bg-gray-100 border border-gray-100 shrink-0">
+              <img
+                src={
+                  (typeof selectedViewItem.image === "object"
+                    ? selectedViewItem.image?.url
+                    : selectedViewItem.image) ||
+                  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80"
+                }
+                alt={selectedViewItem.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80";
+                }}
+              />
+              {selectedViewItem.isTodaySpecial && (
+                <div className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> Special
+                </div>
+              )}
+              <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] font-semibold px-2.5 py-0.5 rounded-full">
+                {typeof selectedViewItem.category === "object" ? selectedViewItem.category.name : "Category"}
+              </div>
+            </div>
+
+            {/* Price & Prep Time */}
+            <div className="flex items-center justify-between bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/60">
+              <div>
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider block">Base Price</span>
+                <span className="text-lg font-extrabold text-[#0B392B]">₹{selectedViewItem.price}</span>
+              </div>
+              {selectedViewItem.preparationTime && (
+                <div className="text-right flex items-center gap-1.5 text-xs text-gray-600 font-bold">
+                  <Clock className="w-4 h-4 text-[#0B392B]" />
+                  <span>{selectedViewItem.preparationTime} mins prep</span>
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            {selectedViewItem.description && (
+              <div>
+                <h4 className="text-xs font-bold text-gray-700 mb-1">Description</h4>
+                <p className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-xl border border-gray-100 leading-relaxed">
+                  {selectedViewItem.description}
+                </p>
+              </div>
+            )}
+
+            {/* Tags & Allergens */}
+            {((selectedViewItem.tags && selectedViewItem.tags.length > 0) || (selectedViewItem.allergens && selectedViewItem.allergens.length > 0)) && (
+              <div className="flex flex-col gap-2">
+                {selectedViewItem.tags && selectedViewItem.tags.length > 0 && (
+                  <div>
+                    <span className="text-[11px] font-bold text-gray-700 block mb-1">Tags:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedViewItem.tags.map((tag, i) => (
+                        <span key={i} className="text-[10px] font-semibold text-[#0B392B] bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedViewItem.allergens && selectedViewItem.allergens.length > 0 && (
+                  <div>
+                    <span className="text-[11px] font-bold text-gray-700 block mb-1">Allergens:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedViewItem.allergens.map((all, i) => (
+                        <span key={i} className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md">
+                          ⚠️ {all}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Variants Section */}
+            {selectedViewItem.variants && selectedViewItem.variants.length > 0 && (
+              <div className="border-t border-gray-100 pt-3">
+                <h4 className="text-xs font-bold text-gray-700 mb-2">Available Variants</h4>
+                <div className="flex flex-col gap-1.5">
+                  {selectedViewItem.variants.map((v, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 text-xs">
+                      <span className="font-extrabold text-gray-800">{v.label}</span>
+                      <span className="font-extrabold text-[#0B392B]">₹{v.price}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsViewModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  handleOpenEditModal(selectedViewItem);
+                }}
+                className="bg-[#0B392B] hover:bg-[#07281E] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                <Edit2 className="w-3.5 h-3.5" /> Edit Item
               </button>
             </div>
           </div>
