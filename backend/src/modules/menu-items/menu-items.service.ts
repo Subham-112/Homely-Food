@@ -120,7 +120,7 @@ export class MenuItemService {
       throw new ApiError(404, "Menu item not found");
     }
 
-    const variants = await MenuItemVariant.find({ menuItem: id, status: "active" });
+    const variants = await MenuItemVariant.find({ menuItem: id, status: "active" }).select("_id label price");
 
     return {
       ...menuItem.toObject(),
