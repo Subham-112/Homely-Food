@@ -17,7 +17,7 @@ export const AdminBottomNav: React.FC = () => {
   ];
 
   return (
-    <nav className="sticky bottom-0 z-40 bg-[#F4F9FA] border-t border-[#E1ECEE] shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#F4F9FA] border-t border-[#E1ECEE] shadow-lg">
       <div className="max-w-5xl w-full mx-auto px-2 py-1.5 flex items-center justify-around">
         {navItems.map((item) => {
           const Icon = item.icon;

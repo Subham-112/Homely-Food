@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
+import FloatingOrderButton from "@/components/FloatingOrderButton";
 import VegBadge from "@/components/VegBadge";
 import {
   MenuItem,

@@ -87,12 +87,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       await Post("/api/user/logout", {});
-    } catch (error) {
-      console.error("User logout API error:", error);
-    } finally {
       TokenStorage.removeToken();
       setToken(null);
       router.replace("/login");
+    } catch (error: any) {
+      console.error("User logout API error:", error);
+      if (error?.status === 401) {
+        TokenStorage.removeToken();
+        setToken(null);
+        router.replace("/login");
+      }
     }
   };
 
@@ -105,12 +109,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const adminLogout = async () => {
     try {
       await Post("/api/admin/logout", {});
-    } catch (error) {
-      console.error("Admin logout API error:", error);
-    } finally {
       TokenStorage.removeAdminToken();
       setAdminToken(null);
       router.replace("/admin/login");
+    } catch (error: any) {
+      console.error("Admin logout API error:", error);
+      if (error?.status === 401) {
+        TokenStorage.removeAdminToken();
+        setAdminToken(null);
+        router.replace("/admin/login");
+      }
     }
   };
 

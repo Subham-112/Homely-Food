@@ -83,6 +83,7 @@ const api = axios.create({
     Accept: "application/json",
     "Content-Type": "application/json",
   },
+  timeout: 10000,
 });
 
 // Interceptor: Attach user_access (or admin_access) token to every outgoing request
@@ -157,13 +158,15 @@ const request = async <T>(config: AxiosRequestConfig): Promise<AxiosResponse<T>>
       data: error?.response?.data,
     });
 
+    const status = error?.response?.status || 500;
+    const is500Error = status >= 500 || !error?.response;
+
     const errorResponse = {
       success: false,
-      status: error?.response?.status || 500,
-      message:
-        error?.response?.data?.message ||
-        error?.message ||
-        "Network request failed",
+      status: status,
+      message: is500Error
+        ? "Something went wrong. Try again later"
+        : (error?.response?.data?.message || error?.message || "Something went wrong. Try again later"),
       error: error?.response?.data?.error,
       errors: error?.response?.data?.errors,
       data: error?.response?.data,
