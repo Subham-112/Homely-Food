@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { OrderService } from "./order.service";
-import { OrderStatus, PaymentMethod, PaymentStatus } from "../../common/enum";
+import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { z } from "zod";
 import ApiError from "../../utils/ApiError";
 import ApiResponse from "../../utils/ApiResponse";
@@ -38,6 +38,9 @@ const createOrderSchema = z.object({
     .optional(),
   notes: z.string().optional(),
   discount: z.number().optional(),
+  orderType: z.enum([OrderType.DINE_IN, OrderType.DELIVERY, OrderType.PICKUP]).optional().default(OrderType.DINE_IN),
+  deliveryAddress: z.string().optional(),
+  pickupTiming: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (!data.userId && (!data.guest || !data.guest.name || !data.guest.phone)) {
     ctx.addIssue({
@@ -46,10 +49,28 @@ const createOrderSchema = z.object({
       path: ["guest"],
     });
   }
+
+  if (data.orderType === "delivery" && (!data.deliveryAddress || !data.deliveryAddress.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Delivery address is required for delivery orders",
+      path: ["deliveryAddress"],
+    });
+  }
+
+  if (data.orderType === "pickup" && (!data.pickupTiming || !data.pickupTiming.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Pickup date and time are required for pickup orders",
+      path: ["pickupTiming"],
+    });
+  }
 });
 
 const updateStatusSchema = z.object({
   status: z.nativeEnum(OrderStatus, { errorMap: () => ({ message: "Invalid order status" }) }),
+  paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+  isPaid: z.boolean().optional(),
 });
 
 export class OrderController {
@@ -70,11 +91,13 @@ export class OrderController {
   static async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const status = req.query.status as OrderStatus | undefined;
+      const orderType = req.query.orderType as string | undefined;
       const search = req.query.search as string | undefined;
+      const userId = req.query.userId as string | undefined;
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
 
-      const result = await OrderService.getAll({ status, search, page, limit });
+      const result = await OrderService.getAll({ status, orderType, search, page, limit, userId });
       res.status(200).json(new ApiResponse(200, result, "Orders fetched successfully"));
     } catch (error) {
       next(error);
@@ -95,13 +118,27 @@ export class OrderController {
     try {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const validatedData = updateStatusSchema.parse(req.body);
-      const order = await OrderService.updateStatus(id, validatedData.status);
+      const order = await OrderService.updateStatus(
+        id,
+        validatedData.status,
+        validatedData.paymentMethod,
+        validatedData.isPaid
+      );
       res.status(200).json(new ApiResponse(200, order, "Order status updated successfully"));
     } catch (error) {
       if (error instanceof z.ZodError) {
         next(new ApiError(400, error.errors.map((e) => e.message).join(". "), null, error.errors));
         return;
       }
+      next(error);
+    }
+  }
+
+  static async getStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await OrderService.getStats();
+      res.status(200).json(new ApiResponse(200, stats, "Stats fetched successfully"));
+    } catch (error) {
       next(error);
     }
   }

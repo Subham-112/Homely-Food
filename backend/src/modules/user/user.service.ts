@@ -1,4 +1,5 @@
 import User from "../../models/user.model";
+import { Customer } from "../../models/customer.model";
 import { hashPassword, comparePassword } from "../../utils/auth";
 import { generateAccessToken, generateRefreshToken } from "../../utils/token";
 import ApiError from "../../utils/ApiError";
@@ -32,6 +33,38 @@ export class UserService {
 
     user.refreshToken = refreshToken;
     await user.save();
+
+    // Create Customer profile for the registered user
+    try {
+      let customer = await Customer.findOne({ phone: user.phone });
+      if (!customer) {
+        customer = new Customer({
+          phone: user.phone,
+          user: user._id,
+          primaryName: user.name,
+          names: [{ name: user.name, addedAt: new Date() }],
+          orderCount: 0,
+          totalExpenses: 0,
+          customerType: "registered",
+        });
+        await customer.save();
+      } else {
+        let needsUpdate = false;
+        if (!customer.user) {
+          customer.user = user._id;
+          needsUpdate = true;
+        }
+        if (customer.customerType !== "registered") {
+          customer.customerType = "registered";
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          await customer.save();
+        }
+      }
+    } catch (custError) {
+      console.error("Failed to create customer profile during user register:", custError);
+    }
 
     return {
       user: {
@@ -106,14 +139,49 @@ export class UserService {
 
   static async searchByPhone(phone: string) {
     if (!phone || !phone.trim()) return [];
-    const users = await User.find({ phone: { $regex: phone.trim(), $options: "i" } })
-      .select("_id name phone email")
-      .limit(10);
-    return users.map((u) => ({
-      _id: u._id,
-      name: u.name,
-      phone: u.phone,
-      email: u.email,
-    }));
+
+    const searchRegex = { $regex: phone.trim(), $options: "i" };
+
+    // Query both collections in parallel
+    const [customers, users] = await Promise.all([
+      Customer.find({ phone: searchRegex }).limit(10),
+      User.find({ phone: searchRegex }).select("_id name phone email").limit(10),
+    ]);
+
+    // Use a Map to merge suggestions by phone number to avoid duplicates
+    const resultsMap = new Map<string, any>();
+
+    // 1. Add Customer profile records
+    for (const c of customers) {
+      resultsMap.set(c.phone, {
+        _id: c._id.toString(), // Customer ID
+        name: c.primaryName,
+        phone: c.phone,
+        userId: c.user ? c.user.toString() : undefined,
+        orderCount: c.orderCount,
+        totalExpenses: c.totalExpenses,
+      });
+    }
+
+    // 2. Add User records (for users who haven't ordered yet or are missing from Customer)
+    for (const u of users) {
+      if (!resultsMap.has(u.phone)) {
+        resultsMap.set(u.phone, {
+          _id: u._id.toString(), // User ID
+          name: u.name,
+          phone: u.phone,
+          userId: u._id.toString(),
+          orderCount: 0,
+          totalExpenses: 0,
+        });
+      } else {
+        const existing = resultsMap.get(u.phone);
+        if (!existing.userId) {
+          existing.userId = u._id.toString();
+        }
+      }
+    }
+
+    return Array.from(resultsMap.values());
   }
 }

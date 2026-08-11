@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import mongooseDelete from "mongoose-delete";
-import { OrderStatus, PaymentMethod, PaymentStatus } from "../common/enum";
+import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../common/enum";
 import { ISoftDeleteDocument, ISoftDeleteModel } from "../types/softDelete";
 
 export interface IOrderItem {
@@ -36,10 +36,16 @@ export interface IOrder extends ISoftDeleteDocument {
   items: IOrderItem[];
   payment: IPaymentInfo;
   status: OrderStatus;
+  orderType: OrderType;
+  deliveryAddress?: string;
+  pickupTiming?: string;
   subTotal: number;
   discount?: number;
   totalAmount: number;
   notes?: string;
+  preparingAt?: Date;
+  readyAt?: Date;
+  completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,13 +84,13 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
   {
     method: {
       type: String,
-      enum: Object.values(PaymentMethod),
-      default: PaymentMethod.CASH,
+      enum: [...Object.values(PaymentMethod), ""],
+      default: "",
     },
     status: {
       type: String,
       enum: Object.values(PaymentStatus),
-      default: PaymentStatus.PENDING,
+      default: PaymentStatus.UNPAID,
     },
     transactionId: {
       type: String,
@@ -145,7 +151,20 @@ const OrderSchema: Schema<IOrder> = new Schema(
     status: {
       type: String,
       enum: Object.values(OrderStatus),
-      default: OrderStatus.PENDING,
+      default: OrderStatus.ACCEPTED,
+    },
+    orderType: {
+      type: String,
+      enum: Object.values(OrderType),
+      default: OrderType.DINE_IN,
+    },
+    deliveryAddress: {
+      type: String,
+      trim: true,
+    },
+    pickupTiming: {
+      type: String,
+      trim: true,
     },
     subTotal: {
       type: Number,
@@ -163,6 +182,15 @@ const OrderSchema: Schema<IOrder> = new Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    preparingAt: {
+      type: Date,
+    },
+    readyAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
     },
   },
   {

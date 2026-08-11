@@ -33,15 +33,24 @@ export enum VariantStatus {
 
 export enum OrderStatus {
   PENDING = "pending",
-  CONFIRMED = "confirmed",
+  ACCEPTED = "accepted",
   PREPARING = "preparing",
+  READY = "ready",
   DELIVERED = "delivered",
+  COMPLETED = "completed",
   CANCELLED = "cancelled",
+}
+
+export enum OrderType {
+  DINE_IN = "dine-in",
+  DELIVERY = "delivery",
+  PICKUP = "pickup",
 }
 
 export enum PaymentStatus {
   PENDING = "pending",
   PAID = "paid",
+  UNPAID = "unpaid",
   FAILED = "failed",
 }
 
