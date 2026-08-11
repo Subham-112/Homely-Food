@@ -51,6 +51,9 @@ export default function FloatingOrderButton() {
   const [guestPhone, setGuestPhone] = useState<string>("");
   const [guestName, setGuestName] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [orderType, setOrderType] = useState<"dine-in" | "delivery" | "pickup">("dine-in");
+  const [deliveryAddress, setDeliveryAddress] = useState<string>("");
+  const [pickupTiming, setPickupTiming] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -236,6 +239,14 @@ export default function FloatingOrderButton() {
       setFormError("Please select at least one item.");
       return;
     }
+    if (orderType === "delivery" && (!deliveryAddress || !deliveryAddress.trim())) {
+      setFormError("Delivery address is required for delivery orders.");
+      return;
+    }
+    if (orderType === "pickup" && (!pickupTiming || !pickupTiming.trim())) {
+      setFormError("Pickup date and time are required for pickup orders.");
+      return;
+    }
 
     const payload: CreateOrderPayload = {
       ...(selectedUserId
@@ -253,11 +264,17 @@ export default function FloatingOrderButton() {
         quantity: entry.quantity,
       })),
       notes: notes.trim(),
+      orderType,
+      deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : undefined,
+      pickupTiming: orderType === "pickup" ? new Date(pickupTiming).toISOString() : undefined,
     };
 
     setIsSubmitting(true);
     try {
       const createdOrder = await createOrder(payload);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("order-created", { detail: createdOrder }));
+      }
       setOrderSuccessNumber(createdOrder.orderNumber || "ORD-SUCCESS");
       setOrderSuccess(true);
       setIsCheckoutModalOpen(false);
@@ -266,6 +283,9 @@ export default function FloatingOrderButton() {
       setGuestPhone("");
       setGuestName("");
       setNotes("");
+      setDeliveryAddress("");
+      setPickupTiming("");
+      setOrderType("dine-in");
       setSelectedUserId(null);
     } catch (err: any) {
       setFormError(err?.message || "Failed to create order. Please try again.");
@@ -289,7 +309,7 @@ export default function FloatingOrderButton() {
       {/* Pinned Floating Order Button (Bottom Right) */}
       <button
         onClick={handleOpenItemsModal}
-        className="fixed bottom-20 sm:bottom-6 right-5 sm:right-6 z-40 bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 cursor-pointer transition-all hover:scale-105 active:scale-95 group border border-emerald-700/40"
+        className="fixed bottom-20 sm:bottom-6 right-5 sm:right-6 z-30 bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 cursor-pointer transition-all hover:scale-105 active:scale-95 group border border-emerald-700/40"
       >
         <div className="relative">
           <ShoppingBag className="w-5 h-5 group-hover:rotate-6 transition-transform" />
@@ -508,6 +528,61 @@ export default function FloatingOrderButton() {
 
             {/* Form Fields */}
             <form onSubmit={handleSubmitOrder} className="flex flex-col gap-3">
+              {/* Order Type Selection */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Order Type *
+                </label>
+                <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-xl text-xs font-bold">
+                  {(["dine-in", "delivery", "pickup"] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setOrderType(type)}
+                      className={`py-1.5 rounded-lg text-center cursor-pointer transition-all capitalize ${
+                        orderType === type
+                          ? "bg-[#0B392B] text-white shadow-xs"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {type === "dine-in" ? "normally" : type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Conditional Input Fields */}
+              {orderType === "delivery" && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Delivery Address *
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="Enter full delivery address details..."
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                  />
+                </div>
+              )}
+
+              {orderType === "pickup" && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Pickup Date & Time *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={pickupTiming}
+                    onChange={(e) => setPickupTiming(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                  />
+                </div>
+              )}
+
               {/* Phone Input with Auto-Search */}
               <div className="relative" ref={phoneContainerRef}>
                 <label className="block text-xs font-bold text-gray-700 mb-1">

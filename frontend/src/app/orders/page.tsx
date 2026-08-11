@@ -1,28 +1,102 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Clock, CheckCircle2, CookingPot, ChevronRight, RotateCcw } from "lucide-react";
+import { Clock, CheckCircle2, CookingPot, ChevronRight, RotateCcw, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import VegBadge from "@/components/VegBadge";
 import Button from "@/components/Button";
-import { useCart, Order } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { getOrders } from "@/services/orderService";
+import { formatUTCToIST } from "@/utils/datetime";
+
+export interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface Order {
+  id: string;
+  date: string;
+  time: string;
+  status: string;
+  items: OrderItem[];
+  totalAmount: number;
+  paymentMethod: string;
+  orderType: string;
+  deliveryAddress?: string;
+  pickupTiming?: string;
+}
+
+const decodeToken = (token: string) => {
+  try {
+    const payload = token.split(".")[1];
+    return JSON.parse(atob(payload));
+  } catch (err) {
+    return null;
+  }
+};
 
 export default function OrdersPage() {
   const router = useRouter();
-  const { orders } = useCart();
+  const { token } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"All" | "Active" | "Completed">("All");
 
+  useEffect(() => {
+    const fetchUserOrders = async () => {
+      if (!token) return;
+      setLoading(true);
+      try {
+        const decoded = decodeToken(token);
+        const userId = decoded?._id;
+        if (userId) {
+          const res = await getOrders({ userId });
+          const formattedOrders: Order[] = res.orders.map((ord: any) => ({
+            id: ord.orderNumber,
+            date: new Date(ord.createdAt).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" }),
+            time: new Date(ord.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            status: ord.status,
+            items: ord.items.map((item: any) => ({
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+            totalAmount: ord.totalAmount,
+            paymentMethod: ord.payment?.method || "Cash",
+            orderType: ord.orderType,
+            deliveryAddress: ord.deliveryAddress,
+            pickupTiming: ord.pickupTiming,
+          }));
+          setOrders(formattedOrders);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user orders:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUserOrders();
+  }, [token]);
+
   const filteredOrders = orders.filter((order) => {
-    if (filter === "Active") return order.status === "Accepted" || order.status === "Preparing" || order.status === "Ready";
-    if (filter === "Completed") return order.status === "Completed";
+    const isOrderActive =
+      order.status.toLowerCase() === "pending" ||
+      order.status.toLowerCase() === "accepted" ||
+      order.status.toLowerCase() === "preparing" ||
+      order.status.toLowerCase() === "ready";
+
+    if (filter === "Active") return isOrderActive;
+    if (filter === "Completed") return order.status.toLowerCase() === "completed" || order.status.toLowerCase() === "delivered";
     return true;
   });
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#FAF6ED] relative">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#FAF6ED] relative">
       {/* Fixed Top Header */}
       <Header />
 
@@ -53,7 +127,12 @@ export default function OrdersPage() {
         </div>
 
         {/* Order Cards List */}
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center text-gray-400 gap-2">
+            <Loader2 className="w-8 h-8 animate-spin text-[#0B392B]" />
+            <span className="text-xs font-semibold">Loading your orders...</span>
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-gray-100 flex flex-col items-center justify-center gap-4 shadow-sm">
             <Clock className="w-12 h-12 text-gray-400" />
             <p className="text-gray-500 font-medium text-base">No orders found.</p>
@@ -66,10 +145,12 @@ export default function OrdersPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {filteredOrders.map((order) => {
+              const statusLower = order.status.toLowerCase();
               const isActiveOrder =
-                order.status === "Accepted" ||
-                order.status === "Preparing" ||
-                order.status === "Ready";
+                statusLower === "pending" ||
+                statusLower === "accepted" ||
+                statusLower === "preparing" ||
+                statusLower === "ready";
 
               return (
                 <div
@@ -79,10 +160,15 @@ export default function OrdersPage() {
                   {/* Card Header */}
                   <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                     <div>
-                      <span className="font-extrabold text-sm sm:text-base text-[#0B251C]">
-                        {order.id}
-                      </span>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm sm:text-base text-[#0B251C]">
+                          {order.id}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
+                          {order.orderType === "dine-in" ? "normally" : order.orderType}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
                         {order.date} • {order.time}
                       </p>
                     </div>
@@ -96,11 +182,11 @@ export default function OrdersPage() {
                       }`}
                     >
                       {isActiveOrder ? (
-                        <CookingPot className="w-3.5 h-3.5" />
+                        <CookingPot className="w-3.5 h-3.5 animate-pulse" />
                       ) : (
                         <CheckCircle2 className="w-3.5 h-3.5" />
                       )}
-                      <span>{order.status}</span>
+                      <span className="capitalize">{order.status}</span>
                     </div>
                   </div>
 
@@ -123,6 +209,21 @@ export default function OrdersPage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Conditional Delivery / Pickup Info */}
+                  {order.orderType === "delivery" && order.deliveryAddress && (
+                    <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs text-gray-600 leading-relaxed">
+                      <span className="font-bold block text-gray-700 mb-0.5">Delivery Address:</span>
+                      {order.deliveryAddress}
+                    </div>
+                  )}
+
+                  {order.orderType === "pickup" && order.pickupTiming && (
+                    <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs text-gray-600">
+                      <span className="font-bold block text-gray-700 mb-0.5">Pickup Timing:</span>
+                      {formatUTCToIST(order.pickupTiming)}
+                    </div>
+                  )}
 
                   {/* Card Footer */}
                   <div className="flex items-center justify-between border-t border-gray-100 pt-3.5 mt-1">

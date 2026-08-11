@@ -1,73 +1,51 @@
 "use client";
 
-import React, { useState } from "react";
-import { Search, Download } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search, Download, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
-
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  type: "Registered" | "Guest";
-  totalOrders: number;
-  totalSpent: string;
-  avatarBg: string;
-  avatarText: string;
-}
+import { getCustomers, CustomerProfile } from "@/services/customerService";
 
 export default function AdminCustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const customers: Customer[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      phone: "+1 (555) 123-4567",
-      type: "Registered",
-      totalOrders: 24,
-      totalSpent: "$450.00",
-      avatarBg: "bg-[#0B392B]",
-      avatarText: "text-white",
-    },
-    {
-      id: "2",
-      name: "Alice Smith",
-      phone: "+1 (555) 987-6543",
-      type: "Guest",
-      totalOrders: 2,
-      totalSpent: "$35.50",
-      avatarBg: "bg-[#D8EDFC]",
-      avatarText: "text-[#0B392B]",
-    },
-    {
-      id: "3",
-      name: "Rajesh Joshi",
-      phone: "+1 (555) 456-7890",
-      type: "Registered",
-      totalOrders: 15,
-      totalSpent: "$280.00",
-      avatarBg: "bg-[#0B392B]",
-      avatarText: "text-white",
-    },
-  ];
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setLoading(true);
+        const data = await getCustomers();
+        setCustomers(data);
+      } catch (err: any) {
+        console.error("Error fetching customers:", err);
+        setError("Failed to load customers. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   const filteredCustomers = customers.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.primaryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.phone.includes(searchQuery)
   );
 
   const getInitials = (name: string) => {
+    if (!name) return "G";
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase();
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#FAF6ED] relative">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#FAF6ED] relative">
       {/* Header */}
       <Header />
 
@@ -102,65 +80,88 @@ export default function AdminCustomersPage() {
         </div>
 
         {/* Customer Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCustomers.map((customer) => (
-            <div
-              key={customer.id}
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col justify-between gap-3"
-            >
-              {/* Profile Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-11 h-11 rounded-full ${customer.avatarBg} ${customer.avatarText} flex items-center justify-center font-bold text-sm shrink-0`}
-                  >
-                    {getInitials(customer.name)}
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-sm text-[#0B251C]">
-                      {customer.name}
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">
-                      {customer.phone}
-                    </p>
-                  </div>
-                </div>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-[#0B392B]" />
+            <p className="text-xs text-gray-500 font-bold">Loading customers...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 text-red-700 text-xs font-bold text-center p-6 rounded-2xl border border-red-100 my-4">
+            {error}
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="bg-white text-center py-16 px-4 rounded-2xl border border-gray-100 flex flex-col items-center gap-2">
+            <p className="text-sm font-bold text-gray-800">No customers found</p>
+            <p className="text-xs text-gray-400">Try matching names or phone numbers.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCustomers.map((customer) => {
+              const isRegistered = customer.customerType === "registered";
+              const avatarBg = isRegistered ? "bg-[#0B392B]" : "bg-[#D8EDFC]";
+              const avatarText = isRegistered ? "text-white" : "text-[#0B392B]";
+              const displayType = isRegistered ? "Registered" : "Guest";
 
-                <span
-                  className={`px-3 py-0.5 rounded-md text-[11px] font-bold ${
-                    customer.type === "Registered"
-                      ? "bg-[#E6E4D5] text-[#595536]"
-                      : "bg-[#DDEBF5] text-[#2C4D66]"
-                  }`}
+              return (
+                <div
+                  key={customer._id}
+                  className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col justify-between gap-3"
                 >
-                  {customer.type}
-                </span>
-              </div>
+                  {/* Profile Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-11 h-11 rounded-full ${avatarBg} ${avatarText} flex items-center justify-center font-bold text-sm shrink-0`}
+                      >
+                        {getInitials(customer.primaryName)}
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-sm text-[#0B251C]">
+                          {customer.primaryName}
+                        </h3>
+                        <p className="text-xs text-gray-500 font-medium">
+                          {customer.phone}
+                        </p>
+                      </div>
+                    </div>
 
-              <div className="h-[1px] bg-gray-100 w-full" />
+                    <span
+                      className={`px-3 py-0.5 rounded-md text-[11px] font-bold ${
+                        isRegistered
+                          ? "bg-[#E6E4D5] text-[#595536]"
+                          : "bg-[#DDEBF5] text-[#2C4D66]"
+                      }`}
+                    >
+                      {displayType}
+                    </span>
+                  </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 text-center divide-x divide-gray-100">
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase block">
-                    Total Orders
-                  </span>
-                  <span className="font-extrabold text-base text-[#0B251C]">
-                    {customer.totalOrders}
-                  </span>
+                  <div className="h-[1px] bg-gray-100 w-full" />
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 text-center divide-x divide-gray-100">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase block">
+                        Total Orders
+                      </span>
+                      <span className="font-extrabold text-base text-[#0B251C]">
+                        {customer.orderCount}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase block">
+                        Total Spent
+                      </span>
+                      <span className="font-extrabold text-base text-[#0B251C]">
+                        ₹{customer.totalExpenses.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase block">
-                    Total Spent
-                  </span>
-                  <span className="font-extrabold text-base text-[#0B251C]">
-                    {customer.totalSpent}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Pinned Bottom Navigation */}

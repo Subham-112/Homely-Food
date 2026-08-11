@@ -52,6 +52,9 @@ export interface CreateOrderPayload {
   };
   notes?: string;
   discount?: number;
+  orderType?: "dine-in" | "delivery" | "pickup";
+  deliveryAddress?: string;
+  pickupTiming?: string;
 }
 
 export interface CompactMenuItemsResponse {
@@ -133,6 +136,9 @@ export interface Order {
     amount: number;
   };
   status: string;
+  orderType: "dine-in" | "delivery" | "pickup";
+  deliveryAddress?: string;
+  pickupTiming?: string;
   subTotal: number;
   discount: number;
   totalAmount: number;
@@ -155,15 +161,19 @@ export interface OrdersResponse {
 
 export const getOrders = async (params?: {
   status?: string;
+  orderType?: string;
   search?: string;
   page?: number;
   limit?: number;
+  userId?: string;
 }): Promise<OrdersResponse> => {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
+  if (params?.orderType) query.append("orderType", params.orderType);
   if (params?.search) query.append("search", params.search);
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
+  if (params?.userId) query.append("userId", params.userId);
 
   const response = await Fetch<ApiResponse<OrdersResponse>>(
     `/api/order?${query.toString()}`
@@ -173,11 +183,25 @@ export const getOrders = async (params?: {
 
 export const updateOrderStatus = async (
   orderId: string,
-  status: string
+  status: string,
+  paymentMethod?: string,
+  isPaid?: boolean
 ): Promise<Order> => {
   const response = await Patch<ApiResponse<Order>>(
     `/api/order/${orderId}/status`,
-    { status } as Record<string, unknown>
+    { status, paymentMethod, isPaid } as Record<string, unknown>
   );
+  return response.data;
+};
+
+export interface OrderStats {
+  total: number;
+  pending: number;
+  preparing: number;
+  completed: number;
+}
+
+export const getOrderStats = async (): Promise<OrderStats> => {
+  const response = await Fetch<ApiResponse<OrderStats>>("/api/order/stats");
   return response.data;
 };

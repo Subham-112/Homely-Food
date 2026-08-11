@@ -1,6 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
+import { getBackendCart, syncBackendCart, clearBackendCart } from "@/services/cartService";
+import { createOrder } from "@/services/orderService";
 
 export interface MenuItem {
   id: string;
@@ -16,6 +19,11 @@ export interface MenuItem {
 export interface CartItem {
   item: MenuItem;
   quantity: number;
+  variant?: {
+    id: string;
+    label: string;
+    price: number;
+  };
 }
 
 export interface OrderItem {
@@ -28,23 +36,30 @@ export interface Order {
   id: string;
   date: string;
   time: string;
-  status: "Accepted" | "Preparing" | "Ready" | "Completed";
+  status: "Accepted" | "Preparing" | "Ready" | "Completed" | "Pending";
   items: OrderItem[];
   totalAmount: number;
   paymentMethod: string;
+  orderType: string;
+  deliveryAddress?: string;
+  pickupTiming?: string;
 }
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (item: MenuItem) => void;
-  removeFromCart: (itemId: string) => void;
-  updateQuantity: (itemId: string, delta: number) => void;
+  addToCart: (item: MenuItem, variant?: { id: string; label: string; price: number }) => void;
+  removeFromCart: (itemId: string, variantId?: string) => void;
+  updateQuantity: (itemId: string, delta: number, variantId?: string) => void;
   clearCart: () => void;
   totalItems: number;
   totalAmount: number;
   orders: Order[];
   currentOrder: Order | null;
-  placeOrder: (guestName?: string, guestPhone?: string) => Order;
+  placeOrder: (
+    guestName?: string,
+    guestPhone?: string,
+    details?: { orderType: "dine-in" | "delivery" | "pickup"; deliveryAddress?: string; pickupTiming?: string }
+  ) => Promise<any>;
 }
 
 const initialMenuItems: MenuItem[] = [
@@ -114,109 +129,185 @@ const initialOrders: Order[] = [
     ],
     totalAmount: 350,
     paymentMethod: "Offline / Cash",
-  },
-  {
-    id: "#HF1019",
-    date: "Yesterday",
-    time: "08:15 PM",
-    status: "Completed",
-    items: [
-      { name: "Deluxe Punjabi Thali", quantity: 1, price: 220 },
-      { name: "Aloo Paratha Combo", quantity: 1, price: 90 },
-    ],
-    totalAmount: 310,
-    paymentMethod: "Offline / Cash",
-  },
-  {
-    id: "#HF1008",
-    date: "05 Aug 2026",
-    time: "01:45 PM",
-    status: "Completed",
-    items: [
-      { name: "Special Veg Thali", quantity: 2, price: 150 },
-    ],
-    totalAmount: 300,
-    paymentMethod: "Offline / Cash",
+    orderType: "dine-in",
   },
 ];
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<CartItem[]>([
-    {
-      item: initialMenuItems[4], // Special Veg Thali
-      quantity: 2,
-    },
-    {
-      item: initialMenuItems[2], // Aloo Paratha Combo
-      quantity: 1,
-    },
-  ]);
-
+  const { token } = useAuth();
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(initialOrders[0]);
 
-  const addToCart = (item: MenuItem) => {
-    setCart((prev) => {
-      const existing = prev.find((c) => c.item.id === item.id);
-      if (existing) {
-        return prev.map((c) =>
-          c.item.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
-        );
+  // Load cart from backend if authenticated
+  useEffect(() => {
+    const fetchCart = async () => {
+      if (!token) {
+        setCart([]);
+        return;
       }
-      return [...prev, { item, quantity: 1 }];
+      try {
+        const backendCart = await getBackendCart();
+        const formattedItems: CartItem[] = (backendCart.items || [])
+          .filter((item) => item.menuItem)
+          .map((item) => ({
+            item: {
+              id: item.menuItem._id,
+              name: item.menuItem.name,
+              price: item.variant ? item.variant.price : item.menuItem.price,
+              description: "",
+              image: typeof item.menuItem.image === "object" ? item.menuItem.image.url : item.menuItem.image || "",
+              category: typeof item.menuItem.category === "object" ? (item.menuItem.category as any)?.name : item.menuItem.category || "",
+            },
+            quantity: item.quantity,
+            variant: item.variant ? {
+              id: item.variant._id,
+              label: item.variant.label,
+              price: item.variant.price,
+            } : undefined,
+          }));
+        setCart(formattedItems);
+      } catch (err) {
+        console.error("Failed to fetch backend cart:", err);
+      }
+    };
+    fetchCart();
+  }, [token]);
+
+  // Helper to sync updated cart array to backend
+  const syncCartWithBackend = async (updatedCart: CartItem[]) => {
+    if (!token) return;
+    try {
+      const inputs = updatedCart.map((c) => ({
+        menuItem: c.item.id,
+        quantity: c.quantity,
+        variant: c.variant?.id,
+      }));
+      await syncBackendCart(inputs);
+    } catch (err) {
+      console.error("Failed to sync cart state with backend:", err);
+    }
+  };
+
+  const addToCart = (item: MenuItem, variant?: { id: string; label: string; price: number }) => {
+    setCart((prev) => {
+      const existingIndex = prev.findIndex(
+        (c) => c.item.id === item.id && c.variant?.id === variant?.id
+      );
+      let updated: CartItem[];
+      if (existingIndex > -1) {
+        updated = prev.map((c, idx) =>
+          idx === existingIndex ? { ...c, quantity: c.quantity + 1 } : c
+        );
+      } else {
+        updated = [...prev, { item, quantity: 1, variant }];
+      }
+      syncCartWithBackend(updated);
+      return updated;
     });
   };
 
-  const removeFromCart = (itemId: string) => {
-    setCart((prev) => prev.filter((c) => c.item.id !== itemId));
+  const removeFromCart = (itemId: string, variantId?: string) => {
+    setCart((prev) => {
+      const updated = prev.filter((c) => !(c.item.id === itemId && c.variant?.id === variantId));
+      syncCartWithBackend(updated);
+      return updated;
+    });
   };
 
-  const updateQuantity = (itemId: string, delta: number) => {
+  const updateQuantity = (itemId: string, delta: number, variantId?: string) => {
     setCart((prev) => {
-      return prev
+      const updated = prev
         .map((c) => {
-          if (c.item.id === itemId) {
+          if (c.item.id === itemId && c.variant?.id === variantId) {
             const newQty = c.quantity + delta;
             return newQty > 0 ? { ...c, quantity: newQty } : null;
           }
           return c;
         })
         .filter(Boolean) as CartItem[];
+      syncCartWithBackend(updated);
+      return updated;
     });
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = async () => {
+    setCart([]);
+    if (token) {
+      try {
+        await clearBackendCart();
+      } catch (err) {
+        console.error("Failed to clear cart on backend:", err);
+      }
+    }
+  };
 
   const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
   const totalAmount = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
 
-  const placeOrder = (): Order => {
-    const newOrderNo = "#HF" + Math.floor(1000 + Math.random() * 9000);
-    const newOrderItems = cart.length > 0 ? cart.map((c) => ({
-      name: c.item.name,
-      quantity: c.quantity,
-      price: c.item.price,
-    })) : [
-      { name: "Homestyle Rajma Chawal", quantity: 1, price: 180 },
-      { name: "Paneer Butter Masala Combo", quantity: 1, price: 170 },
-    ];
+  const placeOrder = async (
+    guestName?: string,
+    guestPhone?: string,
+    details?: { orderType: "dine-in" | "delivery" | "pickup"; deliveryAddress?: string; pickupTiming?: string }
+  ): Promise<any> => {
+    const orderType = details?.orderType || "dine-in";
+    const deliveryAddress = details?.deliveryAddress;
+    const pickupTiming = details?.pickupTiming;
 
-    const newOrder: Order = {
-      id: newOrderNo,
-      date: "Just Now",
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: "Accepted",
-      items: newOrderItems,
-      totalAmount: totalAmount > 0 ? totalAmount : 350,
-      paymentMethod: "Offline / Cash",
+    const payload = {
+      guest: {
+        name: guestName || "Guest User",
+        phone: guestPhone || "0000000000",
+      },
+      items: cart.map((c) => ({
+        menuItem: c.item.id,
+        name: c.item.name,
+        price: c.item.price,
+        quantity: c.quantity,
+        variant: c.variant ? {
+          variantId: c.variant.id,
+          label: c.variant.label,
+          price: c.variant.price,
+        } : undefined,
+      })),
+      orderType,
+      deliveryAddress,
+      pickupTiming,
+      payment: {
+        method: "cash" as any,
+        status: "pending" as any,
+      },
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
-    setCurrentOrder(newOrder);
-    setCart([]);
-    return newOrder;
+    try {
+      const createdOrder = await createOrder(payload);
+      const formattedOrder: Order = {
+        id: createdOrder.orderNumber,
+        date: "Just Now",
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        status: "Accepted",
+        items: cart.map((c) => ({
+          name: c.item.name,
+          quantity: c.quantity,
+          price: c.item.price,
+        })),
+        totalAmount: createdOrder.totalAmount,
+        paymentMethod: "Offline / Cash",
+        orderType,
+        deliveryAddress,
+        pickupTiming,
+      };
+
+      setOrders((prev) => [formattedOrder, ...prev]);
+      setCurrentOrder(formattedOrder);
+      await clearCart();
+      return createdOrder;
+    } catch (error) {
+      console.error("Failed to place order:", error);
+      throw error;
+    }
   };
 
   return (

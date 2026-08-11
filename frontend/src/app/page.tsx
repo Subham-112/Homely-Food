@@ -28,7 +28,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#FAF6ED] relative">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#FAF6ED] relative">
       {/* Fixed Top Header */}
       <Header />
 

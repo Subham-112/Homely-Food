@@ -365,7 +365,7 @@ export default function AdminMenuPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#F4F8FA] relative font-sans">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#F4F8FA] relative font-sans">
       {/* Header */}
       <Header />
 

@@ -17,14 +17,44 @@ export default function CartPage() {
 
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+  const [orderType, setOrderType] = useState<"dine-in" | "delivery" | "pickup">("dine-in");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [pickupTiming, setPickupTiming] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const handlePlaceOrder = () => {
-    placeOrder(guestName, guestPhone);
-    router.push("/order-tracking");
+  const handlePlaceOrder = async () => {
+    setFormError(null);
+    if (!guestPhone.trim()) {
+      setFormError("Mobile number is required.");
+      return;
+    }
+    if (!guestName.trim()) {
+      setFormError("Name is required.");
+      return;
+    }
+    if (orderType === "delivery" && (!deliveryAddress || !deliveryAddress.trim())) {
+      setFormError("Delivery address is required for delivery orders.");
+      return;
+    }
+    if (orderType === "pickup" && (!pickupTiming || !pickupTiming.trim())) {
+      setFormError("Pickup date & time are required for pickup orders.");
+      return;
+    }
+
+    try {
+      await placeOrder(guestName, guestPhone, {
+        orderType,
+        deliveryAddress: orderType === "delivery" ? deliveryAddress : undefined,
+        pickupTiming: orderType === "pickup" ? new Date(pickupTiming).toISOString() : undefined,
+      });
+      router.push("/order-tracking");
+    } catch (err: any) {
+      setFormError(err?.message || "Failed to place order. Please try again.");
+    }
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#FAF6ED] relative">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#FAF6ED] relative">
       {/* Fixed Top Header */}
       <Header />
 
@@ -134,6 +164,59 @@ export default function CartPage() {
                     No account required to place your order.
                   </p>
                 </div>
+
+                {formError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl font-semibold">
+                    {formError}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-gray-700">Order Type *</span>
+                  <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-xl text-xs font-bold">
+                    {(["dine-in", "delivery", "pickup"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setOrderType(type)}
+                        className={`py-1.5 rounded-lg text-center cursor-pointer transition-all capitalize ${
+                          orderType === type
+                            ? "bg-[#0B392B] text-white shadow-xs"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {type === "dine-in" ? "normally" : type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {orderType === "delivery" && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-bold text-gray-700">Delivery Address *</span>
+                    <textarea
+                      required
+                      rows={2}
+                      placeholder="Enter full delivery address details..."
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                    />
+                  </div>
+                )}
+
+                {orderType === "pickup" && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-bold text-gray-700">Pickup Date & Time *</span>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={pickupTiming}
+                      onChange={(e) => setPickupTiming(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                    />
+                  </div>
+                )}
 
                 <Input
                   label="Name"

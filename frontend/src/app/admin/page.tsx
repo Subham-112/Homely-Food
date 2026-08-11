@@ -1,41 +1,53 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { FileText, Clock, CookingPot, ChevronRight } from "lucide-react";
+import { FileText, Clock, CookingPot, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
+import AdminOrderCard from "@/components/AdminOrderCard";
+import { getOrderStats, getOrders, OrderStats, Order } from "@/services/orderService";
 
 export default function AdminHomePage() {
-  const recentOrders = [
-    {
-      id: "#ORD-092",
-      customer: "Rahul Sharma",
-      status: "PENDING",
-      statusStyle: "bg-[#FCE8E8] text-[#991B1B]",
-      items: "2x Paneer Butter Masala, 4x Butter Naan, 1x Jeera Rice",
-      price: 640,
-    },
-    {
-      id: "#ORD-091",
-      customer: "Priya Patel",
-      status: "PREPARING",
-      statusStyle: "bg-[#F5EDD6] text-[#8C6B1B]",
-      items: "1x South Indian Thali",
-      price: 220,
-    },
-    {
-      id: "#ORD-090",
-      customer: "Amit Kumar",
-      status: "READY",
-      statusStyle: "bg-[#E2EFF7] text-[#1E40AF]",
-      items: "3x Veg Biryani, 1x Raita",
-      price: 750,
-    },
-  ];
+  const [stats, setStats] = useState<OrderStats>({ total: 0, pending: 0, preparing: 0, completed: 0 });
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDashboardData = async () => {
+    try {
+      const [statsData, ordersData] = await Promise.all([
+        getOrderStats(),
+        getOrders({ page: 1, limit: 5 }),
+      ]);
+      setStats(statsData);
+      setOrders(ordersData.orders || []);
+    } catch (err) {
+      console.error("Failed to load dashboard data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+    // Refresh stats every 5 min for live dashboard updates
+    const interval = setInterval(fetchDashboardData, 500000);
+
+    const handleOrderEvents = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener("order-created", handleOrderEvents);
+    window.addEventListener("order-updated", handleOrderEvents);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("order-created", handleOrderEvents);
+      window.removeEventListener("order-updated", handleOrderEvents);
+    };
+  }, []);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#F4F8FA] relative">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#F4F8FA] relative">
       {/* Header */}
       <Header />
 
@@ -47,7 +59,7 @@ export default function AdminHomePage() {
         </h1>
 
         {/* Overview Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Card 1: Today's Orders */}
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
             <div>
@@ -55,7 +67,7 @@ export default function AdminHomePage() {
                 TODAY'S ORDERS
               </span>
               <span className="text-2xl font-extrabold text-[#0B251C] mt-0.5 block">
-                142
+                {loading ? "..." : stats.total}
               </span>
             </div>
             <div className="w-11 h-11 rounded-2xl bg-[#E2EAF0] text-[#0B392B] flex items-center justify-center shrink-0">
@@ -70,7 +82,7 @@ export default function AdminHomePage() {
                 PENDING
               </span>
               <span className="text-2xl font-extrabold text-[#C51E1E] mt-0.5 block">
-                12
+                {loading ? "..." : stats.pending}
               </span>
             </div>
             <div className="w-11 h-11 rounded-2xl bg-[#FCE8E8] text-[#C51E1E] flex items-center justify-center shrink-0">
@@ -84,20 +96,35 @@ export default function AdminHomePage() {
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
                 PREPARING
               </span>
-              <span className="text-2xl font-extrabold text-[#0B392B] mt-0.5 block">
-                8
+              <span className="text-2xl font-extrabold text-[#8C6B1B] mt-0.5 block">
+                {loading ? "..." : stats.preparing}
               </span>
             </div>
             <div className="w-11 h-11 rounded-2xl bg-[#F7EFE0] text-[#8C6B1B] flex items-center justify-center shrink-0">
               <CookingPot className="w-5 h-5" />
             </div>
           </div>
+
+          {/* Card 4: Completed */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+                COMPLETED
+              </span>
+              <span className="text-2xl font-extrabold text-[#00875A] mt-0.5 block">
+                {loading ? "..." : stats.completed}
+              </span>
+            </div>
+            <div className="w-11 h-11 rounded-2xl bg-[#EAF5EE] text-[#00875A] flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
         </div>
 
-        {/* Recent Orders Section */}
+        {/* Today's Orders Section */}
         <div className="flex flex-col gap-3 mt-1">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#0B251C]">Recent Orders</h2>
+            <h2 className="text-lg font-bold text-[#0B251C]">Today's Orders</h2>
             <Link
               href="/admin/orders"
               className="text-xs font-bold text-[#0B392B] hover:underline flex items-center gap-0.5"
@@ -106,50 +133,30 @@ export default function AdminHomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recentOrders.map((order) => (
-              <div
-                key={order.id}
-                className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col justify-between gap-3"
-              >
-                {/* Header Row */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-extrabold text-sm text-[#0B251C]">
-                      {order.id}
-                    </h3>
-                    <p className="text-xs font-semibold text-gray-600">
-                      {order.customer}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide ${order.statusStyle}`}
-                  >
-                    {order.status}
-                  </span>
-                </div>
-
-                {/* Items Summary */}
-                <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  {order.items}
-                </p>
-
-                {/* Price & Update Button */}
-                <div className="flex items-center justify-between border-t border-gray-100 pt-2.5 mt-0.5">
-                  <span className="font-extrabold text-lg text-[#0B251C]">
-                    ₹ {order.price}
-                  </span>
-                  <Link href="/admin/orders">
-                    <button className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-5 py-2 rounded-xl shadow-xs transition-colors cursor-pointer">
-                      Update
-                    </button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="py-12 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <Loader2 className="w-7 h-7 animate-spin text-[#0B392B]" />
+              <span className="text-xs font-semibold">Loading orders...</span>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-gray-100 text-gray-500 font-medium text-xs">
+              No orders placed today.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {orders.map((order) => (
+                <AdminOrderCard
+                  key={order._id}
+                  order={order}
+                  onOrderUpdated={fetchDashboardData}
+                />
+              ))}
+            </div>
+          )}
         </div>
+        
+        {/* Spacer */}
+        <div className="h-8 shrink-0" />
       </div>
 
       {/* Pinned Bottom Nav with Home Tab Active */}

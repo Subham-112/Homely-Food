@@ -12,11 +12,8 @@ import {
 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
-import {
-  getOrders,
-  updateOrderStatus,
-  Order,
-} from "@/services/orderService";
+import AdminOrderCard from "@/components/AdminOrderCard";
+import { getOrders, Order } from "@/services/orderService";
 
 type FilterKey = "all" | "pending" | "confirmed" | "preparing" | "delivered" | "cancelled";
 
@@ -29,60 +26,14 @@ const FILTERS: { label: string; value: FilterKey }[] = [
   { label: "Cancelled", value: "cancelled" },
 ];
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-[#FCE8E8] text-[#991B1B]",
-  confirmed: "bg-[#F5EDD6] text-[#8C6B1B]",
-  preparing: "bg-[#EBF5FC] text-[#1E40AF]",
-  delivered: "bg-[#EAF5EE] text-[#00875A]",
-  cancelled: "bg-gray-100 text-gray-500",
-};
-
-const NEXT_STATUS: Record<string, { label: string; value: string } | null> = {
-  pending: { label: "Accept", value: "confirmed" },
-  confirmed: { label: "Start Preparing", value: "preparing" },
-  preparing: { label: "Mark Delivered", value: "delivered" },
-  delivered: null,
-  cancelled: null,
-};
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const isToday =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-
-  const time = date.toLocaleTimeString("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-
-  if (isToday) return `Today, ${time}`;
-
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday =
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear();
-
-  if (isYesterday) return `Yesterday, ${time}`;
-
-  return `${date.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-  })}, ${time}`;
-}
-
 export default function AdminOrdersManagementPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<FilterKey>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
   const [pagination, setPagination] = useState({
@@ -93,7 +44,6 @@ export default function AdminOrdersManagementPage() {
     hasNextPage: false,
     hasPrevPage: false,
   });
-  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -110,7 +60,8 @@ export default function AdminOrdersManagementPage() {
     setError(null);
     try {
       const res = await getOrders({
-        status: selectedFilter === "all" ? undefined : selectedFilter,
+        status: selectedStatus === "all" ? undefined : selectedStatus,
+        orderType: selectedType === "all" ? undefined : selectedType,
         search: debouncedSearch || undefined,
         page,
         limit,
@@ -123,35 +74,26 @@ export default function AdminOrdersManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedFilter, debouncedSearch, page, limit]);
+  }, [selectedStatus, selectedType, debouncedSearch, page, limit]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Handle filter change
-  const handleFilterChange = (filter: FilterKey) => {
-    setSelectedFilter(filter);
-    setPage(1);
-  };
-
-  // Handle status update
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
-    setUpdatingOrderId(orderId);
-    try {
-      const updated = await updateOrderStatus(orderId, newStatus);
-      setOrders((prev) =>
-        prev.map((o) => (o._id === updated._id ? updated : o))
-      );
-    } catch (err: any) {
-      console.error("Failed to update order status:", err);
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
+  useEffect(() => {
+    const handleOrderEvents = () => {
+      fetchOrders();
+    };
+    window.addEventListener("order-created", handleOrderEvents);
+    window.addEventListener("order-updated", handleOrderEvents);
+    return () => {
+      window.removeEventListener("order-created", handleOrderEvents);
+      window.removeEventListener("order-updated", handleOrderEvents);
+    };
+  }, [fetchOrders]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#F4F8FA] relative">
+    <div className="flex flex-col h-dvh overflow-hidden bg-[#F4F8FA] relative">
       {/* Header */}
       <Header />
 
@@ -187,24 +129,49 @@ export default function AdminOrdersManagementPage() {
           )}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 shrink-0">
-          {FILTERS.map((filter) => {
-            const isSelected = selectedFilter === filter.value;
-            return (
-              <button
-                key={filter.value}
-                onClick={() => handleFilterChange(filter.value)}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  isSelected
-                    ? "bg-[#0B392B] text-white shadow-xs"
-                    : "bg-white text-gray-700 border border-gray-200 hover:border-[#0B392B]"
-                }`}
-              >
-                {filter.label}
-              </button>
-            );
-          })}
+        {/* Dropdown Filters (Order Type & Order Status) */}
+        <div className="grid grid-cols-2 gap-3 shrink-0">
+          {/* Order Type Dropdown */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              Order Type
+            </label>
+            <select
+              value={selectedType}
+              onChange={(e) => {
+                setSelectedType(e.target.value);
+                setPage(1);
+              }}
+              className="bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
+            >
+              <option value="all">All Types</option>
+              <option value="dine-in">Normally (Dine-in)</option>
+              <option value="delivery">Delivery</option>
+              <option value="pickup">Pickup</option>
+            </select>
+          </div>
+
+          {/* Order Status Dropdown */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              Order Status
+            </label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => {
+                setSelectedStatus(e.target.value);
+                setPage(1);
+              }}
+              className="bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
+            >
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="preparing">Preparing</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -239,8 +206,8 @@ export default function AdminOrdersManagementPage() {
             <p className="text-xs text-gray-500 max-w-xs">
               {debouncedSearch
                 ? `No orders matching "${debouncedSearch}".`
-                : selectedFilter !== "all"
-                ? `No ${selectedFilter} orders at the moment.`
+                : selectedStatus !== "all" || selectedType !== "all"
+                ? `No orders matching the selected filter criteria.`
                 : "No orders have been placed yet."}
             </p>
           </div>
@@ -248,99 +215,13 @@ export default function AdminOrdersManagementPage() {
           <>
             {/* Order Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {orders.map((order) => {
-                const nextAction = NEXT_STATUS[order.status];
-                const isUpdating = updatingOrderId === order._id;
-
-                return (
-                  <div
-                    key={order._id}
-                    className="bg-white rounded-2xl p-4 border border-gray-100/90 shadow-2xs flex flex-col justify-between gap-3"
-                  >
-                    {/* Header row */}
-                    <div className="flex items-start justify-between">
-                      <div className="min-w-0">
-                        <h3 className="font-extrabold text-base text-[#0B251C]">
-                          {order.orderNumber}
-                        </h3>
-                        <p className="text-xs font-semibold text-gray-600 truncate">
-                          {order.guest.name}
-                        </p>
-                        {order.guest.phone && (
-                          <p className="text-[11px] text-gray-400 font-mono">
-                            {order.guest.phone}
-                          </p>
-                        )}
-                      </div>
-
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide shrink-0 ${
-                          STATUS_STYLES[order.status] || "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {order.status}
-                      </span>
-                    </div>
-
-                    {/* Order Meta Info */}
-                    <div className="flex items-center justify-between text-xs text-gray-500 font-medium">
-                      <span className="flex items-center gap-1">
-                        🕐 {formatDate(order.createdAt)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Utensils className="w-3.5 h-3.5" />{" "}
-                        {order.items.reduce((sum, i) => sum + i.quantity, 0)} Items
-                      </span>
-                    </div>
-
-                    {/* Items Summary */}
-                    <p className="text-xs text-gray-500 font-medium leading-relaxed truncate">
-                      {order.items
-                        .map((i) => `${i.quantity}x ${i.name}`)
-                        .join(", ")}
-                    </p>
-
-                    {/* Price */}
-                    <div className="flex items-center justify-between border-t border-gray-100 pt-2">
-                      <span className="font-extrabold text-lg text-[#0B251C]">
-                        ₹{order.totalAmount}
-                      </span>
-                      {order.payment && (
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase">
-                          {order.payment.method} · {order.payment.status}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-                      {nextAction ? (
-                        <>
-                          <button className="flex-1 border border-[#0B392B] text-[#0B392B] font-bold text-xs py-2 rounded-xl hover:bg-[#0B392B]/5 transition-colors cursor-pointer">
-                            Details
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleUpdateStatus(order._id, nextAction.value)
-                            }
-                            disabled={isUpdating}
-                            className="flex-1 bg-[#0B392B] text-white font-bold text-xs py-2 rounded-xl hover:bg-[#07281E] transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                          >
-                            {isUpdating && (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            )}
-                            {nextAction.label}
-                          </button>
-                        </>
-                      ) : (
-                        <button className="w-full border border-gray-200 text-[#0B392B] font-bold text-xs py-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
-                          View Details
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {orders.map((order) => (
+                <AdminOrderCard
+                  key={order._id}
+                  order={order}
+                  onOrderUpdated={fetchOrders}
+                />
+              ))}
             </div>
 
             {/* Pagination */}
