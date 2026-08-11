@@ -7,6 +7,7 @@ const router = Router();
 
 // Public / User access to view menu items
 router.get("/", MenuItemController.getAll);
+router.get("/order-list", MenuItemController.getOrderList);
 router.get("/:id", MenuItemController.getById);
 
 // Admin-only management endpoints

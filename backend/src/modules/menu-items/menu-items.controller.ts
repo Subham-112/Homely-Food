@@ -67,6 +67,19 @@ const toggleStatusSchema = z.object({
 });
 
 export class MenuItemController {
+  static async getOrderList(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const search = req.query.search as string | undefined;
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+
+      const result = await MenuItemService.getOrderList({ search, page, limit });
+      res.status(200).json(new ApiResponse(200, result, "Order list items fetched successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const validatedData = createMenuItemSchema.parse(req.body);

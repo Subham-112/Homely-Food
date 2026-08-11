@@ -72,6 +72,52 @@ export class MenuItemService {
     };
   }
 
+  static async getOrderList(query: {
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, Math.min(100, query.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const filter: any = { status: MenuItemStatus.AVAILABLE, deleted: { $ne: true } };
+
+    if (query.search && query.search.trim()) {
+      filter.name = { $regex: query.search.trim(), $options: "i" };
+    }
+
+    const [itemsDocs, total] = await Promise.all([
+      MenuItem.find(filter)
+        .select("_id name image price")
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit),
+      MenuItem.countDocuments(filter),
+    ]);
+
+    const formattedItems = itemsDocs.map((item) => ({
+      _id: item._id,
+      name: item.name,
+      image: typeof item.image === "object" ? item.image?.url || "" : item.image || "",
+      price: item.price,
+    }));
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      items: formattedItems,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
   static async getAll(query: {
     category?: string;
     status?: MenuItemStatus;

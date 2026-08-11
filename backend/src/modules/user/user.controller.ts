@@ -112,4 +112,14 @@ export class UserController {
       next(error);
     }
   }
+
+  static async searchByPhone(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const phone = typeof req.query.phone === "string" ? req.query.phone : "";
+      const users = await UserService.searchByPhone(phone);
+      res.status(200).json(new ApiResponse(200, users, "Users fetched successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
 }

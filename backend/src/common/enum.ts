@@ -30,3 +30,24 @@ export enum VariantStatus {
   ACTIVE = "active",
   INACTIVE = "inactive",
 }
+
+export enum OrderStatus {
+  PENDING = "pending",
+  CONFIRMED = "confirmed",
+  PREPARING = "preparing",
+  DELIVERED = "delivered",
+  CANCELLED = "cancelled",
+}
+
+export enum PaymentStatus {
+  PENDING = "pending",
+  PAID = "paid",
+  FAILED = "failed",
+}
+
+export enum PaymentMethod {
+  CASH = "cash",
+  ONLINE = "online",
+  UPI = "upi",
+  CARD = "card",
+}

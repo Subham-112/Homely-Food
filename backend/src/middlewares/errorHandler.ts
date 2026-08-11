@@ -92,11 +92,17 @@ export const globalErrorHandler = (
       message = `Invalid ${error.path}: ${error.value}`;
     }
 
+    if (statusCode >= 500) {
+      message = "Something went wrong. Try again later";
+    }
+
     error = new ApiError(statusCode, message, null, error.error || error.errors || [], error.stack);
+  } else if (error.statusCode >= 500) {
+    error.message = "Something went wrong. Try again later";
   }
 
   logger.error(
-    `[${new Date().toISOString()}] Error on ${req.method} ${req.originalUrl} - Status: ${error.statusCode} - Message: ${error.message}`,
+    `[${new Date().toISOString()}] Error on ${req.method} ${req.originalUrl} - Status: ${error.statusCode} - Message: ${err.message || error.message}`,
     { stack: error.stack }
   );
 

@@ -103,4 +103,17 @@ export class UserService {
     }
     return user;
   }
+
+  static async searchByPhone(phone: string) {
+    if (!phone || !phone.trim()) return [];
+    const users = await User.find({ phone: { $regex: phone.trim(), $options: "i" } })
+      .select("_id name phone email")
+      .limit(10);
+    return users.map((u) => ({
+      _id: u._id,
+      name: u.name,
+      phone: u.phone,
+      email: u.email,
+    }));
+  }
 }
