@@ -6,7 +6,7 @@ import { uploadImage } from "../../middlewares/uploadMiddleware";
 const router = Router();
 
 // Token required for viewing category lists
-router.get("/list", authenticateToken, CategoryController.getActiveCategoryList);
+router.get("/list", CategoryController.getActiveCategoryList);
 router.get("/active", authenticateToken, CategoryController.getActiveCategories);
 router.get("/:id", authenticateToken, CategoryController.getById);
 

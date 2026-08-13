@@ -1,6 +1,5 @@
-import mongoose, { Schema } from "mongoose";
-import mongooseDelete from "mongoose-delete";
-import { ISoftDeleteDocument, ISoftDeleteModel } from "../types/softDelete";
+import mongoose, { Schema, Document } from "mongoose";
+import { CartStatus } from "../common/enum";
 
 export interface ICartItem {
   menuItem: mongoose.Types.ObjectId;
@@ -8,10 +7,20 @@ export interface ICartItem {
   variant?: mongoose.Types.ObjectId;
 }
 
-export interface ICart extends ISoftDeleteDocument {
+export interface ICartTotal {
+  subTotal: number;
+  discount: number;
+  totalAmount: number;
+  offer?: mongoose.Types.ObjectId;
+  offerCode?: string;
+}
+
+export interface ICart extends Document {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
   items: ICartItem[];
+  total: ICartTotal;
+  status: CartStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,17 +46,56 @@ const CartItemSchema = new Schema<ICartItem>(
   { _id: false }
 );
 
+const CartTotalSchema = new Schema<ICartTotal>(
+  {
+    subTotal: {
+      type: Number,
+      default: 0,
+    },
+    discount: {
+      type: Number,
+      default: 0,
+    },
+    totalAmount: {
+      type: Number,
+      default: 0,
+    },
+    offer: {
+      type: Schema.Types.ObjectId,
+      ref: "Offer",
+    },
+    offerCode: {
+      type: String,
+      uppercase: true,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
 const CartSchema: Schema<ICart> = new Schema(
   {
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
     },
     items: {
       type: [CartItemSchema],
       default: [],
+    },
+    total: {
+      type: CartTotalSchema,
+      default: () => ({
+        subTotal: 0,
+        discount: 0,
+        totalAmount: 0,
+      }),
+    },
+    status: {
+      type: String,
+      enum: Object.values(CartStatus),
+      default: CartStatus.ACTIVE,
     },
   },
   {
@@ -55,9 +103,12 @@ const CartSchema: Schema<ICart> = new Schema(
   }
 );
 
-CartSchema.plugin(mongooseDelete, { overrideMethods: "all", deletedAt: true, deletedBy: true });
+// Indexes
+CartSchema.index({ user: 1, status: 1 });
 
-export const Cart: ISoftDeleteModel<ICart> =
-  (mongoose.models.Cart as any) ||
-  mongoose.model<ICart, ISoftDeleteModel<ICart>>("Cart", CartSchema);
+export const Cart = (mongoose.models.Cart as mongoose.Model<ICart>) || mongoose.model<ICart>("Cart", CartSchema);
+
+// Safely drop obsolete single-field unique index 'user_1' from MongoDB if it exists
+Cart.collection.dropIndex("user_1").catch(() => {});
+
 export default Cart;

@@ -78,3 +78,8 @@ export enum OrderFor {
   REGISTERED_USER = "registered_user",
   GUEST = "guest",
 }
+
+export enum CartStatus {
+  ACTIVE = "active",
+  COMPLETED = "completed"
+}

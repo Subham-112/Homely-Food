@@ -5,7 +5,6 @@ import winston from "winston";
 import { config } from "../config/config";
 import User from "../models/user.model";
 import Admin from "../models/admin.model";
-import Order from "../models/order.model";
 
 let io: Server | null = null;
 
@@ -168,6 +167,7 @@ export const emitOrderStatusUpdate = (orderData: any) => {
       io.to(`order_${orderData._id}`).emit("order:status_updated", orderData);
     }
     io.to("admin_room").emit("order:status_updated", orderData);
+    io.emit("order:status_updated", orderData);
     logger.info(`📢 Emitted 'order:status_updated' for order #${orderId} (Status: ${orderData.status})`);
   }
 };

@@ -234,7 +234,22 @@ export class OrderService {
     }
 
     const [orders, total] = await Promise.all([
-      Order.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Order.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: "items.menuItem",
+          select: "_id name price image",
+        })
+        .populate({
+          path: "items.variant.variantId",
+          select: "_id label price",
+        })
+        .populate({
+          path: "offer",
+          select: "_id title code offerType discountPercentage flatDiscountAmount",
+        }),
       Order.countDocuments(filter),
     ]);
 
@@ -253,7 +268,7 @@ export class OrderService {
     };
   }
 
-  static async getMyOrders(userId: string) {
+  static async getMyOrders(userId: string, status?: string) {
     const user = await User.findById(userId);
     const filter: any = { deleted: { $ne: true } };
 
@@ -263,13 +278,54 @@ export class OrderService {
       filter.user = userId;
     }
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    if (status && status.trim() !== "" && status.toLowerCase() !== "all") {
+      const s = status.toLowerCase().trim();
+      if (s === "active") {
+        filter.status = { $in: ["pending", "accepted", "preparing"] };
+      } else if (s === "ready") {
+        filter.status = "ready";
+      } else if (s === "completed") {
+        filter.status = { $in: ["completed", "delivered", "cancelled"] };
+      } else {
+        filter.status = s;
+      }
+    }
+
+    const orders = await Order.find(filter)
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "items.menuItem",
+        select: "_id name price image",
+      })
+      .populate({
+        path: "items.variant.variantId",
+        select: "_id label price",
+      })
+      .populate({
+        path: "offer",
+        select: "_id title code offerType discountPercentage flatDiscountAmount",
+      });
     return orders;
   }
 
   static async getById(id: string) {
-    const objectId = new Types.ObjectId(id);
-    const order = await Order.findById(objectId).populate("user", "name phone email");
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+    const filter = isObjectId ? { $or: [{ _id: id }, { orderNumber: id }] } : { orderNumber: id };
+    const order = await Order.findOne(filter)
+      .populate("user", "name phone email")
+      .populate({
+        path: "items.menuItem",
+        select: "_id name price image",
+      })
+      .populate({
+        path: "items.variant.variantId",
+        select: "_id label price",
+      })
+      .populate({
+        path: "offer",
+        select: "_id title code offerType discountPercentage flatDiscountAmount",
+      });
+
     if (!order) {
       throw new ApiError(404, "Order not found");
     }

@@ -5,10 +5,10 @@ import { uploadImage } from "../../middlewares/uploadMiddleware";
 
 const router = Router();
 
-// Token required to view menu items
-router.get("/", authenticateToken, MenuItemController.getAll);
+// Public routes - no auth required to browse menu
+router.get("/", MenuItemController.getAll);
 router.get("/order-list", authenticateToken, MenuItemController.getOrderList);
-router.get("/:id", authenticateToken, MenuItemController.getById);
+router.get("/:id", MenuItemController.getById);
 
 // Admin-only management endpoints
 router.post("/", ...adminAccess, uploadImage({ folder: "menu-items", multiple: false }), MenuItemController.create);

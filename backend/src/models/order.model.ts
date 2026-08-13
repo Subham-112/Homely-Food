@@ -5,7 +5,6 @@ import { ISoftDeleteDocument, ISoftDeleteModel } from "../types/softDelete";
 
 export interface IOrderItem {
   menuItem: mongoose.Types.ObjectId;
-  name: string;
   price: number;
   quantity: number;
   variant?: {
@@ -44,6 +43,8 @@ export interface IOrder extends ISoftDeleteDocument {
   subTotal: number;
   discount?: number;
   totalAmount: number;
+  offer?: mongoose.Types.ObjectId;
+  offerCode?: string;
   notes?: string;
   preparingAt?: Date;
   readyAt?: Date;
@@ -58,11 +59,6 @@ const OrderItemSchema = new Schema<IOrderItem>(
       type: Schema.Types.ObjectId,
       ref: "MenuItem",
       required: true,
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
     },
     price: {
       type: Number,
@@ -189,6 +185,15 @@ const OrderSchema: Schema<IOrder> = new Schema(
     totalAmount: {
       type: Number,
       required: true,
+    },
+    offer: {
+      type: Schema.Types.ObjectId,
+      ref: "Offer",
+    },
+    offerCode: {
+      type: String,
+      uppercase: true,
+      trim: true,
     },
     notes: {
       type: String,

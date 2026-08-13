@@ -110,7 +110,8 @@ export class OrderController {
       if (!req.user || !req.user._id) {
         throw new ApiError(401, "Unauthorized. User ID missing.");
       }
-      const orders = await OrderService.getMyOrders(req.user._id);
+      const status = req.query.status as string | undefined;
+      const orders = await OrderService.getMyOrders(req.user._id, status);
       res.status(200).json(new ApiResponse(200, orders, "User orders fetched successfully"));
     } catch (error) {
       next(error);
