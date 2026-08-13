@@ -14,6 +14,7 @@ import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import AdminOrderCard from "@/components/AdminOrderCard";
 import { getOrders, Order } from "@/services/orderService";
+import { useSocket } from "@/context/SocketContext";
 
 type FilterKey = "all" | "pending" | "confirmed" | "preparing" | "delivered" | "cancelled";
 
@@ -27,6 +28,7 @@ const FILTERS: { label: string; value: FilterKey }[] = [
 ];
 
 export default function AdminOrdersManagementPage() {
+  const { socket, joinAdminRoom } = useSocket();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export default function AdminOrdersManagementPage() {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
+  const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -44,6 +47,34 @@ export default function AdminOrdersManagementPage() {
     hasNextPage: false,
     hasPrevPage: false,
   });
+
+  // Socket Real-Time Listener
+  useEffect(() => {
+    joinAdminRoom();
+
+    if (!socket) return;
+
+    const handleNewOrder = (newOrder: any) => {
+      console.log("📢 Real-Time Socket Event in Admin (new order):", newOrder);
+      setNewOrderAlert(`🔔 NEW ORDER: #${newOrder.orderNumber} - ₹${newOrder.totalAmount}`);
+      setOrders((prev) => [newOrder, ...prev.filter((o) => o._id !== newOrder._id)]);
+    };
+
+    const handleStatusUpdate = (updatedOrder: any) => {
+      console.log("📢 Real-Time Socket Event in Admin (status update):", updatedOrder);
+      setOrders((prev) =>
+        prev.map((o) => (o._id === updatedOrder._id ? { ...o, ...updatedOrder } : o))
+      );
+    };
+
+    socket.on("order:new", handleNewOrder);
+    socket.on("order:status_updated", handleStatusUpdate);
+
+    return () => {
+      socket.off("order:new", handleNewOrder);
+      socket.off("order:status_updated", handleStatusUpdate);
+    };
+  }, [socket]);
 
   // Debounce search
   useEffect(() => {
@@ -99,14 +130,33 @@ export default function AdminOrdersManagementPage() {
 
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-4 pb-36">
-        {/* Title */}
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C]">
-            Orders
-          </h1>
-          <p className="text-xs text-gray-500 font-medium">
-            Manage and track all incoming orders
-          </p>
+        {/* Title & Real-Time Alert Banner */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C]">
+                Orders
+              </h1>
+              <p className="text-xs text-gray-500 font-medium">
+                Manage and track all incoming orders
+              </p>
+            </div>
+            <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live Sockets Active
+            </span>
+          </div>
+
+          {newOrderAlert && (
+            <div className="bg-[#0B392B] text-white p-3.5 rounded-2xl shadow-lg border border-emerald-400/40 flex items-center justify-between animate-bounce">
+              <span className="font-extrabold text-xs sm:text-sm">{newOrderAlert}</span>
+              <button
+                onClick={() => setNewOrderAlert(null)}
+                className="text-xs font-bold bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded-lg cursor-pointer ml-2"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search Bar */}

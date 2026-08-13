@@ -1,66 +1,38 @@
 "use client";
 
-import React, { useState } from "react";
-import { Search, Plus, Copy, Calendar, Clock, Edit2, Trash2, Check, Tag, RefreshCw } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { Search, Plus, Copy, Calendar, Edit2, Trash2, Check, Tag, RefreshCw, Power, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
-
-interface Offer {
-  id: string;
-  title: string;
-  subtitle: string;
-  code: string;
-  startDate: string;
-  endDate: string;
-}
+import { getOffers, deleteOffer, repostOffer, toggleOfferActive, Offer } from "@/services/offerService";
 
 export default function AdminOffersPage() {
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"active" | "expired">("active");
 
-  const [offers, setOffers] = useState<Offer[]>([
-    {
-      id: "1",
-      title: "Welcome New Guest",
-      subtitle: "Get 20% off on your first order",
-      code: "WELCOME20",
-      startDate: "2026-08-01",
-      endDate: "2026-12-31",
-    },
-    {
-      id: "2",
-      title: "Independence Day Special",
-      subtitle: "Save flat ₹100 on orders above ₹500",
-      code: "FREEDOM100",
-      startDate: "2026-08-10",
-      endDate: "2026-08-20",
-    },
-    {
-      id: "3",
-      title: "Summer Cooler Discount",
-      subtitle: "Free cold beverage on orders above ₹300",
-      code: "BEATHEAT",
-      startDate: "2026-05-01",
-      endDate: "2026-07-31",
-    },
-    {
-      id: "4",
-      title: "Monsoon Feast Sale",
-      subtitle: "Flat 15% discount on all hot items",
-      code: "MONSOON15",
-      startDate: "2026-06-01",
-      endDate: "2026-08-05",
-    },
-    {
-      id: "5",
-      title: "Late Night Cravings",
-      subtitle: "Free delivery from 10 PM to 2 AM",
-      code: "MIDNIGHTFEAST",
-      startDate: "2026-01-01",
-      endDate: "2026-12-31",
-    },
-  ]);
+  const fetchOffersList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getOffers({
+        search: searchQuery,
+        type: activeTab === "active" ? "active" : "others",
+      });
+      setOffers(data);
+    } catch (err) {
+      console.error("Failed to fetch offers:", err);
+      setOffers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, activeTab]);
+
+  useEffect(() => {
+    fetchOffersList();
+  }, [fetchOffersList]);
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -68,49 +40,56 @@ export default function AdminOffersPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const handleDeleteOffer = (id: string) => {
-    setOffers((prev) => prev.filter((o) => o.id !== id));
-  };
-
-  const handleRepostOffer = (id: string) => {
-    setOffers((prev) =>
-      prev.map((o) => {
-        if (o.id === id) {
-          const newStart = new Date();
-          const newEnd = new Date();
-          newEnd.setDate(newStart.getDate() + 30);
-
-          return {
-            ...o,
-            startDate: newStart.toISOString().split("T")[0],
-            endDate: newEnd.toISOString().split("T")[0],
-          };
-        }
-        return o;
-      })
-    );
-    alert("Offer reposted successfully!");
-  };
-
-  const now = new Date();
-
-  // Filter based on active vs expired dates
-  const filteredOffers = offers.filter((o) => {
-    const matchesSearch =
-      o.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.code.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (!matchesSearch) return false;
-
-    const start = new Date(o.startDate);
-    const end = new Date(o.endDate);
-
-    if (activeTab === "active") {
-      return now >= start && now <= end;
-    } else {
-      return now > end;
+  const handleDeleteOffer = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this offer?")) return;
+    try {
+      await deleteOffer(id);
+      await fetchOffersList();
+    } catch (err: any) {
+      alert(err?.message || "Failed to delete offer.");
     }
-  });
+  };
+
+  const handleToggleActive = async (id: string) => {
+    try {
+      await toggleOfferActive(id);
+      await fetchOffersList();
+    } catch (err: any) {
+      alert(err?.message || "Failed to update offer active state.");
+    }
+  };
+
+  const handleRepostOffer = async (id: string) => {
+    try {
+      await repostOffer(id);
+      alert("Offer reposted successfully! Validity extended by 30 days.");
+      await fetchOffersList();
+    } catch (err: any) {
+      alert(err?.message || "Failed to repost offer.");
+    }
+  };
+
+  const getSubtitle = (o: Offer) => {
+    if (o.offerType === "BOGO") {
+      const buyName = o.buyItem?.name || "Item";
+      const freeName = o.freeItem?.name || "Item";
+      return `Buy ${o.buyQuantity || 1} ${buyName}, Get ${o.freeQuantity || 1} ${freeName} FREE!`;
+    } else if (o.offerType === "PERCENTAGE") {
+      return `Get ${o.discountPercentage}% OFF on orders above ₹${o.minCartValue} (Max ₹${o.maxDiscountAmount} off)`;
+    } else {
+      return `Flat ₹${o.flatDiscountAmount} OFF on orders above ₹${o.minCartValue} (Max ₹${o.maxDiscountAmount} off)`;
+    }
+  };
+
+  const formatDateStr = (dateStr: string) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   return (
     <div className="flex flex-col h-dvh overflow-hidden bg-[#F4F8FA] relative">
@@ -118,7 +97,7 @@ export default function AdminOffersPage() {
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 flex flex-col gap-4 pb-32">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 flex flex-col gap-4 pb-32 max-w-4xl mx-auto w-full">
         {/* Title Row */}
         <div className="flex items-center justify-between">
           <div>
@@ -130,9 +109,12 @@ export default function AdminOffersPage() {
             </p>
           </div>
 
-          <button className="bg-[#0B392B] hover:bg-[#07281E] text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer">
+          <Link
+            href="/admin/offers/create"
+            className="bg-[#0B392B] hover:bg-[#07281E] text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+          >
             <Plus className="w-4 h-4" /> New Offer
-          </button>
+          </Link>
         </div>
 
         {/* Search Bar */}
@@ -157,7 +139,7 @@ export default function AdminOffersPage() {
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            Active
+            Active Offers
           </button>
           <button
             onClick={() => setActiveTab("expired")}
@@ -167,57 +149,70 @@ export default function AdminOffersPage() {
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            Expired
+            Expired / Inactive
           </button>
         </div>
 
         {/* Offer Cards List */}
-        <div className="flex flex-col gap-3.5">
-          {filteredOffers.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center flex flex-col items-center gap-3 my-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0B392B] flex items-center justify-center">
-                <Tag className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-gray-800 text-sm">No offers found</h3>
-              <p className="text-xs text-gray-500 max-w-xs">
-                No {activeTab} offers match your query at the moment.
-              </p>
+        {loading ? (
+          <div className="py-16 flex flex-col items-center justify-center text-gray-400 gap-2">
+            <Loader2 className="w-7 h-7 animate-spin text-[#0B392B]" />
+            <span className="text-xs font-semibold">Loading offers...</span>
+          </div>
+        ) : offers.length === 0 ? (
+          <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center flex flex-col items-center gap-3 my-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#0B392B] flex items-center justify-center">
+              <Tag className="w-6 h-6" />
             </div>
-          ) : (
-            filteredOffers.map((offer) => (
+            <h3 className="font-bold text-gray-800 text-sm">No offers found</h3>
+            <p className="text-xs text-gray-500 max-w-xs">
+              No {activeTab} offers match your query at the moment.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {offers.map((offer) => (
               <div
-                key={offer.id}
-                className={`rounded-2xl p-4 border flex flex-col gap-3 relative overflow-hidden transition-all ${
-                  activeTab === "expired"
-                    ? "bg-white/90 border-gray-200 opacity-60 saturate-50 shadow-none"
+                key={offer._id}
+                className={`rounded-2xl p-4 border flex flex-col justify-between gap-3 relative overflow-hidden transition-all ${
+                  activeTab === "expired" || offer.status === "expired" || !offer.isActive
+                    ? "bg-white/90 border-gray-200 opacity-70 saturate-50 shadow-none"
                     : "bg-white border-[#E1ECEE] shadow-2xs hover:shadow-xs"
                 }`}
               >
-                {/* Header row */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-extrabold text-base text-[#0B251C]">
-                      {offer.title}
-                    </h3>
-                    <p className="text-xs text-gray-500 font-medium">
-                      {offer.subtitle}
-                    </p>
+                {/* Header row with thumbnail */}
+                <div className="flex items-start gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-100 relative">
+                    <img src={offer.image} alt={offer.title} className="w-full h-full object-cover" />
                   </div>
 
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
-                      activeTab === "active"
-                        ? "bg-[#EAF5EE] text-[#00875A] border border-green-200/50"
-                        : "bg-gray-100 text-gray-500 border border-gray-200/50"
-                    }`}
-                  >
-                    {activeTab}
-                  </span>
+                  <div className="flex-1 flex flex-col gap-0.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-extrabold text-sm text-[#0B251C] truncate">
+                        {offer.title}
+                      </h3>
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider shrink-0 border ${
+                          offer.offerType === "BOGO"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : offer.offerType === "PERCENTAGE"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-orange-50 text-orange-700 border-orange-200"
+                        }`}
+                      >
+                        {offer.offerType}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-gray-500 font-medium leading-snug line-clamp-2">
+                      {getSubtitle(offer)}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Code Banner */}
                 <div
-                  className={`rounded-xl p-3 flex items-center justify-between border ${
+                  className={`rounded-xl p-2.5 flex items-center justify-between border ${
                     activeTab === "expired"
                       ? "bg-gray-200/50 border-gray-250 text-gray-500"
                       : "bg-[#EBF5FC] border-[#D4E8F8]"
@@ -243,63 +238,78 @@ export default function AdminOffersPage() {
                   </button>
                 </div>
 
-                {/* Dates */}
-                <div className="flex flex-col gap-1 text-[11px] text-gray-500 font-semibold bg-gray-50 p-2.5 rounded-xl border border-gray-100/80">
-                  <div className="flex items-center gap-1.5">
+                {/* Dates & Status */}
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-semibold bg-gray-50 p-2 rounded-xl border border-gray-100/80">
+                  <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-gray-400" />
                     <span>
-                      <strong className="text-gray-600 font-bold">Starts:</strong>{" "}
-                      {new Date(offer.startDate).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {formatDateStr(offer.startDate)} - {formatDateStr(offer.endDate)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-gray-400" />
-                    <span>
-                      <strong className="text-gray-600 font-bold">Ends:</strong>{" "}
-                      {new Date(offer.endDate).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
+                  <span
+                    className={`font-bold capitalize ${
+                      offer.status === "expired"
+                        ? "text-red-500"
+                        : offer.status === "inactive"
+                        ? "text-gray-500"
+                        : "text-emerald-700"
+                    }`}
+                  >
+                    ● {offer.status || (offer.isActive ? "active" : "inactive")}
+                  </span>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center justify-around border-t border-gray-100 pt-3 mt-1 text-xs font-bold">
-                  {activeTab === "expired" ? (
+                <div className="flex items-center justify-between border-t border-gray-100 pt-2.5 mt-0.5">
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => handleRepostOffer(offer.id)}
-                      className="flex items-center gap-1.5 text-[#0B392B] hover:underline cursor-pointer"
+                      onClick={() => handleToggleActive(offer._id)}
+                      className={`p-1.5 rounded-lg border text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                        offer.isActive
+                          ? "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                      }`}
+                      title="Toggle Active/Inactive"
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      <span>{offer.isActive ? "Deactivate" : "Activate"}</span>
+                    </button>
+                  </div>
+
+                  {activeTab === "active" ? (
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        href={`/admin/offers/create?id=${offer._id}`}
+                        className="p-1.5 text-gray-600 hover:text-[#0B392B] hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+                        title="Edit Offer"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteOffer(offer._id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                        title="Delete Offer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    /* Repost Action for Expired Offers */
+                    <button
+                      onClick={() => handleRepostOffer(offer._id)}
+                      className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-2xs flex items-center gap-1 cursor-pointer transition-colors"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Repost Offer
                     </button>
-                  ) : (
-                    <>
-                      <button className="flex items-center gap-1 text-[#0B392B] hover:underline cursor-pointer">
-                        <Edit2 className="w-3.5 h-3.5" /> Edit
-                      </button>
-                      <div className="w-[1px] h-4 bg-gray-200" />
-                      <button
-                        onClick={() => handleDeleteOffer(offer.id)}
-                        className="flex items-center gap-1 text-[#C51E1E] hover:underline cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                      </button>
-                    </>
                   )}
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Pinned Bottom Navigation */}
+      {/* Pinned Bottom Nav */}
       <AdminBottomNav />
     </div>
   );

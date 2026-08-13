@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Download, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import { getCustomers, CustomerProfile } from "@/services/customerService";
@@ -61,10 +61,6 @@ export default function AdminCustomersPage() {
               Manage and view your customer base.
             </p>
           </div>
-
-          <button className="border-2 border-[#0B392B] text-[#0B392B] hover:bg-[#0B392B]/5 font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer">
-            <Download className="w-4 h-4" /> Export
-          </button>
         </div>
 
         {/* Search Bar */}

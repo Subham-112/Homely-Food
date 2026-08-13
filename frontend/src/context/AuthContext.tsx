@@ -2,18 +2,35 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { TokenStorage, Post } from "@/utils/api";
+import { TokenStorage, Fetch, Post } from "@/utils/api";
+
+export interface UserProfile {
+  _id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  status?: string;
+}
+
+export interface AdminProfile {
+  _id: string;
+  name: string;
+  email: string;
+}
 
 interface AuthContextType {
   token: string | null;
   adminToken: string | null;
+  user: UserProfile | null;
+  adminProfile: AdminProfile | null;
   isAuthenticated: boolean;
   isAdminAuthenticated: boolean;
-  login: (token: string) => void;
-  signup: (token: string) => void;
+  login: (token: string, userData?: UserProfile) => void;
+  signup: (token: string, userData?: UserProfile) => void;
   logout: () => Promise<void>;
-  adminLogin: (token: string) => void;
+  adminLogin: (token: string, adminData?: AdminProfile) => void;
   adminLogout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,18 +38,47 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
+
   const router = useRouter();
   const pathname = usePathname();
 
+  const fetchProfiles = async (uToken: string | null, aToken: string | null) => {
+    if (uToken) {
+      try {
+        const res = await Fetch<{ success: boolean; data: UserProfile }>("/api/user/profile");
+        if (res.success && res.data) {
+          setUser(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch current user profile:", err);
+      }
+    } else {
+      setUser(null);
+    }
+
+    if (aToken) {
+      try {
+        const res = await Fetch<{ success: boolean; data: AdminProfile }>("/api/admin/profile");
+        if (res.success && res.data) {
+          setAdminProfile(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch current admin profile:", err);
+      }
+    } else {
+      setAdminProfile(null);
+    }
+  };
+
   useEffect(() => {
-    // Read tokens from localStorage
     const storedUserToken = TokenStorage.getToken();
     const storedAdminToken = TokenStorage.getAdminToken();
 
+
     setToken(storedUserToken);
     setAdminToken(storedAdminToken);
-    setIsInitialized(true);
 
     // Sync cookies for server-side middleware
     if (storedUserToken) {
@@ -42,84 +88,112 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.cookie = `admin_access=${storedAdminToken}; path=/;`;
     }
 
-    // Check localStorage tokens
+    // Fetch profile data based on tokens present
+    fetchProfiles(storedUserToken, storedAdminToken);
+
     const hasUserAccess = !!storedUserToken;
     const hasAdminAccess = !!storedAdminToken;
-    const isPublicUserRoute = pathname === "/login" || pathname === "/signup";
+    const isUserLoginSignup = pathname === "/login" || pathname === "/signup";
     const isAdminLoginRoute = pathname === "/admin/login";
     const isAdminRoute = pathname.startsWith("/admin");
+    const isProtectedUserRoute = pathname === "/orders" || pathname.startsWith("/profile");
 
-    if (!hasUserAccess && !hasAdminAccess) {
-      // No tokens in localStorage -> Navigate to /login (unless already on /login, /signup, or /admin/login)
-      if (!isPublicUserRoute && !isAdminLoginRoute) {
-        router.replace("/login");
-      }
-    } else if (hasAdminAccess && isPublicUserRoute) {
-      // Admin is logged in but tries to open user /login or /signup -> Redirect to /admin
-      router.replace("/admin");
-    } else if (isAdminRoute) {
-      if (!hasAdminAccess && !isAdminLoginRoute) {
-        router.replace("/admin/login");
-      } else if (hasAdminAccess && isAdminLoginRoute) {
+    // Strict Routing Guards
+    if (hasAdminAccess) {
+      // Admin session active:
+      // Admin MUST NOT access ANY user panel routes (/, /cart, /orders, /profile, /login, /signup, etc.)
+      // If pathname does NOT start with /admin OR is /admin/login -> redirect to /admin immediately
+      if (!isAdminRoute || isAdminLoginRoute) {
         router.replace("/admin");
       }
-    } else {
-      if (!hasUserAccess && !isPublicUserRoute) {
-        router.replace("/login");
-      } else if (hasUserAccess && isPublicUserRoute) {
+    } else if (hasUserAccess) {
+      // User session active:
+      // User MUST NOT access ANY admin routes (/admin/*) or auth routes (/login, /signup)
+      if (isAdminRoute || isUserLoginSignup) {
         router.replace("/");
+      }
+    } else {
+      // Unauthenticated visitor (no token in localStorage):
+      // Mandatory login/register requirement
+      if (isAdminRoute && !isAdminLoginRoute) {
+        router.replace("/admin/login");
+      } else if (!isUserLoginSignup && !isAdminLoginRoute) {
+        router.replace("/login");
       }
     }
   }, [pathname, router]);
 
-  const login = (newToken: string) => {
+  const login = (newToken: string, userData?: UserProfile) => {
+    // Clear stale admin session to maintain single active role
+    TokenStorage.removeAdminToken();
+    setAdminToken(null);
+    setAdminProfile(null);
+    document.cookie = "admin_access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+
     TokenStorage.setToken(newToken);
     setToken(newToken);
+    if (userData) setUser(userData);
+    fetchProfiles(newToken, null);
     router.replace("/");
   };
 
-  const signup = (newToken: string) => {
+  const signup = (newToken: string, userData?: UserProfile) => {
+    TokenStorage.removeAdminToken();
+    setAdminToken(null);
+    setAdminProfile(null);
+    document.cookie = "admin_access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+
     TokenStorage.setToken(newToken);
     setToken(newToken);
+    if (userData) setUser(userData);
+    fetchProfiles(newToken, null);
     router.replace("/");
   };
 
   const logout = async () => {
     try {
       await Post("/api/user/logout", {});
-      TokenStorage.removeToken();
-      setToken(null);
-      router.replace("/login");
     } catch (error: any) {
       console.error("User logout API error:", error);
-      if (error?.status === 401) {
-        TokenStorage.removeToken();
-        setToken(null);
-        router.replace("/login");
-      }
+    } finally {
+      TokenStorage.removeToken();
+      setToken(null);
+      setUser(null);
+      document.cookie = "user_access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      router.replace("/login");
     }
   };
 
-  const adminLogin = (newToken: string) => {
+  const adminLogin = (newToken: string, adminData?: AdminProfile) => {
+    // Clear stale user session to maintain single active role
+    TokenStorage.removeToken();
+    setToken(null);
+    setUser(null);
+    document.cookie = "user_access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+
     TokenStorage.setAdminToken(newToken);
     setAdminToken(newToken);
+    if (adminData) setAdminProfile(adminData);
+    fetchProfiles(null, newToken);
     router.replace("/admin");
   };
 
   const adminLogout = async () => {
     try {
       await Post("/api/admin/logout", {});
-      TokenStorage.removeAdminToken();
-      setAdminToken(null);
-      router.replace("/admin/login");
     } catch (error: any) {
       console.error("Admin logout API error:", error);
-      if (error?.status === 401) {
-        TokenStorage.removeAdminToken();
-        setAdminToken(null);
-        router.replace("/admin/login");
-      }
+    } finally {
+      TokenStorage.removeAdminToken();
+      setAdminToken(null);
+      setAdminProfile(null);
+      document.cookie = "admin_access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      router.replace("/admin/login");
     }
+  };
+
+  const refreshProfile = async () => {
+    await fetchProfiles(token, adminToken);
   };
 
   return (
@@ -127,6 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         token,
         adminToken,
+        user,
+        adminProfile,
         isAuthenticated: !!token,
         isAdminAuthenticated: !!adminToken,
         login,
@@ -134,6 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         adminLogin,
         adminLogout,
+        refreshProfile,
       }}
     >
       {children}

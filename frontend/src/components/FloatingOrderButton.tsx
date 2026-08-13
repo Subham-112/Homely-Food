@@ -231,7 +231,7 @@ export default function FloatingOrderButton() {
       setFormError("Guest mobile number is required.");
       return;
     }
-    if (!selectedUserId && !guestName.trim()) {
+    if (!guestName.trim()) {
       setFormError("Guest name is required.");
       return;
     }
@@ -249,14 +249,11 @@ export default function FloatingOrderButton() {
     }
 
     const payload: CreateOrderPayload = {
-      ...(selectedUserId
-        ? { userId: selectedUserId }
-        : {
-            guest: {
-              name: guestName.trim(),
-              phone: guestPhone.trim(),
-            },
-          }),
+      ...(selectedUserId ? { userId: selectedUserId } : {}),
+      guest: {
+        name: guestName.trim(),
+        phone: guestPhone.trim(),
+      },
       items: cartEntries.map((entry) => ({
         menuItem: entry.item._id,
         name: entry.item.name,

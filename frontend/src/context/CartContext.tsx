@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { getBackendCart, syncBackendCart, clearBackendCart } from "@/services/cartService";
 import { createOrder } from "@/services/orderService";
+import { Offer } from "@/services/offerService";
 
 export interface MenuItem {
   id: string;
@@ -14,6 +15,10 @@ export interface MenuItem {
   isSpecial?: boolean;
   tag?: string;
   category: string;
+  preparationTime?: number;
+  tags?: string[];
+  allergens?: string[];
+  status?: string;
 }
 
 export interface CartItem {
@@ -47,14 +52,21 @@ export interface Order {
 
 interface CartContextType {
   cart: CartItem[];
+  isCartLoading: boolean;
   addToCart: (item: MenuItem, variant?: { id: string; label: string; price: number }) => void;
   removeFromCart: (itemId: string, variantId?: string) => void;
   updateQuantity: (itemId: string, delta: number, variantId?: string) => void;
   clearCart: () => void;
   totalItems: number;
   totalAmount: number;
+  appliedOffer: Offer | null;
+  discountAmount: number;
+  finalAmount: number;
+  applyOffer: (offer: Offer) => { success: boolean; message: string };
+  removeOffer: () => void;
   orders: Order[];
   currentOrder: Order | null;
+  setCurrentOrder: (order: Order | null) => void;
   placeOrder: (
     guestName?: string,
     guestPhone?: string,
@@ -62,92 +74,25 @@ interface CartContextType {
   ) => Promise<any>;
 }
 
-const initialMenuItems: MenuItem[] = [
-  {
-    id: "1",
-    name: "Deluxe Punjabi Thali",
-    price: 220,
-    description: "Rich paneer masala, dal makhani, naan, rice, curd, and sweet.",
-    image: "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=600&q=80",
-    isSpecial: true,
-    tag: "Special",
-    category: "Thali",
-  },
-  {
-    id: "2",
-    name: "Homestyle Paneer Thali",
-    price: 150,
-    description: "Paneer curry with dal, rice, 3 roti and fresh salad.",
-    image: "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80",
-    category: "Thali",
-  },
-  {
-    id: "3",
-    name: "Aloo Paratha Combo",
-    price: 90,
-    description: "2 Stuffed aloo parathas with fresh curd and pickle.",
-    image: "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=600&q=80",
-    category: "Breakfast",
-  },
-  {
-    id: "4",
-    name: "Mixed Veg Pulao",
-    price: 120,
-    description: "Fragrant basmati rice cooked with fresh seasonal vegetables.",
-    image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80",
-    category: "Lunch",
-  },
-  {
-    id: "5",
-    name: "Special Veg Thali",
-    price: 150,
-    description: "Homestyle thali with 2 curries, 4 rotis, rice, and raita.",
-    image: "https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=600&q=80",
-    category: "Thali",
-  },
-  {
-    id: "6",
-    name: "Homestyle Rajma Chawal",
-    price: 180,
-    description: "Comforting rajma curry served with hot steamed basmati rice.",
-    image: "https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=600&q=80",
-    isSpecial: true,
-    tag: "Special",
-    category: "Lunch",
-  },
-];
-
-const initialOrders: Order[] = [
-  {
-    id: "#HF1024",
-    date: "Today",
-    time: "12:30 PM",
-    status: "Preparing",
-    items: [
-      { name: "Homestyle Rajma Chawal", quantity: 1, price: 180 },
-      { name: "Paneer Butter Masala Combo", quantity: 1, price: 170 },
-    ],
-    totalAmount: 350,
-    paymentMethod: "Offline / Cash",
-    orderType: "dine-in",
-  },
-];
-
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [currentOrder, setCurrentOrder] = useState<Order | null>(initialOrders[0]);
+  const [isCartLoading, setIsCartLoading] = useState<boolean>(true);
+  const [appliedOffer, setAppliedOffer] = useState<Offer | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
   // Load cart from backend if authenticated
   useEffect(() => {
     const fetchCart = async () => {
       if (!token) {
         setCart([]);
+        setIsCartLoading(false);
         return;
       }
+      setIsCartLoading(true);
       try {
         const backendCart = await getBackendCart();
         const formattedItems: CartItem[] = (backendCart.items || [])
@@ -171,6 +116,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCart(formattedItems);
       } catch (err) {
         console.error("Failed to fetch backend cart:", err);
+      } finally {
+        setIsCartLoading(false);
       }
     };
     fetchCart();
@@ -192,11 +139,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addToCart = (item: MenuItem, variant?: { id: string; label: string; price: number }) => {
+    let updated: CartItem[] = [];
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (c) => c.item.id === item.id && c.variant?.id === variant?.id
       );
-      let updated: CartItem[];
       if (existingIndex > -1) {
         updated = prev.map((c, idx) =>
           idx === existingIndex ? { ...c, quantity: c.quantity + 1 } : c
@@ -204,22 +151,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         updated = [...prev, { item, quantity: 1, variant }];
       }
-      syncCartWithBackend(updated);
       return updated;
     });
+    // Call API sync once outside state updater callback
+    syncCartWithBackend(updated);
   };
 
   const removeFromCart = (itemId: string, variantId?: string) => {
+    let updated: CartItem[] = [];
     setCart((prev) => {
-      const updated = prev.filter((c) => !(c.item.id === itemId && c.variant?.id === variantId));
-      syncCartWithBackend(updated);
+      updated = prev.filter((c) => !(c.item.id === itemId && c.variant?.id === variantId));
       return updated;
     });
+    syncCartWithBackend(updated);
   };
 
   const updateQuantity = (itemId: string, delta: number, variantId?: string) => {
+    let updated: CartItem[] = [];
     setCart((prev) => {
-      const updated = prev
+      updated = prev
         .map((c) => {
           if (c.item.id === itemId && c.variant?.id === variantId) {
             const newQty = c.quantity + delta;
@@ -228,13 +178,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return c;
         })
         .filter(Boolean) as CartItem[];
-      syncCartWithBackend(updated);
       return updated;
     });
+    syncCartWithBackend(updated);
   };
 
   const clearCart = async () => {
     setCart([]);
+    setAppliedOffer(null);
     if (token) {
       try {
         await clearBackendCart();
@@ -246,6 +197,49 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
   const totalAmount = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
+
+  // Discount computation based on appliedOffer
+  let discountAmount = 0;
+  if (appliedOffer && totalAmount > 0) {
+    const minCart = appliedOffer.minCartValue || 0;
+    if (totalAmount >= minCart) {
+      if (appliedOffer.offerType === "PERCENTAGE") {
+        const perc = appliedOffer.discountPercentage || 0;
+        let calculated = (totalAmount * perc) / 100;
+        if (appliedOffer.maxDiscountAmount && appliedOffer.maxDiscountAmount > 0) {
+          calculated = Math.min(calculated, appliedOffer.maxDiscountAmount);
+        }
+        discountAmount = Math.round(calculated);
+      } else if (appliedOffer.offerType === "FLAT") {
+        let flat = appliedOffer.flatDiscountAmount || 0;
+        if (appliedOffer.maxDiscountAmount && appliedOffer.maxDiscountAmount > 0) {
+          flat = Math.min(flat, appliedOffer.maxDiscountAmount);
+        }
+        discountAmount = Math.min(totalAmount, flat);
+      }
+    }
+  }
+
+  const finalAmount = Math.max(0, totalAmount - discountAmount);
+
+  const applyOffer = (offer: Offer): { success: boolean; message: string } => {
+    const minCart = offer.minCartValue || 0;
+    if (totalAmount < minCart) {
+      return {
+        success: false,
+        message: `Cart total must be at least ₹${minCart} to use coupon "${offer.code}".`,
+      };
+    }
+    setAppliedOffer(offer);
+    return {
+      success: true,
+      message: `Coupon "${offer.code}" applied successfully!`,
+    };
+  };
+
+  const removeOffer = () => {
+    setAppliedOffer(null);
+  };
 
   const placeOrder = async (
     guestName?: string,
@@ -275,6 +269,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       orderType,
       deliveryAddress,
       pickupTiming,
+      discount: discountAmount,
       payment: {
         method: "cash" as any,
         status: "pending" as any,
@@ -314,14 +309,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <CartContext.Provider
       value={{
         cart,
+        isCartLoading,
         addToCart,
         removeFromCart,
         updateQuantity,
         clearCart,
         totalItems,
         totalAmount,
+        appliedOffer,
+        discountAmount,
+        finalAmount,
+        applyOffer,
+        removeOffer,
         orders,
         currentOrder,
+        setCurrentOrder,
         placeOrder,
       }}
     >

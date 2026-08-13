@@ -123,6 +123,8 @@ export interface Order {
   _id: string;
   orderNumber: string;
   user?: string;
+  customer?: string;
+  orderFor?: "registered_user" | "guest";
   guest: {
     name: string;
     phone: string;
@@ -175,9 +177,20 @@ export const getOrders = async (params?: {
   if (params?.limit) query.append("limit", params.limit.toString());
   if (params?.userId) query.append("userId", params.userId);
 
-  const response = await Fetch<ApiResponse<OrdersResponse>>(
-    `/api/order?${query.toString()}`
-  );
+  const queryString = query.toString();
+  const url = queryString ? `/api/order?${queryString}` : "/api/order";
+
+  const response = await Fetch<ApiResponse<OrdersResponse>>(url);
+  return response.data;
+};
+
+export const getMyOrders = async (): Promise<Order[]> => {
+  const response = await Fetch<ApiResponse<Order[]>>("/api/order/my-orders");
+  return response.data || [];
+};
+
+export const getOrderById = async (id: string): Promise<Order> => {
+  const response = await Fetch<ApiResponse<Order>>(`/api/order/${encodeURIComponent(id)}`);
   return response.data;
 };
 

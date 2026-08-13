@@ -1,19 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { FileText, Clock, CookingPot, ChevronRight, Loader2, CheckCircle2 } from "lucide-react";
+import { FileText, Clock, CookingPot, ChevronRight, Loader2, CheckCircle2, Radio } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import AdminOrderCard from "@/components/AdminOrderCard";
 import { getOrderStats, getOrders, OrderStats, Order } from "@/services/orderService";
+import { useSocket } from "@/context/SocketContext";
 
 export default function AdminHomePage() {
+  const { socket, joinAdminRoom } = useSocket();
   const [stats, setStats] = useState<OrderStats>({ total: 0, pending: 0, preparing: 0, completed: 0 });
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const [statsData, ordersData] = await Promise.all([
         getOrderStats(),
@@ -26,25 +28,32 @@ export default function AdminHomePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Initial Data Fetch
   useEffect(() => {
     fetchDashboardData();
-    // Refresh stats every 5 min for live dashboard updates
-    const interval = setInterval(fetchDashboardData, 500000);
+  }, [fetchDashboardData]);
 
-    const handleOrderEvents = () => {
+  // Real-Time Socket.io Listeners (Replaces old 5-minute timer polling)
+  useEffect(() => {
+    joinAdminRoom();
+
+    if (!socket) return;
+
+    const handleRealTimeUpdate = () => {
+      console.log("📢 Real-Time Socket Event in Admin Dashboard: Refetching live stats...");
       fetchDashboardData();
     };
-    window.addEventListener("order-created", handleOrderEvents);
-    window.addEventListener("order-updated", handleOrderEvents);
+
+    socket.on("order:new", handleRealTimeUpdate);
+    socket.on("order:status_updated", handleRealTimeUpdate);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener("order-created", handleOrderEvents);
-      window.removeEventListener("order-updated", handleOrderEvents);
+      socket.off("order:new", handleRealTimeUpdate);
+      socket.off("order:status_updated", handleRealTimeUpdate);
     };
-  }, []);
+  }, [socket, joinAdminRoom, fetchDashboardData]);
 
   return (
     <div className="flex flex-col h-dvh overflow-hidden bg-[#F4F8FA] relative">
@@ -53,10 +62,15 @@ export default function AdminHomePage() {
 
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-5 pb-20">
-        {/* Title */}
-        <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
-          Overview
-        </h1>
+        {/* Title & Live Status */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
+            Overview
+          </h1>
+          <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1.5 shadow-2xs">
+            <Radio className="w-3 h-3 text-emerald-600 animate-pulse" /> Live Socket Sync
+          </span>
+        </div>
 
         {/* Overview Stat Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">

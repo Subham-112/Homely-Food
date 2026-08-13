@@ -14,7 +14,7 @@ export const BottomNav: React.FC = () => {
     { label: "Home", href: "/", icon: Home },
     { label: "Orders", href: "/orders", icon: UtensilsCrossed },
     { label: "Cart", href: "/cart", icon: ShoppingCart, badge: totalItems },
-    { label: "Profile", href: "/login", icon: User },
+    { label: "Profile", href: "/profile", icon: User },
   ];
 
   return (
