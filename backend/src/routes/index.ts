@@ -7,6 +7,7 @@ import variantRoutes from "../modules/variants/variants.routes";
 import orderRoutes from "../modules/order/order.routes";
 import cartRoutes from "../modules/cart/cart.routes";
 import customerRoutes from "../modules/customer/customer.routes";
+import offerRoutes from "../modules/offer/offer.routes";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use("/variant", variantRoutes);
 router.use("/order", orderRoutes);
 router.use("/cart", cartRoutes);
 router.use("/customer", customerRoutes);
+router.use("/offer", offerRoutes);
 
 export default router;

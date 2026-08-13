@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { VariantController } from "./variants.controller";
-import { adminAccess } from "../../middlewares/authMiddleware";
+import { adminAccess, authenticateToken } from "../../middlewares/authMiddleware";
 
 const router = Router();
 
-// Public / User view variants
-router.get("/menu-item/:menuItemId", VariantController.getByMenuItem);
-router.get("/:id", VariantController.getById);
+// Token required to view variants
+router.get("/menu-item/:menuItemId", authenticateToken, VariantController.getByMenuItem);
+router.get("/:id", authenticateToken, VariantController.getById);
 
 // Admin management endpoints
 router.post("/", ...adminAccess, VariantController.create);

@@ -137,6 +137,53 @@ export class UserService {
     return user;
   }
 
+  static async updateProfile(userId: string, payload: { name?: string; email?: string; phone?: string; avatar?: string }) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    if (payload.email && payload.email !== user.email) {
+      const existingEmail = await User.findOne({ email: payload.email.toLowerCase(), _id: { $ne: userId } });
+      if (existingEmail) {
+        throw new ApiError(400, `An account with the email "${payload.email}" already exists.`);
+      }
+      user.email = payload.email.toLowerCase();
+    }
+
+    if (payload.phone && payload.phone !== user.phone) {
+      const existingPhone = await User.findOne({ phone: payload.phone, _id: { $ne: userId } });
+      if (existingPhone) {
+        throw new ApiError(400, `An account with the phone number "${payload.phone}" already exists.`);
+      }
+      user.phone = payload.phone;
+    }
+
+    if (payload.name) {
+      user.name = payload.name;
+    }
+
+    if (payload.avatar !== undefined) {
+      user.avatar = payload.avatar;
+    }
+
+    await user.save();
+
+    // Sync Customer primaryName if name or phone changed
+    try {
+      const customer = await Customer.findOne({ user: user._id });
+      if (customer) {
+        if (payload.name) customer.primaryName = payload.name;
+        if (payload.phone) customer.phone = payload.phone;
+        await customer.save();
+      }
+    } catch (err) {
+      console.error("Failed to sync customer profile on updateProfile:", err);
+    }
+
+    return user;
+  }
+
   static async searchByPhone(phone: string) {
     if (!phone || !phone.trim()) return [];
 

@@ -3,7 +3,9 @@ import User from "../../models/user.model";
 import MenuItem from "../../models/menuItem.model";
 import { Customer } from "../../models/customer.model";
 import ApiError from "../../utils/ApiError";
-import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
+import { OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
+import { emitNewOrder, emitOrderStatusUpdate } from "../../socket/socketService";
+import { Types } from "mongoose";
 
 export interface ICreateOrderItemInput {
   menuItem: string;
@@ -79,9 +81,14 @@ export class OrderService {
     // Auto-generate order number (e.g. ORD-849201)
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
 
-    // Resolve user: use provided userId directly, or look up by guest phone
+    // Extract guest input
+    const enteredPhone = (payload.guest?.phone || "").trim();
+    const enteredName = (payload.guest?.name || "").trim();
+    const enteredEmail = (payload.guest?.email || "").trim();
+
+    // Resolve registered user: check payload.userId or look up by entered phone
     let userId: any = undefined;
-    let guestData = { name: "", phone: "", email: "" };
+    let guestData = { name: enteredName, phone: enteredPhone, email: enteredEmail };
 
     if (payload.userId) {
       let existingUser = await User.findById(payload.userId);
@@ -91,40 +98,78 @@ export class OrderService {
           if (existingCustomer.user) {
             existingUser = await User.findById(existingCustomer.user);
           }
-          guestData = {
-            name: payload.guest?.name?.trim() || existingCustomer.primaryName || "",
-            phone: payload.guest?.phone?.trim() || existingCustomer.phone || "",
-            email: payload.guest?.email?.trim() || "",
-          };
+          guestData.phone = enteredPhone || existingCustomer.phone || "";
+          guestData.name = enteredName || existingCustomer.primaryName || "";
           if (existingUser) {
             userId = existingUser._id;
           }
-        } else {
-          throw new ApiError(404, "User or Customer profile not found with the provided ID.");
         }
       } else {
         userId = existingUser._id;
-        guestData = {
-          name: payload.guest?.name?.trim() || existingUser.name || "",
-          phone: payload.guest?.phone?.trim() || existingUser.phone || "",
-          email: payload.guest?.email?.trim() || existingUser.email || "",
-        };
+        guestData.phone = enteredPhone || existingUser.phone || "";
+        guestData.name = enteredName || existingUser.name || "";
+        guestData.email = enteredEmail || existingUser.email || "";
       }
-    } else if (payload.guest) {
-      guestData = {
-        name: payload.guest.name.trim(),
-        phone: payload.guest.phone.trim(),
-        email: payload.guest.email?.trim() || "",
-      };
+    }
+
+    if (!userId && guestData.phone) {
       const existingUser = await User.findOne({ phone: guestData.phone });
       if (existingUser) {
         userId = existingUser._id;
       }
     }
 
+    // Determine orderFor
+    const orderFor = userId ? OrderFor.REGISTERED_USER : OrderFor.GUEST;
+
+    // Customer Sync: Find or create Customer profile
+    let customerDoc: any = undefined;
+    const customerPhone = guestData.phone?.trim();
+    const customerName = guestData.name?.trim();
+
+    if (customerPhone && customerName) {
+      try {
+        let customer = await Customer.findOne({ phone: customerPhone });
+        if (!customer) {
+          customer = new Customer({
+            phone: customerPhone,
+            user: userId || undefined,
+            primaryName: customerName,
+            names: [{ name: customerName, addedAt: new Date() }],
+            orderCount: 1,
+            totalExpenses: totalAmount,
+            customerType: userId ? "registered" : "guest",
+          });
+          await customer.save();
+        } else {
+          // Check if customerName exists in history (case-insensitive)
+          const nameExists = customer.names.some(
+            (n) => n.name.toLowerCase() === customerName.toLowerCase()
+          );
+          if (!nameExists) {
+            customer.names.push({ name: customerName, addedAt: new Date() });
+          }
+          // Update primaryName to latest entered name
+          customer.primaryName = customerName;
+          customer.orderCount += 1;
+          customer.totalExpenses += totalAmount;
+          if (userId) {
+            customer.user = userId;
+            customer.customerType = "registered";
+          }
+          await customer.save();
+        }
+        customerDoc = customer;
+      } catch (custError) {
+        console.error("Failed to sync customer profile during order creation:", custError);
+      }
+    }
+
     const order = await Order.create({
       orderNumber,
       user: userId,
+      customer: customerDoc ? customerDoc._id : undefined,
+      orderFor,
       guest: guestData,
       items: processedItems,
       payment: {
@@ -143,43 +188,11 @@ export class OrderService {
       notes: payload.notes?.trim() || "",
     });
 
-    // Sync Customer collection profile
-    const customerPhone = guestData.phone?.trim();
-    const customerName = guestData.name?.trim();
-    if (customerPhone && customerName) {
-      try {
-        let customer = await Customer.findOne({ phone: customerPhone });
-        if (!customer) {
-          customer = new Customer({
-            phone: customerPhone,
-            user: userId || undefined,
-            primaryName: customerName,
-            names: [{ name: customerName, addedAt: new Date() }],
-            orderCount: 1,
-            totalExpenses: totalAmount,
-            customerType: userId ? "registered" : "guest",
-          });
-          await customer.save();
-        } else {
-          // Check if customerName exists in the list (case-insensitive)
-          const nameExists = customer.names.some(
-            (n) => n.name.toLowerCase() === customerName.toLowerCase()
-          );
-          if (!nameExists) {
-            customer.names.push({ name: customerName, addedAt: new Date() });
-          }
-
-          customer.orderCount += 1;
-          customer.totalExpenses += totalAmount;
-          if (userId) {
-            customer.user = userId;
-            customer.customerType = "registered";
-          }
-          await customer.save();
-        }
-      } catch (custError) {
-        console.error("Failed to sync customer profile:", custError);
-      }
+    // Real-Time Socket.io Event Emission
+    try {
+      emitNewOrder(order);
+    } catch (socketErr) {
+      console.error("Failed to emit socket event for new order:", socketErr);
     }
 
     return order;
@@ -240,8 +253,23 @@ export class OrderService {
     };
   }
 
+  static async getMyOrders(userId: string) {
+    const user = await User.findById(userId);
+    const filter: any = { deleted: { $ne: true } };
+
+    if (user && user.phone) {
+      filter.$or = [{ user: userId }, { "guest.phone": user.phone }];
+    } else {
+      filter.user = userId;
+    }
+
+    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    return orders;
+  }
+
   static async getById(id: string) {
-    const order = await Order.findById(id).populate("user", "name phone email");
+    const objectId = new Types.ObjectId(id);
+    const order = await Order.findById(objectId).populate("user", "name phone email");
     if (!order) {
       throw new ApiError(404, "Order not found");
     }
@@ -277,6 +305,14 @@ export class OrderService {
     }
 
     await order.save();
+
+    // Real-Time Socket.io Event Emission for Order Status Changes
+    try {
+      emitOrderStatusUpdate(order);
+    } catch (socketErr) {
+      console.error("Failed to emit socket event for status update:", socketErr);
+    }
+
     return order;
   }
 

@@ -4,6 +4,7 @@ import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../comm
 import { z } from "zod";
 import ApiError from "../../utils/ApiError";
 import ApiResponse from "../../utils/ApiResponse";
+import { AuthenticatedRequest } from "../../middlewares/authMiddleware";
 
 const createOrderSchema = z.object({
   userId: z.string().optional(),
@@ -99,6 +100,18 @@ export class OrderController {
 
       const result = await OrderService.getAll({ status, orderType, search, page, limit, userId });
       res.status(200).json(new ApiResponse(200, result, "Orders fetched successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMyOrders(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user || !req.user._id) {
+        throw new ApiError(401, "Unauthorized. User ID missing.");
+      }
+      const orders = await OrderService.getMyOrders(req.user._id);
+      res.status(200).json(new ApiResponse(200, orders, "User orders fetched successfully"));
     } catch (error) {
       next(error);
     }

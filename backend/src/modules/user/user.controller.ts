@@ -113,6 +113,19 @@ export class UserController {
     }
   }
 
+  static async updateProfile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user || !req.user._id) {
+        throw new ApiError(401, "Unauthorized. User ID missing.");
+      }
+      const { name, email, phone, avatar } = req.body;
+      const updatedProfile = await UserService.updateProfile(req.user._id, { name, email, phone, avatar });
+      res.status(200).json(new ApiResponse(200, updatedProfile, "Profile updated successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async searchByPhone(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const phone = typeof req.query.phone === "string" ? req.query.phone : "";

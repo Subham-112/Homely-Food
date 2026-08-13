@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import mongooseDelete from "mongoose-delete";
-import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../common/enum";
+import { OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../common/enum";
 import { ISoftDeleteDocument, ISoftDeleteModel } from "../types/softDelete";
 
 export interface IOrderItem {
@@ -16,7 +16,7 @@ export interface IOrderItem {
 }
 
 export interface IPaymentInfo {
-  method: PaymentMethod;
+  method: PaymentMethod | "";
   status: PaymentStatus;
   transactionId?: string;
   amount: number;
@@ -32,6 +32,8 @@ export interface IOrder extends ISoftDeleteDocument {
   _id: mongoose.Types.ObjectId;
   orderNumber: string;
   user?: mongoose.Types.ObjectId;
+  customer?: mongoose.Types.ObjectId;
+  orderFor: OrderFor;
   guest: IGuestInfo;
   items: IOrderItem[];
   payment: IPaymentInfo;
@@ -135,6 +137,16 @@ const OrderSchema: Schema<IOrder> = new Schema(
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    customer: {
+      type: Schema.Types.ObjectId,
+      ref: "Customer",
+    },
+    orderFor: {
+      type: String,
+      enum: Object.values(OrderFor),
+      required: true,
+      default: OrderFor.GUEST,
     },
     guest: {
       type: GuestInfoSchema,

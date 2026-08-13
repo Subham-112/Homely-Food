@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { MenuItemController } from "./menu-items.controller";
-import { adminAccess } from "../../middlewares/authMiddleware";
+import { adminAccess, authenticateToken } from "../../middlewares/authMiddleware";
 import { uploadImage } from "../../middlewares/uploadMiddleware";
 
 const router = Router();
 
-// Public / User access to view menu items
-router.get("/", MenuItemController.getAll);
-router.get("/order-list", MenuItemController.getOrderList);
-router.get("/:id", MenuItemController.getById);
+// Token required to view menu items
+router.get("/", authenticateToken, MenuItemController.getAll);
+router.get("/order-list", authenticateToken, MenuItemController.getOrderList);
+router.get("/:id", authenticateToken, MenuItemController.getById);
 
 // Admin-only management endpoints
 router.post("/", ...adminAccess, uploadImage({ folder: "menu-items", multiple: false }), MenuItemController.create);

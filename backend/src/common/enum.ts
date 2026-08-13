@@ -60,3 +60,21 @@ export enum PaymentMethod {
   UPI = "upi",
   CARD = "card",
 }
+
+export enum OfferType {
+  BOGO = "BOGO",
+  PERCENTAGE = "PERCENTAGE",
+  FLAT = "FLAT",
+}
+
+export enum OfferStatus {
+  ACTIVE = "active",
+  EXPIRED = "expired",
+  INACTIVE = "inactive",
+  UPCOMING = "upcoming",
+}
+
+export enum OrderFor {
+  REGISTERED_USER = "registered_user",
+  GUEST = "guest",
+}
