@@ -24,10 +24,27 @@ export interface PopulatedCartItem {
   };
 }
 
+export interface CartTotal {
+  subTotal: number;
+  discount: number;
+  totalAmount: number;
+  offer?: {
+    _id: string;
+    title: string;
+    code: string;
+    offerType: string;
+    discountPercentage?: number;
+    flatDiscountAmount?: number;
+  };
+  offerCode?: string;
+}
+
 export interface CartResponse {
   _id: string;
   user: string;
   items: PopulatedCartItem[];
+  total: CartTotal;
+  status: "active" | "completed";
 }
 
 export interface ApiResponse<T> {
@@ -37,16 +54,34 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-export const getBackendCart = async (): Promise<CartResponse> => {
+export const getBackendCart = async (): Promise<CartResponse | null> => {
   const response = await Fetch<ApiResponse<CartResponse>>("/api/cart");
   return response.data;
 };
 
-export const syncBackendCart = async (items: CartItemInput[]): Promise<CartResponse> => {
+export const syncBackendCart = async (items: CartItemInput[]): Promise<CartResponse | null> => {
   const response = await Post<ApiResponse<CartResponse>>("/api/cart", { items });
+  return response.data;
+};
+
+export const applyOfferToCart = async (offerCode: string): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/apply-offer", { offerCode });
+  return response.data;
+};
+
+export const removeOfferFromCart = async (): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/remove-offer", {});
   return response.data;
 };
 
 export const clearBackendCart = async (): Promise<void> => {
   await Delete<ApiResponse<void>>("/api/cart");
+};
+
+export const checkoutCart = async (cartId: string, orderPayload: any): Promise<any> => {
+  const response = await Post<ApiResponse<any>>("/api/cart/checkout", {
+    cartId,
+    ...orderPayload,
+  });
+  return response.data;
 };

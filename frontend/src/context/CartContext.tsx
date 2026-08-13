@@ -1,10 +1,18 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useAuth } from "./AuthContext";
-import { getBackendCart, syncBackendCart, clearBackendCart } from "@/services/cartService";
-import { createOrder } from "@/services/orderService";
-import { Offer } from "@/services/offerService";
+import {
+  getBackendCart,
+  syncBackendCart,
+  clearBackendCart,
+  applyOfferToCart,
+  removeOfferFromCart,
+  checkoutCart,
+  CartTotal,
+} from "@/services/cartService";
+
+const PUBLIC_CART_KEY = "homely_public_cart";
 
 export interface MenuItem {
   id: string;
@@ -41,7 +49,7 @@ export interface Order {
   id: string;
   date: string;
   time: string;
-  status: "Accepted" | "Preparing" | "Ready" | "Completed" | "Pending";
+  status: string;
   items: OrderItem[];
   totalAmount: number;
   paymentMethod: string;
@@ -52,19 +60,20 @@ export interface Order {
 
 interface CartContextType {
   cart: CartItem[];
+  cartId: string | null;
   isCartLoading: boolean;
   addToCart: (item: MenuItem, variant?: { id: string; label: string; price: number }) => void;
   removeFromCart: (itemId: string, variantId?: string) => void;
   updateQuantity: (itemId: string, delta: number, variantId?: string) => void;
   clearCart: () => void;
   totalItems: number;
-  totalAmount: number;
-  appliedOffer: Offer | null;
+  subTotal: number;
   discountAmount: number;
   finalAmount: number;
-  applyOffer: (offer: Offer) => { success: boolean; message: string };
-  removeOffer: () => void;
-  orders: Order[];
+  totalAmount: number;
+  appliedOfferCode: string | null;
+  applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
+  removeCoupon: () => Promise<void>;
   currentOrder: Order | null;
   setCurrentOrder: (order: Order | null) => void;
   placeOrder: (
@@ -79,41 +88,119 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartId, setCartId] = useState<string | null>(null);
+  const [cartTotal, setCartTotal] = useState<CartTotal>({ subTotal: 0, discount: 0, totalAmount: 0 });
   const [isCartLoading, setIsCartLoading] = useState<boolean>(true);
-  const [appliedOffer, setAppliedOffer] = useState<Offer | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
-  // Load cart from backend if authenticated
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastConfirmedCartRef = useRef<CartItem[]>([]);
+
+  // Helper to format raw backend cart object to CartItem[] array
+  const formatBackendCartItems = (backendCart: any): CartItem[] => {
+    if (!backendCart || !backendCart.items) return [];
+    return (backendCart.items || [])
+      .filter((item: any) => item.menuItem)
+      .map((item: any) => ({
+        item: {
+          id: item.menuItem._id,
+          name: item.menuItem.name,
+          price: item.variant ? item.variant.price : item.menuItem.price,
+          description: "",
+          image: typeof item.menuItem.image === "object" ? item.menuItem.image.url : item.menuItem.image || "",
+          category: typeof item.menuItem.category === "object" ? (item.menuItem.category as any)?.name : item.menuItem.category || "",
+        },
+        quantity: item.quantity,
+        variant: item.variant
+          ? {
+              id: item.variant._id,
+              label: item.variant.label,
+              price: item.variant.price,
+            }
+          : undefined,
+      }));
+  };
+
+  // Load cart from backend if authenticated + sync any pending public cart
   useEffect(() => {
     const fetchCart = async () => {
       if (!token) {
         setCart([]);
+        setCartId(null);
+        setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+        lastConfirmedCartRef.current = [];
         setIsCartLoading(false);
         return;
       }
       setIsCartLoading(true);
       try {
+        // Check for pending public cart items to merge
+        let publicCartItems: { menuItem: string; quantity: number; variant?: string }[] = [];
+        try {
+          const stored = localStorage.getItem(PUBLIC_CART_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored) as Array<{
+              id: string;
+              quantity: number;
+              variant?: { id: string; label: string; price: number };
+            }>;
+            publicCartItems = parsed.map((c) => ({
+              menuItem: c.id,
+              quantity: c.quantity,
+              variant: c.variant?.id,
+            }));
+          }
+        } catch {
+          publicCartItems = [];
+        }
+
+        // Fetch current backend cart
         const backendCart = await getBackendCart();
-        const formattedItems: CartItem[] = (backendCart.items || [])
-          .filter((item) => item.menuItem)
-          .map((item) => ({
-            item: {
-              id: item.menuItem._id,
-              name: item.menuItem.name,
-              price: item.variant ? item.variant.price : item.menuItem.price,
-              description: "",
-              image: typeof item.menuItem.image === "object" ? item.menuItem.image.url : item.menuItem.image || "",
-              category: typeof item.menuItem.category === "object" ? (item.menuItem.category as any)?.name : item.menuItem.category || "",
-            },
-            quantity: item.quantity,
-            variant: item.variant ? {
-              id: item.variant._id,
-              label: item.variant.label,
-              price: item.variant.price,
-            } : undefined,
+        let mergedItems: { menuItem: string; quantity: number; variant?: string }[] = [];
+
+        if (backendCart && backendCart.items) {
+          mergedItems = backendCart.items.map((c: any) => ({
+            menuItem: c.menuItem._id,
+            quantity: c.quantity,
+            variant: c.variant?._id,
           }));
-        setCart(formattedItems);
+        }
+
+        // Merge public cart into backend cart (add quantities for matching items)
+        if (publicCartItems.length > 0) {
+          for (const pubItem of publicCartItems) {
+            const existingIdx = mergedItems.findIndex(
+              (m) => m.menuItem === pubItem.menuItem && m.variant === pubItem.variant
+            );
+            if (existingIdx > -1) {
+              mergedItems[existingIdx].quantity += pubItem.quantity;
+            } else {
+              mergedItems.push(pubItem);
+            }
+          }
+          // Sync merged cart to backend
+          const syncedCart = await syncBackendCart(mergedItems);
+          // Clear public cart from localStorage after successful sync
+          localStorage.removeItem(PUBLIC_CART_KEY);
+          if (syncedCart) {
+            setCartId(syncedCart._id);
+            setCartTotal(syncedCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+            const formattedItems = formatBackendCartItems(syncedCart);
+            setCart(formattedItems);
+            lastConfirmedCartRef.current = formattedItems;
+          }
+        } else if (backendCart && backendCart.items) {
+          setCartId(backendCart._id);
+          setCartTotal(backendCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+          const formattedItems = formatBackendCartItems(backendCart);
+          setCart(formattedItems);
+          lastConfirmedCartRef.current = formattedItems;
+        } else {
+          setCart([]);
+          setCartId(null);
+          setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+          lastConfirmedCartRef.current = [];
+        }
       } catch (err) {
         console.error("Failed to fetch backend cart:", err);
       } finally {
@@ -123,27 +210,67 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchCart();
   }, [token]);
 
-  // Helper to sync updated cart array to backend
-  const syncCartWithBackend = async (updatedCart: CartItem[]) => {
+  // Helper: Trigger 500ms debounced sync with automatic rollback on backend API errors
+  const triggerDebouncedSync = (targetCart: CartItem[]) => {
     if (!token) return;
-    try {
-      const inputs = updatedCart.map((c) => ({
-        menuItem: c.item.id,
-        quantity: c.quantity,
-        variant: c.variant?.id,
-      }));
-      await syncBackendCart(inputs);
-    } catch (err) {
-      console.error("Failed to sync cart state with backend:", err);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
+
+    const previousConfirmedCart = lastConfirmedCartRef.current;
+
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const inputs = targetCart.map((c) => ({
+          menuItem: c.item.id,
+          quantity: c.quantity,
+          variant: c.variant?.id,
+        }));
+        const resCart = await syncBackendCart(inputs);
+        if (resCart) {
+          setCartId(resCart._id);
+          setCartTotal(resCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+          const confirmedItems = formatBackendCartItems(resCart);
+          setCart(confirmedItems);
+          lastConfirmedCartRef.current = confirmedItems;
+        } else {
+          setCartId(null);
+          setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+          setCart([]);
+          lastConfirmedCartRef.current = [];
+        }
+      } catch (err) {
+        console.error("Backend cart sync failed. Rolling back frontend state to match backend:", err);
+        // Rollback state by fetching authoritative backend cart
+        try {
+          const freshCart = await getBackendCart();
+          if (freshCart && freshCart.items) {
+            setCartId(freshCart._id);
+            setCartTotal(freshCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+            const confirmedItems = formatBackendCartItems(freshCart);
+            setCart(confirmedItems);
+            lastConfirmedCartRef.current = confirmedItems;
+          } else {
+            setCart([]);
+            setCartId(null);
+            setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+            lastConfirmedCartRef.current = [];
+          }
+        } catch (fetchErr) {
+          // Fallback to last confirmed cart array in memory
+          setCart(previousConfirmedCart);
+        }
+      }
+    }, 500);
   };
 
   const addToCart = (item: MenuItem, variant?: { id: string; label: string; price: number }) => {
-    let updated: CartItem[] = [];
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (c) => c.item.id === item.id && c.variant?.id === variant?.id
       );
+      let updated: CartItem[] = [];
       if (existingIndex > -1) {
         updated = prev.map((c, idx) =>
           idx === existingIndex ? { ...c, quantity: c.quantity + 1 } : c
@@ -151,25 +278,22 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         updated = [...prev, { item, quantity: 1, variant }];
       }
+      triggerDebouncedSync(updated);
       return updated;
     });
-    // Call API sync once outside state updater callback
-    syncCartWithBackend(updated);
   };
 
   const removeFromCart = (itemId: string, variantId?: string) => {
-    let updated: CartItem[] = [];
     setCart((prev) => {
-      updated = prev.filter((c) => !(c.item.id === itemId && c.variant?.id === variantId));
+      const updated = prev.filter((c) => !(c.item.id === itemId && c.variant?.id === variantId));
+      triggerDebouncedSync(updated);
       return updated;
     });
-    syncCartWithBackend(updated);
   };
 
   const updateQuantity = (itemId: string, delta: number, variantId?: string) => {
-    let updated: CartItem[] = [];
     setCart((prev) => {
-      updated = prev
+      const updated = prev
         .map((c) => {
           if (c.item.id === itemId && c.variant?.id === variantId) {
             const newQty = c.quantity + delta;
@@ -178,14 +302,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return c;
         })
         .filter(Boolean) as CartItem[];
+      triggerDebouncedSync(updated);
       return updated;
     });
-    syncCartWithBackend(updated);
   };
 
   const clearCart = async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
     setCart([]);
-    setAppliedOffer(null);
+    setCartId(null);
+    setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+    lastConfirmedCartRef.current = [];
     if (token) {
       try {
         await clearBackendCart();
@@ -195,98 +324,91 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
-  const totalAmount = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
-
-  // Discount computation based on appliedOffer
-  let discountAmount = 0;
-  if (appliedOffer && totalAmount > 0) {
-    const minCart = appliedOffer.minCartValue || 0;
-    if (totalAmount >= minCart) {
-      if (appliedOffer.offerType === "PERCENTAGE") {
-        const perc = appliedOffer.discountPercentage || 0;
-        let calculated = (totalAmount * perc) / 100;
-        if (appliedOffer.maxDiscountAmount && appliedOffer.maxDiscountAmount > 0) {
-          calculated = Math.min(calculated, appliedOffer.maxDiscountAmount);
-        }
-        discountAmount = Math.round(calculated);
-      } else if (appliedOffer.offerType === "FLAT") {
-        let flat = appliedOffer.flatDiscountAmount || 0;
-        if (appliedOffer.maxDiscountAmount && appliedOffer.maxDiscountAmount > 0) {
-          flat = Math.min(flat, appliedOffer.maxDiscountAmount);
-        }
-        discountAmount = Math.min(totalAmount, flat);
+  const applyCoupon = async (code: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
-    }
-  }
-
-  const finalAmount = Math.max(0, totalAmount - discountAmount);
-
-  const applyOffer = (offer: Offer): { success: boolean; message: string } => {
-    const minCart = offer.minCartValue || 0;
-    if (totalAmount < minCart) {
+      const resCart = await applyOfferToCart(code);
+      if (resCart) {
+        setCartId(resCart._id);
+        setCartTotal(resCart.total);
+        const confirmedItems = formatBackendCartItems(resCart);
+        setCart(confirmedItems);
+        lastConfirmedCartRef.current = confirmedItems;
+        return {
+          success: true,
+          message: `Coupon "${code.toUpperCase()}" applied successfully!`,
+        };
+      }
+      return { success: false, message: "Failed to apply coupon." };
+    } catch (err: any) {
       return {
         success: false,
-        message: `Cart total must be at least ₹${minCart} to use coupon "${offer.code}".`,
+        message: err?.message || "Invalid or expired coupon code.",
       };
     }
-    setAppliedOffer(offer);
-    return {
-      success: true,
-      message: `Coupon "${offer.code}" applied successfully!`,
-    };
   };
 
-  const removeOffer = () => {
-    setAppliedOffer(null);
+  const removeCoupon = async () => {
+    try {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      const resCart = await removeOfferFromCart();
+      if (resCart) {
+        setCartTotal(resCart.total);
+        const confirmedItems = formatBackendCartItems(resCart);
+        setCart(confirmedItems);
+        lastConfirmedCartRef.current = confirmedItems;
+      }
+    } catch (err) {
+      console.error("Failed to remove offer:", err);
+    }
   };
+
+  const totalItems = cart.length;
+  const subTotal = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
+  const discountAmount = cartTotal.discount || 0;
+  const finalAmount = Math.max(0, subTotal - discountAmount);
+  const appliedOfferCode = cartTotal.offerCode || null;
 
   const placeOrder = async (
     guestName?: string,
     guestPhone?: string,
     details?: { orderType: "dine-in" | "delivery" | "pickup"; deliveryAddress?: string; pickupTiming?: string }
   ): Promise<any> => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
     const orderType = details?.orderType || "dine-in";
     const deliveryAddress = details?.deliveryAddress;
     const pickupTiming = details?.pickupTiming;
 
     const payload = {
+      orderType,
+      deliveryAddress,
+      pickupTiming,
+      paymentMethod: "cash",
       guest: {
         name: guestName || "Guest User",
         phone: guestPhone || "0000000000",
       },
-      items: cart.map((c) => ({
-        menuItem: c.item.id,
-        name: c.item.name,
-        price: c.item.price,
-        quantity: c.quantity,
-        variant: c.variant ? {
-          variantId: c.variant.id,
-          label: c.variant.label,
-          price: c.variant.price,
-        } : undefined,
-      })),
-      orderType,
-      deliveryAddress,
-      pickupTiming,
-      discount: discountAmount,
-      payment: {
-        method: "cash" as any,
-        status: "pending" as any,
-      },
     };
 
     try {
-      const createdOrder = await createOrder(payload);
+      // Call dedicated POST /api/cart/checkout API
+      const createdOrder = await checkoutCart(cartId || "", payload);
       const formattedOrder: Order = {
-        id: createdOrder.orderNumber,
+        id: createdOrder.orderNumber || createdOrder._id,
         date: "Just Now",
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         status: "Accepted",
-        items: cart.map((c) => ({
-          name: c.item.name,
+        items: (createdOrder.items || []).map((c: any) => ({
+          name: c.menuItem?.name || "Food Item",
           quantity: c.quantity,
-          price: c.item.price,
+          price: c.price,
         })),
         totalAmount: createdOrder.totalAmount,
         paymentMethod: "Offline / Cash",
@@ -295,12 +417,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pickupTiming,
       };
 
-      setOrders((prev) => [formattedOrder, ...prev]);
       setCurrentOrder(formattedOrder);
-      await clearCart();
+      setCart([]);
+      setCartId(null);
+      setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+      lastConfirmedCartRef.current = [];
       return createdOrder;
     } catch (error) {
-      console.error("Failed to place order:", error);
+      console.error("Failed to checkout cart:", error);
       throw error;
     }
   };
@@ -309,19 +433,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <CartContext.Provider
       value={{
         cart,
+        cartId,
         isCartLoading,
         addToCart,
         removeFromCart,
         updateQuantity,
         clearCart,
         totalItems,
-        totalAmount,
-        appliedOffer,
+        subTotal,
         discountAmount,
         finalAmount,
-        applyOffer,
-        removeOffer,
-        orders,
+        totalAmount: finalAmount,
+        appliedOfferCode,
+        applyCoupon,
+        removeCoupon,
         currentOrder,
         setCurrentOrder,
         placeOrder,
@@ -339,4 +464,3 @@ export const useCart = () => {
   }
   return context;
 };
-export { initialMenuItems };

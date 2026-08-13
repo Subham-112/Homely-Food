@@ -96,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const isUserLoginSignup = pathname === "/login" || pathname === "/signup";
     const isAdminLoginRoute = pathname === "/admin/login";
     const isAdminRoute = pathname.startsWith("/admin");
+    const isPublicRoute = pathname.startsWith("/public");
     const isProtectedUserRoute = pathname === "/orders" || pathname.startsWith("/profile");
 
     // Strict Routing Guards
@@ -109,15 +110,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (hasUserAccess) {
       // User session active:
       // User MUST NOT access ANY admin routes (/admin/*) or auth routes (/login, /signup)
-      if (isAdminRoute || isUserLoginSignup) {
+      // Redirect from public pages to authenticated home
+      if (isAdminRoute || isUserLoginSignup || isPublicRoute) {
         router.replace("/");
       }
     } else {
       // Unauthenticated visitor (no token in localStorage):
-      // Mandatory login/register requirement
+      // Allow /public/* routes without redirect
       if (isAdminRoute && !isAdminLoginRoute) {
         router.replace("/admin/login");
-      } else if (!isUserLoginSignup && !isAdminLoginRoute) {
+      } else if (!isUserLoginSignup && !isAdminLoginRoute && !isPublicRoute) {
         router.replace("/login");
       }
     }

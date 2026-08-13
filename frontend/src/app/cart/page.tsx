@@ -35,12 +35,12 @@ export default function CartPage() {
     removeFromCart,
     updateQuantity,
     totalItems,
-    totalAmount,
-    appliedOffer,
+    subTotal,
     discountAmount,
     finalAmount,
-    applyOffer,
-    removeOffer,
+    appliedOfferCode,
+    applyCoupon,
+    removeCoupon,
     placeOrder,
   } = useCart();
 
@@ -86,7 +86,7 @@ export default function CartPage() {
     fetchActiveOffers();
   }, []);
 
-  const handleApplyCoupon = (codeToApply?: string) => {
+  const handleApplyCoupon = async (codeToApply?: string) => {
     setCouponFeedback(null);
     const code = (codeToApply || couponCodeInput).trim().toUpperCase();
     if (!code) {
@@ -94,16 +94,7 @@ export default function CartPage() {
       return;
     }
 
-    const matchedOffer = availableOffers.find(
-      (o) => o.code.toUpperCase() === code
-    );
-
-    if (!matchedOffer) {
-      setCouponFeedback({ success: false, message: `Coupon code "${code}" is invalid or expired.` });
-      return;
-    }
-
-    const result = applyOffer(matchedOffer);
+    const result = await applyCoupon(code);
     setCouponFeedback(result);
     if (result.success) {
       setCouponCodeInput("");
@@ -245,7 +236,7 @@ export default function CartPage() {
                   </h2>
                 </div>
 
-                {appliedOffer ? (
+                {appliedOfferCode ? (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-[#0B392B] text-white flex items-center justify-center shrink-0">
@@ -253,7 +244,7 @@ export default function CartPage() {
                       </div>
                       <div>
                         <span className="font-mono text-xs font-extrabold text-[#0B392B] uppercase block">
-                          {appliedOffer.code} Applied
+                          {appliedOfferCode} Applied
                         </span>
                         <span className="text-[11px] text-emerald-700 font-semibold block">
                           Saving ₹{discountAmount} on this order!
@@ -262,7 +253,7 @@ export default function CartPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={removeOffer}
+                      onClick={removeCoupon}
                       className="p-1 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
                       title="Remove coupon"
                     >
@@ -345,7 +336,7 @@ export default function CartPage() {
                 <div className="flex flex-col gap-2 text-xs sm:text-sm border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between text-gray-600">
                     <span>Items Total</span>
-                    <span className="font-semibold text-gray-800">₹{totalAmount}</span>
+                    <span className="font-semibold text-gray-800">₹{subTotal}</span>
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex items-center justify-between text-emerald-700 font-bold">
@@ -402,7 +393,7 @@ export default function CartPage() {
                             : "text-gray-500 hover:text-gray-700"
                         }`}
                       >
-                        {type === "dine-in" ? "normally" : type}
+                        {type}
                       </button>
                     ))}
                   </div>
@@ -524,7 +515,7 @@ export default function CartPage() {
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-gray-200/70 font-extrabold text-sm text-[#0B251C]">
-                <span>Total Amount Paid</span>
+                <span>Total Amount</span>
                 <span className="text-[#0B392B]">₹{placedOrderSuccess.totalAmount}</span>
               </div>
             </div>

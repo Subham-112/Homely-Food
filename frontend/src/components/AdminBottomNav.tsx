@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, UtensilsCrossed, Utensils, Users, MoreHorizontal, User, Tag } from "lucide-react";
+import AdminNewOrderAlert from "./AdminNewOrderAlert";
 
 export const AdminBottomNav: React.FC = () => {
   const pathname = usePathname();
@@ -19,7 +20,9 @@ export const AdminBottomNav: React.FC = () => {
   const isMoreActive = pathname === "/admin/profile" || pathname === "/admin/offers";
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#F4F9FA] border-t border-[#E1ECEE] shadow-lg">
+    <>
+      <AdminNewOrderAlert />
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#F4F9FA] border-t border-[#E1ECEE] shadow-lg">
       {/* More Options Popover Overlay */}
       {showMore && (
         <>
@@ -119,6 +122,7 @@ export const AdminBottomNav: React.FC = () => {
         </button>
       </div>
     </nav>
+    </>
   );
 };
 

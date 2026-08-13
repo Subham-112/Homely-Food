@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +16,8 @@ import {
   Receipt,
   Utensils,
   Eye,
+  Sparkles,
+  ShoppingBag,
 } from "lucide-react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -26,18 +28,20 @@ import { getMyOrders, Order } from "@/services/orderService";
 import { formatUTCToIST } from "@/utils/datetime";
 import { useSocket } from "@/context/SocketContext";
 
+type FilterType = "All" | "Active" | "Ready" | "Completed";
+
 export default function OrdersPage() {
   const router = useRouter();
   const { token } = useAuth();
   const { socket } = useSocket();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"All" | "Active" | "Completed">("All");
+  const [filter, setFilter] = useState<FilterType>("All");
 
   // Selected Order for Details Modal
   const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
 
-  // Socket Real-Time Status Listener
+  // Real-time socket status update listener on customer orders page
   useEffect(() => {
     if (!socket) return;
 
@@ -46,11 +50,24 @@ export default function OrdersPage() {
       const targetId = updatedOrder._id || updatedOrder.orderNumber;
       setOrders((prev) =>
         prev.map((o) =>
-          o._id === targetId || o.orderNumber === targetId
-            ? { ...o, status: updatedOrder.status }
+          o._id === targetId || o.orderNumber === targetId || o._id === updatedOrder._id
+            ? { ...o, ...updatedOrder }
             : o
         )
       );
+
+      // If modal is currently open for this order, update modal state too
+      setSelectedOrderModal((prevModal) => {
+        if (
+          prevModal &&
+          (prevModal._id === targetId ||
+            prevModal.orderNumber === targetId ||
+            prevModal._id === updatedOrder._id)
+        ) {
+          return { ...prevModal, ...updatedOrder };
+        }
+        return prevModal;
+      });
     };
 
     socket.on("order:status_updated", handleStatusUpdate);
@@ -60,37 +77,46 @@ export default function OrdersPage() {
     };
   }, [socket]);
 
-  useEffect(() => {
-    const fetchUserOrders = async () => {
-      setLoading(true);
-      try {
-        if (token) {
-          // Fetch raw orders directly from backend API
-          const resOrders = await getMyOrders();
-          setOrders(resOrders || []);
-        } else {
-          setOrders([]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch user orders via getMyOrders:", err);
-      } finally {
-        setLoading(false);
+  const fetchUserOrders = useCallback(async (currentFilter: FilterType) => {
+    setLoading(true);
+    try {
+      if (token) {
+        const resOrders = await getMyOrders(currentFilter);
+        setOrders(resOrders || []);
+      } else {
+        setOrders([]);
       }
-    };
-
-    fetchUserOrders();
+    } catch (err) {
+      console.error("Failed to fetch user orders via getMyOrders:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  const filteredOrders = orders.filter((order) => {
-    const isOrderActive =
-      order.status.toLowerCase() === "pending" ||
-      order.status.toLowerCase() === "accepted" ||
-      order.status.toLowerCase() === "preparing" ||
-      order.status.toLowerCase() === "ready";
+  useEffect(() => {
+    fetchUserOrders(filter);
+  }, [filter, fetchUserOrders]);
 
-    if (filter === "Active") return isOrderActive;
-    if (filter === "Completed")
-      return order.status.toLowerCase() === "completed" || order.status.toLowerCase() === "delivered";
+  const filteredOrders = orders.filter((order) => {
+    const statusLower = (order.status || "").toLowerCase();
+
+    if (filter === "Active") {
+      return (
+        statusLower === "pending" ||
+        statusLower === "accepted" ||
+        statusLower === "preparing"
+      );
+    }
+    if (filter === "Ready") {
+      return statusLower === "ready";
+    }
+    if (filter === "Completed") {
+      return (
+        statusLower === "completed" ||
+        statusLower === "delivered" ||
+        statusLower === "cancelled"
+      );
+    }
     return true;
   });
 
@@ -104,6 +130,26 @@ export default function OrdersPage() {
     if (!dateStr) return "";
     const d = new Date(dateStr);
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const getStatusBadgeStyle = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === "ready") {
+      return {
+        bg: "bg-purple-100 text-purple-900 border-purple-300",
+        icon: <ShoppingBag className="w-3.5 h-3.5 text-purple-700 animate-bounce" />,
+      };
+    }
+    if (s === "pending" || s === "accepted" || s === "preparing") {
+      return {
+        bg: "bg-amber-50 text-amber-900 border-amber-200",
+        icon: <CookingPot className="w-3.5 h-3.5 animate-pulse text-amber-600" />,
+      };
+    }
+    return {
+      bg: "bg-emerald-50 text-emerald-900 border-emerald-200",
+      icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />,
+    };
   };
 
   return (
@@ -122,9 +168,9 @@ export default function OrdersPage() {
           </span>
         </div>
 
-        {/* Filter Pills */}
+        {/* Status Filter Pills: All, Active, Ready, Completed */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 shrink-0">
-          {(["All", "Active", "Completed"] as const).map((tab) => {
+          {(["All", "Active", "Ready", "Completed"] as const).map((tab) => {
             const isActive = filter === tab;
             return (
               <button
@@ -164,8 +210,8 @@ export default function OrdersPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
             {filteredOrders.map((order) => {
-              console.log("order details", order);
-              const statusLower = order.status.toLowerCase();
+              const statusLower = (order.status || "").toLowerCase();
+              const badgeStyle = getStatusBadgeStyle(order.status);
               const isActiveOrder =
                 statusLower === "pending" ||
                 statusLower === "accepted" ||
@@ -196,17 +242,9 @@ export default function OrdersPage() {
 
                     {/* Status Badge */}
                     <div
-                      className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1.5 shrink-0 ${
-                        isActiveOrder
-                          ? "bg-amber-50 text-amber-800 border border-amber-200"
-                          : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                      }`}
+                      className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1.5 shrink-0 border ${badgeStyle.bg}`}
                     >
-                      {isActiveOrder ? (
-                        <CookingPot className="w-3.5 h-3.5 animate-pulse text-amber-600" />
-                      ) : (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      )}
+                      {badgeStyle.icon}
                       <span className="capitalize">{order.status}</span>
                     </div>
                   </div>
@@ -221,7 +259,7 @@ export default function OrdersPage() {
                         <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                           <VegBadge size={14} />
                           <span className="font-semibold truncate">
-                            {item.name} x {item.quantity}
+                            {item.menuItem?.name || item.name || "Food Item"} x {item.quantity}
                           </span>
                         </div>
                         <span className="font-extrabold text-[#0B251C] shrink-0">
@@ -267,7 +305,7 @@ export default function OrdersPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/order-tracking?order=${order._id}`);
+                            router.push(`/order-tracking?orderId=${order.orderNumber || order._id}`);
                           }}
                           className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1 transition-colors cursor-pointer"
                         >
@@ -373,7 +411,7 @@ export default function OrdersPage() {
                     <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
                       <VegBadge size={14} />
                       <span className="font-extrabold text-[#0B251C] truncate">
-                        {item.name}
+                        {item.menuItem?.name || item.name}
                       </span>
                       <span className="text-gray-400 font-bold text-[11px]">
                         x{item.quantity}

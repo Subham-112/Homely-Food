@@ -50,7 +50,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="flex-1 bg-[#F4F8FA] flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 min-h-screen">
+    <div className="flex-1 bg-[#F4F8FA] flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 h-screen">
       <div className="w-full max-w-4xl bg-white rounded-3xl overflow-hidden shadow-xl border border-[#E8F0F2] flex flex-col md:flex-row">
         {/* Left Banner Section (Desktop Only) */}
         <div className="hidden md:flex relative w-full md:w-1/2 bg-[#0B392B] p-8 flex-col justify-between text-white shrink-0">

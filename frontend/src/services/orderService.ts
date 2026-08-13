@@ -108,7 +108,11 @@ export const createOrder = async (payload: CreateOrderPayload) => {
 // --- Order List (Admin) ---
 
 export interface OrderItem {
-  menuItem: string;
+  menuItem: {
+    name: string;
+    _id: string;
+    price?: number;
+  };
   name: string;
   price: number;
   quantity: number;
@@ -184,8 +188,15 @@ export const getOrders = async (params?: {
   return response.data;
 };
 
-export const getMyOrders = async (): Promise<Order[]> => {
-  const response = await Fetch<ApiResponse<Order[]>>("/api/order/my-orders");
+export const getMyOrders = async (status?: string): Promise<Order[]> => {
+  const query = new URLSearchParams();
+  if (status && status.trim() && status.toLowerCase() !== "all") {
+    query.append("status", status.trim().toLowerCase());
+  }
+  const queryString = query.toString();
+  const url = queryString ? `/api/order/my-orders?${queryString}` : "/api/order/my-orders";
+
+  const response = await Fetch<ApiResponse<Order[]>>(url);
   return response.data || [];
 };
 

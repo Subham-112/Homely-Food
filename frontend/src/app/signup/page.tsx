@@ -86,7 +86,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="flex-1 bg-[#FAF6ED] p-4 sm:p-6 lg:p-8 flex items-center justify-center min-h-screen">
+    <div className="min-h-dvh bg-[#FAF6ED] p-4 sm:p-6 lg:p-8 flex flex-col justify-center items-center w-full">
       <div className="w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 md:p-10 shadow-lg border border-[#EFE9DA]/60 flex flex-col items-center my-auto">
         {/* Top Logo Icon */}
         <div className="w-16 h-16 rounded-full bg-[#EAF5EE] flex items-center justify-center mb-6 shrink-0">

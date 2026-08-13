@@ -63,8 +63,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex-1 bg-[#FAF6ED] flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 min-h-screen">
-      <div className="w-full max-w-4xl bg-white rounded-3xl overflow-hidden shadow-xl border border-gray-100 flex flex-col md:flex-row">
+    <div className="min-h-dvh bg-[#FAF6ED] flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 w-full">
+      <div className="w-full max-w-4xl bg-white rounded-3xl overflow-hidden shadow-xl border border-gray-100 flex flex-col md:flex-row my-auto">
         {/* Left Side Banner Image (Desktop Only Split View) */}
         <div className="hidden md:flex relative w-full md:w-1/2 bg-gray-200 overflow-hidden shrink-0">
           <img

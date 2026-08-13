@@ -7,7 +7,7 @@ import { formatUTCToIST } from "@/utils/datetime";
 
 interface AdminOrderCardProps {
   order: Order;
-  onOrderUpdated?: () => void;
+  onOrderUpdated?: (updatedOrder?: any) => void;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -98,15 +98,10 @@ export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCard
   ) => {
     setIsUpdating(true);
     try {
-      await updateOrderStatus(order._id, newStatus, paymentMethod, isPaidVal);
-
-      // Dispatch global event to update lists across all pages
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("order-updated", { detail: { orderId: order._id, newStatus } }));
-      }
+      const updatedOrder = await updateOrderStatus(order._id, newStatus, paymentMethod, isPaidVal);
 
       if (onOrderUpdated) {
-        onOrderUpdated();
+        onOrderUpdated(updatedOrder);
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
@@ -132,7 +127,7 @@ export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCard
         }`}
       >
         {/* Card Header: Order Number & Status */}
-        <div className="flex items-center justify-between border-b border-gray-100/60">
+        <div className="flex items-center justify-between border-b border-gray-100/60 pb-2">
           <div className="flex items-center gap-2">
             <span className="font-extrabold text-sm text-[#0B251C]">{order.orderNumber}</span>
             {/* Order Type Badge */}
@@ -185,7 +180,7 @@ export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCard
               key={idx}
               className="inline-block bg-emerald-50 text-[#0B392B] text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-100/60 whitespace-nowrap shrink-0"
             >
-              {item.quantity}x {item.name}
+              {item.quantity}x {item.menuItem.name}
             </span>
           ))}
         </div>

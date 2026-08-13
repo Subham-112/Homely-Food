@@ -63,7 +63,11 @@ export default function AdminOrdersManagementPage() {
     const handleStatusUpdate = (updatedOrder: any) => {
       console.log("📢 Real-Time Socket Event in Admin (status update):", updatedOrder);
       setOrders((prev) =>
-        prev.map((o) => (o._id === updatedOrder._id ? { ...o, ...updatedOrder } : o))
+        prev.map((o) =>
+          o._id === updatedOrder._id || o._id === updatedOrder.id
+            ? { ...o, ...updatedOrder }
+            : o
+        )
       );
     };
 
@@ -74,7 +78,7 @@ export default function AdminOrdersManagementPage() {
       socket.off("order:new", handleNewOrder);
       socket.off("order:status_updated", handleStatusUpdate);
     };
-  }, [socket]);
+  }, [socket, joinAdminRoom]);
 
   // Debounce search
   useEffect(() => {
@@ -85,7 +89,7 @@ export default function AdminOrdersManagementPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch orders
+  // Fetch orders (only for initial load, filter change, search, or pagination)
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -111,17 +115,18 @@ export default function AdminOrdersManagementPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  useEffect(() => {
-    const handleOrderEvents = () => {
-      fetchOrders();
-    };
-    window.addEventListener("order-created", handleOrderEvents);
-    window.addEventListener("order-updated", handleOrderEvents);
-    return () => {
-      window.removeEventListener("order-created", handleOrderEvents);
-      window.removeEventListener("order-updated", handleOrderEvents);
-    };
-  }, [fetchOrders]);
+  // Selective single order status update handler (NO API RE-FETCH, NO PAGE SPINNER)
+  const handleSingleOrderUpdated = useCallback((updatedOrder?: any) => {
+    if (updatedOrder && (updatedOrder._id || updatedOrder.id)) {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === updatedOrder._id || o._id === updatedOrder.id
+            ? { ...o, ...updatedOrder }
+            : o
+        )
+      );
+    }
+  }, []);
 
   return (
     <div className="flex flex-col h-dvh overflow-hidden bg-[#F4F8FA] relative">
@@ -269,7 +274,7 @@ export default function AdminOrdersManagementPage() {
                 <AdminOrderCard
                   key={order._id}
                   order={order}
-                  onOrderUpdated={fetchOrders}
+                  onOrderUpdated={handleSingleOrderUpdated}
                 />
               ))}
             </div>
