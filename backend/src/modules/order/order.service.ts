@@ -186,6 +186,7 @@ export class OrderService {
       discount,
       totalAmount,
       notes: payload.notes?.trim() || "",
+      createdBy: "admin",
     });
 
     // Real-Time Socket.io Event Emission
@@ -338,7 +339,21 @@ export class OrderService {
     paymentMethod?: PaymentMethod,
     isPaid?: boolean
   ) {
-    const order = await Order.findById(id);
+    const order = await Order.findById(id)
+      .populate("user", "name phone email")
+      .populate({
+        path: "items.menuItem",
+        select: "_id name price image",
+      })
+      .populate({
+        path: "items.variant.variantId",
+        select: "_id label price",
+      })
+      .populate({
+        path: "offer",
+        select: "_id title code offerType discountPercentage flatDiscountAmount",
+      });
+      
     if (!order) {
       throw new ApiError(404, "Order not found");
     }

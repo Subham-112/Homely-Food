@@ -342,6 +342,7 @@ export class CartService {
       offer: cart.total.offer,
       offerCode: cart.total.offerCode,
       notes: payload.notes || "",
+      createdBy: "customer",
     });
 
     // Sync Customer Profile
