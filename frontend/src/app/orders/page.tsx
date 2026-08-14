@@ -232,7 +232,7 @@ export default function OrdersPage() {
                           #{order.orderNumber}
                         </span>
                         <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 uppercase tracking-wider">
-                          {order.orderType === "dine-in" ? "Normally" : order.orderType}
+                          {order.orderType}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-1 font-medium">
@@ -367,10 +367,10 @@ export default function OrdersPage() {
 
             {/* Order Type & Address Details */}
             <div className="flex flex-col gap-2 bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs">
-              <div className="flex items-center justify-between font-bold text-gray-700 border-b border-gray-200/60 pb-2">
+              <div className={`flex items-center justify-between font-bold text-gray-700 ${selectedOrderModal.deliveryAddress && "border-b border-gray-200/60 pb-2"}`}>
                 <span>Order Type</span>
                 <span className="capitalize text-[#0B392B]">
-                  {selectedOrderModal.orderType === "dine-in" ? "Normally / Dine-in" : selectedOrderModal.orderType}
+                  {selectedOrderModal.orderType}
                 </span>
               </div>
 

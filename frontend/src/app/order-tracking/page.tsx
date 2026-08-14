@@ -71,7 +71,6 @@ function OrderTrackingContent() {
         setLoading(true);
         try {
           const found = await getOrderById(orderIdParam);
-          console.log("found order", found);
           if (found) {
             setLiveOrder(found);
           }
@@ -418,7 +417,7 @@ function OrderTrackingContent() {
                   <div className="flex items-center gap-2 text-gray-800">
                     <VegBadge size={16} />
                     <span className="font-medium">
-                      {item.name} x {item.quantity}
+                      {item.menuItem.name} x {item.quantity}
                     </span>
                   </div>
                   <span className="font-bold text-[#0B251C]">

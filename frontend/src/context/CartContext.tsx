@@ -390,7 +390,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       orderType,
       deliveryAddress,
       pickupTiming,
-      paymentMethod: "cash",
       guest: {
         name: guestName || "Guest User",
         phone: guestPhone || "0000000000",

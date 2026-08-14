@@ -149,6 +149,7 @@ export interface Order {
   discount: number;
   totalAmount: number;
   notes?: string;
+  createdBy?: "customer" | "admin";
   createdAt: string;
   updatedAt: string;
 }

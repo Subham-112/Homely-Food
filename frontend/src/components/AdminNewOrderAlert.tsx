@@ -37,35 +37,7 @@ export const AdminNewOrderAlert: React.FC = () => {
     initWebAudio();
   }, []);
 
-  // 2. Global user interaction listener to unlock audio playback context in Chrome/Edge
-  useEffect(() => {
-    const unlockAudioContext = () => {
-      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
-        audioCtxRef.current.resume().catch(() => {});
-      }
-      if (audioRef.current) {
-        audioRef.current
-          .play()
-          .then(() => {
-            if (!newOrder && audioRef.current) {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-            }
-          })
-          .catch(() => {});
-      }
-    };
 
-    window.addEventListener("click", unlockAudioContext);
-    window.addEventListener("touchstart", unlockAudioContext);
-    window.addEventListener("keydown", unlockAudioContext);
-
-    return () => {
-      window.removeEventListener("click", unlockAudioContext);
-      window.removeEventListener("touchstart", unlockAudioContext);
-      window.removeEventListener("keydown", unlockAudioContext);
-    };
-  }, [newOrder]);
 
   // Start looping sound using both Web Audio API & HTML5 Audio fallback
   const startLoopingSound = () => {
@@ -137,6 +109,10 @@ export const AdminNewOrderAlert: React.FC = () => {
 
     const handleNewOrder = (incomingOrder: any) => {
       console.log("🔔 New Order socket event received in Admin Panel:", incomingOrder);
+      if (incomingOrder?.createdBy === "admin") {
+        console.log("ℹ️ Order created by Admin. Skipping alert modal and sound.");
+        return;
+      }
       setNewOrder(incomingOrder);
       startLoopingSound();
     };
@@ -166,12 +142,14 @@ export const AdminNewOrderAlert: React.FC = () => {
   const handleViewOrder = () => {
     stopLoopingSound();
     setNewOrder(null);
+    window.dispatchEvent(new CustomEvent("admin:order-alert-dismissed"));
     router.push("/admin/orders");
   };
 
   const handleDismiss = () => {
     stopLoopingSound();
     setNewOrder(null);
+    window.dispatchEvent(new CustomEvent("admin:order-alert-dismissed"));
   };
 
   const orderIdDisplay = newOrder?.orderNumber || newOrder?._id || "NEW ORDER";

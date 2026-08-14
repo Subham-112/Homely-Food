@@ -8,6 +8,7 @@ import { formatUTCToIST } from "@/utils/datetime";
 interface AdminOrderCardProps {
   order: Order;
   onOrderUpdated?: (updatedOrder?: any) => void;
+  onCardClick?: (orderId: string) => void;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -74,12 +75,12 @@ function formatDate(dateStr: string): string {
   })}, ${time}`;
 }
 
-export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCardProps) {
+export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: AdminOrderCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [targetStatus, setTargetStatus] = useState<string>("");
   const [isPaidSelection, setIsPaidSelection] = useState<boolean>(true);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("cash");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("");
 
   const isPaid = order.payment?.status?.toLowerCase() === "paid";
   const nextAction = getNextStatusAction(order);
@@ -120,10 +121,11 @@ export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCard
   return (
     <>
       <div
-        className={`rounded-2xl p-4 border flex flex-col justify-between gap-3 transition-all ${
+        onClick={() => onCardClick && onCardClick(order._id)}
+        className={`rounded-2xl p-4 border flex flex-col justify-between gap-3 transition-all cursor-pointer ${
           isPaid
-            ? "bg-gray-50 border-gray-200 opacity-70 saturate-50 shadow-none"
-            : "bg-white border-[#E1ECEE] shadow-2xs hover:shadow-xs"
+            ? "bg-gray-50 border-gray-200 opacity-70 saturate-50 shadow-none hover:shadow-xs"
+            : "bg-white border-[#E1ECEE] shadow-2xs hover:shadow-xs hover:border-[#0B392B]/40"
         }`}
       >
         {/* Card Header: Order Number & Status */}
@@ -202,15 +204,16 @@ export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCard
         ) : null}
 
         {/* Footer: Full Width Action Button / Status */}
-        <div className="border-t border-gray-100/80 mt-0.5">
+        <div className="border-t border-gray-100/80 mt-0.5" onClick={(e) => e.stopPropagation()}>
           {nextAction ? (
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 const targetVal = nextAction.value;
                 if (targetVal === "completed" || targetVal === "delivered") {
                   setTargetStatus(targetVal);
                   setIsPaidSelection(true);
-                  setSelectedPaymentMethod("cash");
+                  setSelectedPaymentMethod("");
                   setShowPaymentModal(true);
                 } else {
                   handleUpdateStatus(targetVal);
@@ -232,7 +235,7 @@ export default function AdminOrderCard({ order, onOrderUpdated }: AdminOrderCard
 
       {/* Payment Confirmation Modal encapsulated inside the card */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-55 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
           <form
             onSubmit={handlePaymentConfirm}
             className="bg-white rounded-3xl max-w-md w-full p-4 sm:p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
