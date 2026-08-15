@@ -17,7 +17,10 @@ export const AdminBottomNav: React.FC = () => {
     { label: "Customers", href: "/admin/customers", icon: Users },
   ];
 
-  const isMoreActive = pathname === "/admin/profile" || pathname === "/admin/offers";
+  const isMoreActive =
+    pathname === "/admin/profile" ||
+    pathname === "/admin/offers" ||
+    pathname === "/admin/categories";
 
   return (
     <>
@@ -31,7 +34,7 @@ export const AdminBottomNav: React.FC = () => {
             className="fixed inset-0 bg-transparent z-40"
             onClick={() => setShowMore(false)}
           />
-          <div className="absolute right-4 bottom-16 z-50 bg-white border border-[#E1ECEE] rounded-2xl shadow-xl py-2.5 min-w-[140px] flex flex-col gap-1 overflow-hidden">
+          <div className="absolute right-4 bottom-16 z-50 bg-white border border-[#E1ECEE] rounded-2xl shadow-xl py-2.5 min-w-[160px] flex flex-col gap-1 overflow-hidden">
             <Link
               href="/admin/profile"
               onClick={() => setShowMore(false)}
@@ -56,6 +59,19 @@ export const AdminBottomNav: React.FC = () => {
             >
               <Tag className="w-4 h-4 shrink-0" />
               <span>Offers</span>
+            </Link>
+            <div className="h-[1px] bg-gray-100 mx-3" />
+            <Link
+              href="/admin/categories"
+              onClick={() => setShowMore(false)}
+              className={`flex items-center gap-2.5 px-4 py-2 text-xs font-bold transition-colors ${
+                pathname === "/admin/categories"
+                  ? "bg-[#0B392B]/5 text-[#0B392B]"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-[#0B392B]"
+              }`}
+            >
+              <Tag className="w-4 h-4 shrink-0" />
+              <span>Categories</span>
             </Link>
           </div>
         </>

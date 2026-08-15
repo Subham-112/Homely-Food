@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut } from "lucide-react";
+import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -156,6 +156,14 @@ export const Header: React.FC = () => {
                     >
                       <User className="w-5 h-5" />
                       Customers
+                    </Link>
+                    <Link
+                      href="/admin/categories"
+                      onClick={() => setDrawerOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-[#0B392B] hover:text-white font-medium transition-colors"
+                    >
+                      <Tag className="w-5 h-5" />
+                      Category Management
                     </Link>
                     {isAdminAuthenticated && (
                       <button

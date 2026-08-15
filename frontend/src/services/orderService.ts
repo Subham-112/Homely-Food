@@ -173,6 +173,9 @@ export const getOrders = async (params?: {
   page?: number;
   limit?: number;
   userId?: string;
+  period?: "today" | "weekly" | "monthly" | "yearly" | "custom" | string;
+  startDate?: string;
+  endDate?: string;
 }): Promise<OrdersResponse> => {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
@@ -181,6 +184,9 @@ export const getOrders = async (params?: {
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
   if (params?.userId) query.append("userId", params.userId);
+  if (params?.period) query.append("period", params.period);
+  if (params?.startDate) query.append("startDate", params.startDate);
+  if (params?.endDate) query.append("endDate", params.endDate);
 
   const queryString = query.toString();
   const url = queryString ? `/api/order?${queryString}` : "/api/order";
@@ -226,7 +232,19 @@ export interface OrderStats {
   completed: number;
 }
 
-export const getOrderStats = async (): Promise<OrderStats> => {
-  const response = await Fetch<ApiResponse<OrderStats>>("/api/order/stats");
+export const getOrderStats = async (params?: {
+  period?: "today" | "weekly" | "monthly" | "yearly" | "custom" | string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<OrderStats> => {
+  const query = new URLSearchParams();
+  if (params?.period) query.append("period", params.period);
+  if (params?.startDate) query.append("startDate", params.startDate);
+  if (params?.endDate) query.append("endDate", params.endDate);
+
+  const queryString = query.toString();
+  const url = queryString ? `/api/order/stats?${queryString}` : "/api/order/stats";
+
+  const response = await Fetch<ApiResponse<OrderStats>>(url);
   return response.data;
 };

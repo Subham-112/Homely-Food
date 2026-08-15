@@ -22,8 +22,8 @@ export default function AdminHomePage() {
   const fetchDashboardData = useCallback(async () => {
     try {
       const [statsData, ordersData] = await Promise.all([
-        getOrderStats(),
-        getOrders({ page: 1, limit: 5 }),
+        getOrderStats({ period: "today" }),
+        getOrders({ page: 1, limit: 5, period: "today" }),
       ]);
       setStats(statsData);
       setOrders(ordersData.orders || []);

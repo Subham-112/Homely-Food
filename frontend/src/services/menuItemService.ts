@@ -126,6 +126,53 @@ export const getMenuItems = async (query?: {
   );
 };
 
+export const getAdminMenuItems = async (query?: {
+  category?: string;
+  status?: MenuItemStatus;
+  isTodaySpecial?: boolean;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedMenuItems> => {
+  const params: Record<string, unknown> = {};
+  if (query?.category) params.category = query.category;
+  if (query?.status) params.status = query.status;
+  if (query?.isTodaySpecial !== undefined) params.isTodaySpecial = query.isTodaySpecial;
+  if (query?.search) params.search = query.search;
+  if (query?.page) params.page = query.page;
+  if (query?.limit) params.limit = query.limit;
+
+  const response = await Fetch<ApiResponse<PaginatedMenuItems | MenuItem[]>>("/api/menu-item/admin/all", params);
+
+  if (Array.isArray(response.data)) {
+    return {
+      items: response.data,
+      pagination: {
+        total: response.data.length,
+        page: 1,
+        limit: response.data.length || 10,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    };
+  }
+
+  return (
+    response.data || {
+      items: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    }
+  );
+};
+
 export const getMenuItemById = async (id: string): Promise<MenuItem> => {
   const response = await Fetch<ApiResponse<MenuItem>>(`/api/menu-item/${id}`);
   return response.data;

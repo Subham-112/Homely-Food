@@ -73,8 +73,13 @@ export default function CartPage() {
     }
   }, [user]);
 
-  // Fetch active offers for coupon selection
+  // Fetch active offers for coupon selection only when cart has items
   useEffect(() => {
+    if (!cart || cart.length === 0) {
+      setAvailableOffers([]);
+      return;
+    }
+
     const fetchActiveOffers = async () => {
       try {
         const offers = await getOffers({ type: "active" });
@@ -84,7 +89,7 @@ export default function CartPage() {
       }
     };
     fetchActiveOffers();
-  }, []);
+  }, [cart]);
 
   const handleApplyCoupon = async (codeToApply?: string) => {
     setCouponFeedback(null);

@@ -40,42 +40,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   const router = useRouter();
   const pathname = usePathname();
 
-  const fetchProfiles = async (uToken: string | null, aToken: string | null) => {
+  const fetchProfiles = async (uToken: string | null, aToken: string | null, force: boolean = false) => {
     if (uToken) {
-      try {
-        const res = await Fetch<{ success: boolean; data: UserProfile }>("/api/user/profile");
-        if (res.success && res.data) {
-          setUser(res.data);
+      if (force || !user) {
+        try {
+          const res = await Fetch<{ success: boolean; data: UserProfile }>("/api/user/profile");
+          if (res.success && res.data) {
+            setUser(res.data);
+          }
+        } catch (err) {
+          console.error("Failed to fetch current user profile:", err);
         }
-      } catch (err) {
-        console.error("Failed to fetch current user profile:", err);
       }
     } else {
       setUser(null);
     }
 
     if (aToken) {
-      try {
-        const res = await Fetch<{ success: boolean; data: AdminProfile }>("/api/admin/profile");
-        if (res.success && res.data) {
-          setAdminProfile(res.data);
+      if (force || !adminProfile) {
+        try {
+          const res = await Fetch<{ success: boolean; data: AdminProfile }>("/api/admin/profile");
+          if (res.success && res.data) {
+            setAdminProfile(res.data);
+          }
+        } catch (err) {
+          console.error("Failed to fetch current admin profile:", err);
         }
-      } catch (err) {
-        console.error("Failed to fetch current admin profile:", err);
       }
     } else {
       setAdminProfile(null);
     }
   };
 
+  // 1. Initial Load: Fetch tokens & profile data once when application opens
   useEffect(() => {
     const storedUserToken = TokenStorage.getToken();
     const storedAdminToken = TokenStorage.getAdminToken();
-
 
     setToken(storedUserToken);
     setAdminToken(storedAdminToken);
@@ -88,8 +93,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.cookie = `admin_access=${storedAdminToken}; path=/;`;
     }
 
-    // Fetch profile data based on tokens present
-    fetchProfiles(storedUserToken, storedAdminToken);
+    // Fetch profile data initial load (if tokens present)
+    fetchProfiles(storedUserToken, storedAdminToken, false).finally(() => {
+      setIsInitialized(true);
+    });
+  }, []);
+
+  // 2. Client-Side Route Protection (Runs on navigation, WITHOUT calling profile API)
+  useEffect(() => {
+    const storedUserToken = TokenStorage.getToken();
+    const storedAdminToken = TokenStorage.getAdminToken();
 
     const hasUserAccess = !!storedUserToken;
     const hasAdminAccess = !!storedAdminToken;
@@ -97,26 +110,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const isAdminLoginRoute = pathname === "/admin/login";
     const isAdminRoute = pathname.startsWith("/admin");
     const isPublicRoute = pathname.startsWith("/public");
-    const isProtectedUserRoute = pathname === "/orders" || pathname.startsWith("/profile");
 
     // Strict Routing Guards
     if (hasAdminAccess) {
-      // Admin session active:
-      // Admin MUST NOT access ANY user panel routes (/, /cart, /orders, /profile, /login, /signup, etc.)
-      // If pathname does NOT start with /admin OR is /admin/login -> redirect to /admin immediately
       if (!isAdminRoute || isAdminLoginRoute) {
         router.replace("/admin");
       }
     } else if (hasUserAccess) {
-      // User session active:
-      // User MUST NOT access ANY admin routes (/admin/*) or auth routes (/login, /signup)
-      // Redirect from public pages to authenticated home
       if (isAdminRoute || isUserLoginSignup || isPublicRoute) {
         router.replace("/");
       }
     } else {
-      // Unauthenticated visitor (no token in localStorage):
-      // Allow /public/* routes without redirect
       if (isAdminRoute && !isAdminLoginRoute) {
         router.replace("/admin/login");
       } else if (!isUserLoginSignup && !isAdminLoginRoute && !isPublicRoute) {
@@ -134,8 +138,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     TokenStorage.setToken(newToken);
     setToken(newToken);
-    if (userData) setUser(userData);
-    fetchProfiles(newToken, null);
+    if (userData) {
+      setUser(userData);
+    } else {
+      fetchProfiles(newToken, null, true);
+    }
     router.replace("/");
   };
 
@@ -147,8 +154,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     TokenStorage.setToken(newToken);
     setToken(newToken);
-    if (userData) setUser(userData);
-    fetchProfiles(newToken, null);
+    if (userData) {
+      setUser(userData);
+    } else {
+      fetchProfiles(newToken, null, true);
+    }
     router.replace("/");
   };
 
@@ -175,8 +185,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     TokenStorage.setAdminToken(newToken);
     setAdminToken(newToken);
-    if (adminData) setAdminProfile(adminData);
-    fetchProfiles(null, newToken);
+    if (adminData) {
+      setAdminProfile(adminData);
+    } else {
+      fetchProfiles(null, newToken, true);
+    }
     router.replace("/admin");
   };
 
@@ -195,7 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshProfile = async () => {
-    await fetchProfiles(token, adminToken);
+    await fetchProfiles(token, adminToken, true);
   };
 
   return (

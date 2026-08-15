@@ -25,7 +25,7 @@ import {
   MenuItem,
   MenuItemStatus,
   PaginationMeta,
-  getMenuItems,
+  getAdminMenuItems,
   getMenuItemById,
   createMenuItem,
   updateMenuItem,
@@ -136,7 +136,7 @@ export default function AdminMenuPage() {
       setLoading(true);
       setError(null);
 
-      const result = await getMenuItems({
+      const result = await getAdminMenuItems({
         category: selectedCategory === "all" ? undefined : selectedCategory,
         status: selectedStatus === "all" ? undefined : (selectedStatus as MenuItemStatus),
         search: debouncedSearch.trim() || undefined,

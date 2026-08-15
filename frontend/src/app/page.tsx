@@ -47,7 +47,28 @@ export default function HomePage() {
         const catNames = ["All", ...catRes.map((c) => c.name)];
         setCategories(catNames);
 
-        // 3. Bottom Section: Menu Items (Paginated: Page 1, Limit 10)
+        // 3. Middle Section: Today's Special Items (isTodaySpecial=true API call)
+        const specialRes = await getMenuItems({ isTodaySpecial: true, limit: 20 });
+        const specials = specialRes.items.map((i: ApiMenuItem) => {
+          const imgUrl = typeof i.image === "object" ? i.image?.url : (typeof i.image === "string" && i.image.trim()) ? i.image : "";
+          return {
+            id: i._id,
+            name: i.name,
+            price: i.price,
+            description: i.description || "",
+            image: imgUrl || "/default-food.jpg",
+            isSpecial: i.isTodaySpecial,
+            tag: i.isTodaySpecial ? "Special" : undefined,
+            category: typeof i.category === "object" ? (i.category as any)?.name : i.category || "",
+            preparationTime: i.preparationTime,
+            status: i.status,
+            tags: i.tags,
+            allergens: i.allergens,
+          };
+        });
+        setSpecialItems(specials);
+
+        // 4. Bottom Section: Menu Items (Paginated: Page 1, Limit 10)
         const menuRes = await getMenuItems({ page: 1, limit: 10 });
         const items = menuRes.items.map((i: ApiMenuItem) => {
           const imgUrl = typeof i.image === "object" ? i.image?.url : (typeof i.image === "string" && i.image.trim()) ? i.image : "";
@@ -68,7 +89,6 @@ export default function HomePage() {
         });
 
         setMenuItems(items);
-        setSpecialItems(items.filter((i) => i.isSpecial));
         setPage(1);
         setHasMore(menuRes.pagination ? menuRes.pagination.page < menuRes.pagination.totalPages : false);
         setTotal(Number(menuRes.pagination.total));
