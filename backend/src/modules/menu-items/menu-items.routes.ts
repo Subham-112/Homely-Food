@@ -11,6 +11,7 @@ router.get("/order-list", authenticateToken, MenuItemController.getOrderList);
 router.get("/:id", MenuItemController.getById);
 
 // Admin-only management endpoints
+router.get("/admin/all", ...adminAccess, MenuItemController.getAllForAdmin);
 router.post("/", ...adminAccess, uploadImage({ folder: "menu-items", multiple: false }), MenuItemController.create);
 router.put("/:id", ...adminAccess, uploadImage({ folder: "menu-items", multiple: false }), MenuItemController.update);
 router.patch("/:id/status", ...adminAccess, MenuItemController.toggleStatus);

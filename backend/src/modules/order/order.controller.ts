@@ -4,6 +4,7 @@ import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../comm
 import { z } from "zod";
 import ApiError from "../../utils/ApiError";
 import ApiResponse from "../../utils/ApiResponse";
+import { getDateRangeByPeriod } from "../../utils/dateHelper";
 import { AuthenticatedRequest } from "../../middlewares/authMiddleware";
 
 const createOrderSchema = z.object({
@@ -95,23 +96,37 @@ export class OrderController {
       const orderType = req.query.orderType as string | undefined;
       const search = req.query.search as string | undefined;
       const userId = req.query.userId as string | undefined;
+      const period = req.query.period as string | undefined;
+      const startDateParam = req.query.startDate as string | undefined;
+      const endDateParam = req.query.endDate as string | undefined;
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
 
-      const result = await OrderService.getAll({ status, orderType, search, page, limit, userId });
+      const dateRange = getDateRangeByPeriod(period, startDateParam, endDateParam);
+
+      const result = await OrderService.getAll({
+        status,
+        orderType,
+        search,
+        page,
+        limit,
+        userId,
+        dateRange,
+      });
       res.status(200).json(new ApiResponse(200, result, "Orders fetched successfully"));
     } catch (error) {
       next(error);
     }
   }
 
-  static async getMyOrders(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  static async getMyOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      if (!req.user || !req.user._id) {
+      const authReq = req as AuthenticatedRequest;
+      if (!authReq.user || !authReq.user._id) {
         throw new ApiError(401, "Unauthorized. User ID missing.");
       }
       const status = req.query.status as string | undefined;
-      const orders = await OrderService.getMyOrders(req.user._id, status);
+      const orders = await OrderService.getMyOrders(authReq.user._id, status);
       res.status(200).json(new ApiResponse(200, orders, "User orders fetched successfully"));
     } catch (error) {
       next(error);
@@ -150,7 +165,12 @@ export class OrderController {
 
   static async getStats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const stats = await OrderService.getStats();
+      const period = req.query.period as string | undefined;
+      const startDateParam = req.query.startDate as string | undefined;
+      const endDateParam = req.query.endDate as string | undefined;
+
+      const dateRange = getDateRangeByPeriod(period, startDateParam, endDateParam);
+      const stats = await OrderService.getStats(dateRange);
       res.status(200).json(new ApiResponse(200, stats, "Stats fetched successfully"));
     } catch (error) {
       next(error);

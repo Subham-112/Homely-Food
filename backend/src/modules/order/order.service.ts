@@ -206,6 +206,7 @@ export class OrderService {
     page?: number;
     limit?: number;
     userId?: string;
+    dateRange?: { startDate: Date; endDate: Date };
   }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, Math.min(100, query.limit || 10));
@@ -223,6 +224,13 @@ export class OrderService {
 
     if (query.userId) {
       filter.user = query.userId;
+    }
+
+    if (query.dateRange) {
+      filter.createdAt = {
+        $gte: query.dateRange.startDate,
+        $lte: query.dateRange.endDate,
+      };
     }
 
     if (query.search && query.search.trim()) {
@@ -387,12 +395,21 @@ export class OrderService {
     return order;
   }
 
-  static async getStats() {
+  static async getStats(dateRange?: { startDate: Date; endDate: Date }) {
+    const baseFilter: any = { deleted: { $ne: true } };
+
+    if (dateRange) {
+      baseFilter.createdAt = {
+        $gte: dateRange.startDate,
+        $lte: dateRange.endDate,
+      };
+    }
+
     const [totalOrders, pendingOrders, preparingOrders, completedOrders] = await Promise.all([
-      Order.countDocuments({ deleted: { $ne: true } }),
-      Order.countDocuments({ status: { $in: [OrderStatus.PENDING, OrderStatus.ACCEPTED] }, deleted: { $ne: true } }),
-      Order.countDocuments({ status: OrderStatus.PREPARING, deleted: { $ne: true } }),
-      Order.countDocuments({ status: { $in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] }, deleted: { $ne: true } }),
+      Order.countDocuments(baseFilter),
+      Order.countDocuments({ ...baseFilter, status: { $in: [OrderStatus.PENDING, OrderStatus.ACCEPTED] } }),
+      Order.countDocuments({ ...baseFilter, status: OrderStatus.PREPARING }),
+      Order.countDocuments({ ...baseFilter, status: { $in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] } }),
     ]);
 
     return {

@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "seed:admin": "ts-node-dev --transpile-only src/scripts/seedAdmin.ts",
     "seed:categories": "ts-node-dev --transpile-only src/scripts/seedCategories.ts",
-    "seed:menu-items": "ts-node-dev --transpile-only src/scripts/seedMenuItems.ts"
+    "seed:menu-items": "ts-node-dev --transpile-only src/scripts/seedMenuItems.ts",
+    "seed:prod-categories": "ts-node-dev --transpile-only src/scripts/seedProdCategories.ts",
+    "seed:prod-items": "ts-node-dev --transpile-only src/scripts/seedProdItems.ts"
   },
   "keywords": [],
   "author": "",

@@ -114,6 +114,23 @@ export class MenuItemController {
 
   static async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const { category, isTodaySpecial, search, name, page, limit } = req.query;
+      const result = await MenuItemService.getAll({
+        category: typeof category === "string" ? category : undefined,
+        status: MenuItemStatus.AVAILABLE,
+        isTodaySpecial: isTodaySpecial !== undefined ? isTodaySpecial === "true" : undefined,
+        search: typeof search === "string" ? search : typeof name === "string" ? name : undefined,
+        page: page ? parseInt(page as string, 10) : 1,
+        limit: limit ? parseInt(limit as string, 10) : 10,
+      });
+      res.status(200).json(new ApiResponse(200, result, "Menu items fetched successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getAllForAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
       const { category, status, isTodaySpecial, search, name, page, limit } = req.query;
       const result = await MenuItemService.getAll({
         category: typeof category === "string" ? category : undefined,
@@ -123,7 +140,7 @@ export class MenuItemController {
         page: page ? parseInt(page as string, 10) : 1,
         limit: limit ? parseInt(limit as string, 10) : 10,
       });
-      res.status(200).json(new ApiResponse(200, result, "Menu items fetched successfully"));
+      res.status(200).json(new ApiResponse(200, result, "Admin menu items fetched successfully"));
     } catch (error) {
       next(error);
     }

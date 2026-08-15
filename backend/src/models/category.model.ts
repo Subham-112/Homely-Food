@@ -2,14 +2,12 @@ import mongoose, { Schema } from "mongoose";
 import mongooseDelete from "mongoose-delete";
 import { CategoryStatus } from "../common/enum";
 import { ISoftDeleteDocument, ISoftDeleteModel } from "../types/softDelete";
-import { IImage, ImageSchema } from "../common/image.schema";
 
 export interface ICategory extends ISoftDeleteDocument {
   _id: mongoose.Types.ObjectId;
   name: string;
   slug: string;
   description?: string;
-  image?: IImage;
   status: CategoryStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -32,9 +30,6 @@ const CategorySchema: Schema<ICategory> = new Schema(
       type: String,
       trim: true,
       default: "",
-    },
-    image: {
-      type: ImageSchema,
     },
     status: {
       type: String,

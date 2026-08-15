@@ -6,52 +6,19 @@ import ApiResponse from "../../utils/ApiResponse";
 import { CategoryStatus } from "../../common/enum";
 import { AuthenticatedRequest } from "../../middlewares/authMiddleware";
 
-import { IImage } from "../../common/image.schema";
-
-const mapUploadedFileToIImage = (uploaded: any): IImage => ({
-  url: uploaded.url,
-  publicId: uploaded.publicId,
-  key: uploaded.publicId,
-  name: uploaded.publicId?.split("/").pop(),
-  size: uploaded.bytes,
-  mimetype: uploaded.format ? `image/${uploaded.format}` : undefined,
-});
-
 const createCategorySchema = z.object({
   name: z.string({ required_error: "Category name is required" }).min(1, "Category name is required"),
   description: z.string().optional(),
-  image: z.any().optional(),
   status: z.nativeEnum(CategoryStatus, { errorMap: () => ({ message: "Status must be either active or inactive" }) }).optional(),
 });
 
 const updateCategorySchema = createCategorySchema.partial();
-const toggleStatusSchema = z.object({
-  status: z.nativeEnum(CategoryStatus, { errorMap: () => ({ message: "Status must be either active or inactive" }) }).optional(),
-});
 
 export class CategoryController {
   static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const validatedData = createCategorySchema.parse(req.body);
-      const uploadedFile = (req as any).uploadedFile;
-      let imagePayload: any = undefined;
-
-      if (uploadedFile) {
-        imagePayload = mapUploadedFileToIImage(uploadedFile);
-      } else if (validatedData.image) {
-        if (typeof validatedData.image === "string") {
-          if (validatedData.image.trim() && validatedData.image !== "[object Object]" && validatedData.image !== "{}") {
-            imagePayload = { url: validatedData.image.trim() };
-          }
-        } else if (typeof validatedData.image === "object" && validatedData.image.url) {
-          imagePayload = validatedData.image;
-        }
-      }
-
-      const category = await CategoryService.create({
-        ...validatedData,
-        image: imagePayload,
-      });
+      const category = await CategoryService.create(validatedData);
       res.status(201).json(new ApiResponse(201, category, "Category created successfully"));
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -66,7 +33,8 @@ export class CategoryController {
   static async getAllForAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const status = req.query.status as CategoryStatus | undefined;
-      const categories = await CategoryService.getAllForAdmin({ status });
+      const search = req.query.search as string | undefined;
+      const categories = await CategoryService.getAllForAdmin({ status, search });
       res.status(200).json(new ApiResponse(200, categories, "Admin categories fetched successfully"));
     } catch (error) {
       next(error);
@@ -107,25 +75,7 @@ export class CategoryController {
     try {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const validatedData = updateCategorySchema.parse(req.body);
-      const uploadedFile = (req as any).uploadedFile;
-      let imagePayload: any = undefined;
-
-      if (uploadedFile) {
-        imagePayload = mapUploadedFileToIImage(uploadedFile);
-      } else if (validatedData.image) {
-        if (typeof validatedData.image === "string") {
-          if (validatedData.image.trim() && validatedData.image !== "[object Object]" && validatedData.image !== "{}") {
-            imagePayload = { url: validatedData.image.trim() };
-          }
-        } else if (typeof validatedData.image === "object" && validatedData.image.url) {
-          imagePayload = validatedData.image;
-        }
-      }
-
-      const category = await CategoryService.update(id, {
-        ...validatedData,
-        ...(imagePayload !== undefined ? { image: imagePayload } : {}),
-      });
+      const category = await CategoryService.update(id, validatedData);
       res.status(200).json(new ApiResponse(200, category, "Category updated successfully"));
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -139,14 +89,9 @@ export class CategoryController {
   static async toggleStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-      const validatedData = toggleStatusSchema.parse(req.body);
-      const category = await CategoryService.toggleStatus(id, validatedData.status);
+      const category = await CategoryService.toggleStatus(id);
       res.status(200).json(new ApiResponse(200, category, `Category status updated to ${category.status}`));
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        next(new ApiError(400, error.errors.map((e) => e.message).join(". "), null, error.errors));
-        return;
-      }
       next(error);
     }
   }

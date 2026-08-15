@@ -3,10 +3,8 @@ import MenuItem from "../../models/menuItem.model";
 import ApiError from "../../utils/ApiError";
 import { CategoryStatus } from "../../common/enum";
 
-import { IImage } from "../../common/image.schema";
-
 export class CategoryService {
-  static async create(payload: { name: string; description?: string; image?: IImage | string; status?: CategoryStatus }) {
+  static async create(payload: { name: string; description?: string; status?: CategoryStatus }) {
     const slug = payload.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
     
     const existingCategory = await Category.findOne({ slug });
@@ -14,18 +12,10 @@ export class CategoryService {
       throw new ApiError(400, `Category with name "${payload.name}" already exists.`);
     }
 
-    const imageObj: IImage | undefined =
-      typeof payload.image === "string"
-        ? payload.image
-          ? { url: payload.image }
-          : undefined
-        : payload.image;
-
     const category = await Category.create({
       name: payload.name,
       slug,
       description: payload.description || "",
-      image: imageObj,
       status: payload.status || CategoryStatus.ACTIVE,
     });
 
@@ -33,10 +23,18 @@ export class CategoryService {
   }
 
   // Admin access: Fetch both active and inactive non-deleted categories
-  static async getAllForAdmin(query: { status?: CategoryStatus }) {
+  static async getAllForAdmin(query: { status?: CategoryStatus; search?: string }) {
     const filter: any = {};
     if (query.status) {
       filter.status = query.status;
+    }
+    if (query.search && query.search.trim()) {
+      const searchRegex = new RegExp(query.search.trim(), "i");
+      filter.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { slug: searchRegex },
+      ];
     }
     return await Category.find(filter).sort({ createdAt: -1 });
   }
@@ -77,7 +75,7 @@ export class CategoryService {
     return category;
   }
 
-  static async update(id: string, payload: Partial<{ name: string; description: string; image: IImage | string; status: CategoryStatus }>) {
+  static async update(id: string, payload: Partial<{ name: string; description: string; status: CategoryStatus }>) {
     const category = await Category.findById(id);
     if (!category) {
       throw new ApiError(404, "Category not found");
@@ -94,9 +92,6 @@ export class CategoryService {
     }
 
     if (payload.description !== undefined) category.description = payload.description;
-    if (payload.image !== undefined) {
-      category.image = typeof payload.image === "string" ? { url: payload.image } : payload.image;
-    }
     if (payload.status !== undefined) category.status = payload.status;
 
     await category.save();

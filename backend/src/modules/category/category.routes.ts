@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { CategoryController } from "./category.controller";
 import { adminAccess, authenticateToken } from "../../middlewares/authMiddleware";
-import { uploadImage } from "../../middlewares/uploadMiddleware";
 
 const router = Router();
 
@@ -12,8 +11,8 @@ router.get("/:id", authenticateToken, CategoryController.getById);
 
 // Admin access: Create, update, toggle status, soft-delete, and get all
 router.get("/admin/all", ...adminAccess, CategoryController.getAllForAdmin);
-router.post("/", ...adminAccess, uploadImage({ folder: "categories", multiple: false }), CategoryController.create);
-router.put("/:id", ...adminAccess, uploadImage({ folder: "categories", multiple: false }), CategoryController.update);
+router.post("/", ...adminAccess, CategoryController.create);
+router.put("/:id", ...adminAccess, CategoryController.update);
 router.patch("/:id/status", ...adminAccess, CategoryController.toggleStatus);
 router.delete("/:id", ...adminAccess, CategoryController.delete);
 
