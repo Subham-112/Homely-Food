@@ -94,4 +94,32 @@ export class AdminService {
     }
     return admin;
   }
+
+  static async isEmailExists(email: string): Promise<boolean> {
+    const adminExists = await Admin.exists({ email: email.toLowerCase() });
+    return !!adminExists;
+  }
+
+  static async resetPassword(payload: { email: string; newPassword?: string }) {
+    const admin = await Admin.findOne({ email: payload.email.toLowerCase() }).select("+password");
+    if (!admin) {
+      throw new ApiError(404, "Admin not found with this email address.");
+    }
+
+    if (!payload.newPassword || payload.newPassword.length < 6) {
+      throw new ApiError(400, "Password must be at least 6 characters long.");
+    }
+
+    if (admin.password) {
+      const isSamePassword = await comparePassword(payload.newPassword, admin.password);
+      if (isSamePassword) {
+        throw new ApiError(400, "New password cannot be the same as your old password.");
+      }
+    }
+
+    const hashedPassword = await hashPassword(payload.newPassword);
+    admin.password = hashedPassword;
+    await admin.save();
+    return true;
+  }
 }

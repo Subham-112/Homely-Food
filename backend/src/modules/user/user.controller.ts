@@ -135,4 +135,33 @@ export class UserController {
       next(error);
     }
   }
+
+  static async isPhoneExists(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const phone = typeof req.query.phone === "string" ? req.query.phone : (req.body?.phone as string);
+      if (!phone || phone.trim().length === 0) {
+        throw new ApiError(400, "Phone number is required");
+      }
+      const exists = await UserService.isPhoneExists(phone.trim());
+      res.status(200).json(new ApiResponse(200, { exists }, exists ? "Phone number exists" : "Phone number not found"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { phone, newPassword } = req.body;
+      if (!phone || !phone.trim()) {
+        throw new ApiError(400, "Phone number is required");
+      }
+      if (!newPassword || newPassword.length < 6) {
+        throw new ApiError(400, "Password must be at least 6 characters long");
+      }
+      await UserService.resetPassword({ phone: phone.trim(), newPassword });
+      res.status(200).json(new ApiResponse(200, null, "Password reset successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
 }

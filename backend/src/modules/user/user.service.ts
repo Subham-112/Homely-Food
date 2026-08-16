@@ -3,6 +3,7 @@ import { Customer } from "../../models/customer.model";
 import { hashPassword, comparePassword } from "../../utils/auth";
 import { generateAccessToken, generateRefreshToken } from "../../utils/token";
 import ApiError from "../../utils/ApiError";
+import ApiResponse from "../../utils/ApiResponse";
 
 export class UserService {
   static async register(payload: { name: string; phone: string; email?: string; password?: string }) {
@@ -230,5 +231,33 @@ export class UserService {
     }
 
     return Array.from(resultsMap.values());
+  }
+
+  static async isPhoneExists(phone: string): Promise<boolean> {
+    const userExists = await User.exists({ phone });
+    return !!userExists;
+  }
+
+  static async resetPassword(payload: { phone: string; newPassword?: string }) {
+    const user = await User.findOne({ phone: payload.phone }).select("+password");
+    if (!user) {
+      throw new ApiError(404, "User not found with this phone number.");
+    }
+
+    if (!payload.newPassword || payload.newPassword.length < 6) {
+      throw new ApiError(400, "Password must be at least 6 characters long.");
+    }
+
+    if (user.password) {
+      const isSamePassword = await comparePassword(payload.newPassword, user.password);
+      if (isSamePassword) {
+        throw new ApiError(400, "New password cannot be the same as your old password.");
+      }
+    }
+
+    const hashedPassword = await hashPassword(payload.newPassword);
+    user.password = hashedPassword;
+    await user.save();
+    return true;
   }
 }

@@ -111,4 +111,33 @@ export class AdminController {
       next(error);
     }
   }
+
+  static async isEmailExists(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const email = typeof req.query.email === "string" ? req.query.email : (req.body?.email as string);
+      if (!email || email.trim().length === 0) {
+        throw new ApiError(400, "Email address is required");
+      }
+      const exists = await AdminService.isEmailExists(email.trim());
+      res.status(200).json(new ApiResponse(200, { exists }, exists ? "Email exists" : "Email not found"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { email, newPassword } = req.body;
+      if (!email || !email.trim()) {
+        throw new ApiError(400, "Email address is required");
+      }
+      if (!newPassword || newPassword.length < 6) {
+        throw new ApiError(400, "Password must be at least 6 characters long");
+      }
+      await AdminService.resetPassword({ email: email.trim(), newPassword });
+      res.status(200).json(new ApiResponse(200, null, "Password reset successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
 }
