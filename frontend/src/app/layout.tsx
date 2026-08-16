@@ -16,6 +16,11 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "Homely Foods - Pure Vegetarian & Homestyle Meals",
   description: "Authentic, pure-vegetarian meals delivered to your door.",
+  icons: {
+    icon: "/Upper-logo.png",
+    shortcut: "/Upper-logo.png",
+    apple: "/Upper-logo.png",
+  },
 };
 
 export default function RootLayout({

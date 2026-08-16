@@ -127,13 +127,12 @@ export default function LoginPage() {
                   required
                 />
                 <div className="flex justify-end mt-2">
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
+                  <Link
+                    href="/forgot-password"
                     className="text-xs font-semibold text-[#0B392B] hover:underline"
                   >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
               </div>
 

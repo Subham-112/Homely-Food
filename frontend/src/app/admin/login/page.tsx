@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { Utensils, Mail, Lock, ArrowRight } from "lucide-react";
 import Input from "@/components/Input";
 import { useAuth } from "@/context/AuthContext";
@@ -106,13 +107,12 @@ export default function AdminLoginPage() {
                   <label className="text-xs font-semibold text-[#0B251C]">
                     Password
                   </label>
-                  <a
-                    href="#"
-                    onClick={(e) => e.preventDefault()}
+                  <Link
+                    href="/admin/forgot-password"
                     className="text-xs font-semibold text-[#0B392B] hover:underline"
                   >
                     Forgot Password?
-                  </a>
+                  </Link>
                 </div>
                 <Input
                   label=""

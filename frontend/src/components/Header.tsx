@@ -18,7 +18,7 @@ export const Header: React.FC = () => {
   return (
     <>
       <header className="sticky top-0 z-40 bg-[#F4F9FA] border-b border-[#E3EEF0] shadow-xs">
-        <div className="max-w-7xl w-full mx-auto px-3 sm:px-5 py-2 flex items-center justify-between relative min-h-[56px]">
+        <div className="max-w-7xl w-full mx-auto px-3 sm:px-5 flex items-center justify-between relative min-h-[56px]">
           {/* Left Side: Mobile Menu Button */}
           <div className="flex items-center gap-3 z-10">
             <button
@@ -30,7 +30,7 @@ export const Header: React.FC = () => {
             </button>
           </div>
 
-          {/* Middle Side: Centered Brand Name & Pure Veg Ribbon in Column */}
+          {/* Middle Side: Centered Logo Image */}
           <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center z-10">
             {isAdmin ? (
               <Link href="/admin" className="flex flex-col items-center">
@@ -39,15 +39,12 @@ export const Header: React.FC = () => {
                 </span>
               </Link>
             ) : (
-              <Link href="/" className="flex flex-col items-center justify-center group">
-                <span className="font-extrabold text-base sm:text-lg text-[#0B392B] tracking-tight font-poppins leading-none">
-                  Homely Foods
-                </span>
-                <div className="pure-veg-ribbon mt-1">
-                  <Leaf className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400" />
-                  <span>PURE VEG</span>
-                  <Leaf className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400 -scale-x-100" />
-                </div>
+              <Link href="/" className="flex items-center justify-center">
+                <img
+                  src="/Homely-foods-logo.png"
+                  alt="Homely Foods - Pure Veg"
+                  className="h-full sm:h-12 w-auto object-contain"
+                />
               </Link>
             )}
           </div>

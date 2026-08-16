@@ -106,8 +106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const hasUserAccess = !!storedUserToken;
     const hasAdminAccess = !!storedAdminToken;
-    const isUserLoginSignup = pathname === "/login" || pathname === "/signup";
-    const isAdminLoginRoute = pathname === "/admin/login";
+    const isUserLoginSignup = pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password";
+    const isAdminLoginRoute = pathname === "/admin/login" || pathname === "/admin/forgot-password";
     const isAdminRoute = pathname.startsWith("/admin");
     const isPublicRoute = pathname.startsWith("/public");
 
