@@ -293,22 +293,37 @@ export class CartService {
 
     // User details lookup
     const userDoc = await User.findById(userId);
-    const guestData = payload.guest || {
-      name: userDoc?.name || "Customer",
-      phone: userDoc?.phone || "",
-      email: userDoc?.email || "",
+    const guestEmail = payload.guest?.email || userDoc?.email;
+    const guestData: { name: string; phone: string; email?: string } = {
+      name: payload.guest?.name || userDoc?.name || "Customer",
+      phone: payload.guest?.phone || userDoc?.phone || "",
+      ...(guestEmail && guestEmail.trim() ? { email: guestEmail.trim() } : {}),
     };
 
+    // Generate Order Number
+    const orderNumber = `ORD-${Math.floor(100000000 + Math.random() * 900000000)}`;
+
     const orderPayload = {
-      userId,
+      orderNumber,
+      user: userId,
+      orderFor: OrderFor.REGISTERED_USER,
       guest: guestData,
       items: orderItems,
-      discount: cart.total?.discount || 0,
+      payment: {
+        method: payload.paymentMethod,
+        status: PaymentStatus.UNPAID,
+        amount: cart.total.totalAmount,
+      },
+      status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
       deliveryAddress: payload.deliveryAddress,
       pickupTiming: payload.pickupTiming,
-      notes: payload.notes || "",
-      paymentPreference: payload.paymentPreference || "CASH",
+      subTotal: cart.total.subTotal,
+      discount: cart.total.discount,
+      totalAmount: cart.total.totalAmount,
+      offer: cart.total.offer,
+      offerCode: cart.total.offerCode,
+      notes: payload.notes,
       createdBy: "customer",
     };
 

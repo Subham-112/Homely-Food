@@ -82,7 +82,7 @@ export class AdminService {
     if (!admin) {
       throw new ApiError(404, "Admin not found");
     }
-    admin.refreshToken = "";
+    admin.refreshToken = undefined;
     await admin.save();
     return true;
   }

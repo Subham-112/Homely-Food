@@ -60,6 +60,13 @@ const UserSchema: Schema<IUser> = new Schema(
   }
 );
 
+UserSchema.pre("save", function (next) {
+  if (typeof this.email === "string" && this.email.trim() === "") {
+    this.email = undefined;
+  }
+  next();
+});
+
 UserSchema.plugin(mongooseDelete, { overrideMethods: "all", deletedAt: true, deletedBy: true });
 
 export const User: ISoftDeleteModel<IUser> =

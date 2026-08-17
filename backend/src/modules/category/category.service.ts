@@ -15,7 +15,7 @@ export class CategoryService {
     const category = await Category.create({
       name: payload.name,
       slug,
-      description: payload.description || "",
+      description: payload.description,
       status: payload.status || CategoryStatus.ACTIVE,
     });
 

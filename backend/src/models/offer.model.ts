@@ -49,7 +49,6 @@ const OfferSchema: Schema = new Schema(
     description: {
       type: String,
       trim: true,
-      default: "",
     },
     image: {
       type: String,

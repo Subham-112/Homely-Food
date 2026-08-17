@@ -90,7 +90,6 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
     method: {
       type: String,
       enum: [...Object.values(PaymentMethod), ""],
-      default: "",
     },
     status: {
       type: String,
