@@ -110,8 +110,10 @@ export const initSocket = (httpServer: HttpServer): Server => {
         socket.emit("socket:error", { message: "Forbidden: Admin role required to join admin room" });
         return;
       }
-      socket.join("admin_room");
-      logger.info(`👑 Authenticated Admin Socket ${socket.id} (${name}) joined admin_room`);
+      if (!socket.rooms.has("admin_room")) {
+        socket.join("admin_room");
+        logger.info(`👑 Authenticated Admin Socket ${socket.id} (${name}) joined admin_room`);
+      }
     });
 
     // Join Order Tracking Room (For order updates)

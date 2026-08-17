@@ -45,17 +45,32 @@ export default function AdminHomePage() {
 
     if (!socket) return;
 
-    const handleRealTimeUpdate = () => {
-      console.log("📢 Real-Time Socket Event in Admin Dashboard: Refetching live stats...");
+    const handleNewOrder = () => {
+      console.log("📢 Real-Time New Order Socket Event: Refetching live stats...");
       fetchDashboardData();
     };
 
-    socket.on("order:new", handleRealTimeUpdate);
-    socket.on("order:status_updated", handleRealTimeUpdate);
+    const handleStatusUpdate = (updatedOrder: any) => {
+      console.log("📢 Real-Time Status Update Event: Updating local state...");
+      if (updatedOrder && (updatedOrder._id || updatedOrder.id)) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === updatedOrder._id || o._id === updatedOrder.id
+              ? { ...o, ...updatedOrder }
+              : o
+          )
+        );
+      }
+      // Re-fetch aggregate stats only once
+      getOrderStats({ period: "today" }).then(setStats).catch(console.error);
+    };
+
+    socket.on("order:new", handleNewOrder);
+    socket.on("order:status_updated", handleStatusUpdate);
 
     return () => {
-      socket.off("order:new", handleRealTimeUpdate);
-      socket.off("order:status_updated", handleRealTimeUpdate);
+      socket.off("order:new", handleNewOrder);
+      socket.off("order:status_updated", handleStatusUpdate);
     };
   }, [socket, joinAdminRoom, fetchDashboardData]);
 
@@ -179,7 +194,17 @@ export default function AdminHomePage() {
                 <AdminOrderCard
                   key={order._id}
                   order={order}
-                  onOrderUpdated={fetchDashboardData}
+                  onOrderUpdated={(updated) => {
+                    if (updated && (updated._id || updated.id)) {
+                      setOrders((prev) =>
+                        prev.map((o) =>
+                          o._id === updated._id || o._id === updated.id
+                            ? { ...o, ...updated }
+                            : o
+                        )
+                      );
+                    }
+                  }}
                   onCardClick={handleOpenOrderModal}
                 />
               ))}
@@ -331,7 +356,7 @@ export default function AdminHomePage() {
                   <span>Subtotal</span>
                   <span className="font-bold text-gray-800">₹{selectedOrderModal.subTotal || selectedOrderModal.totalAmount}</span>
                 </div>
-                {selectedOrderModal.discount > 0 && (
+                {selectedOrderModal.discount && selectedOrderModal.discount > 0 && (
                   <div className="flex items-center justify-between text-emerald-700">
                     <span>Discount</span>
                     <span className="font-bold">-₹{selectedOrderModal.discount}</span>

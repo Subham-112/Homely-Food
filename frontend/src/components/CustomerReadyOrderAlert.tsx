@@ -4,11 +4,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ShoppingBag, ChevronRight, X, Sparkles } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
+import { useAuth } from "@/context/AuthContext";
 
 export const CustomerReadyOrderAlert: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { socket } = useSocket();
+  const { user } = useAuth();
 
   const [readyOrder, setReadyOrder] = useState<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -56,8 +58,18 @@ export const CustomerReadyOrderAlert: React.FC = () => {
       console.log("📢 Customer Socket Event - Status Updated:", updatedOrder);
       const statusLower = (updatedOrder.status || "").toLowerCase();
 
-      // Trigger notification popup and sound ONLY when order status is "ready"
-      if (statusLower === "ready") {
+      // Check if order belongs to currently logged in user or matching customer phone
+      const orderUserId = updatedOrder.user?._id || updatedOrder.user;
+      const orderPhone = updatedOrder.guest?.phone;
+      const currentUserId = user?._id;
+      const currentUserPhone = user?.phone;
+
+      const isMyOrder =
+        (currentUserId && orderUserId && String(orderUserId) === String(currentUserId)) ||
+        (currentUserPhone && orderPhone && String(orderPhone) === String(currentUserPhone));
+
+      // Trigger notification popup and sound ONLY when order status is "ready" AND it belongs to this user
+      if (statusLower === "ready" && isMyOrder) {
         setReadyOrder(updatedOrder);
 
         // Play Order-status-update.mp3 sound

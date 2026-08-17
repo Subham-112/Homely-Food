@@ -83,23 +83,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [token, adminToken]);
 
-  const joinAdminRoom = () => {
+  const joinAdminRoom = React.useCallback(() => {
     if (socket) {
       socket.emit("join:admin");
     }
-  };
+  }, [socket]);
 
-  const joinOrderRoom = (orderId: string) => {
+  const joinOrderRoom = React.useCallback((orderId: string) => {
     if (socket && orderId) {
       socket.emit("join:order", orderId);
     }
-  };
+  }, [socket]);
 
-  const leaveOrderRoom = (orderId: string) => {
+  const leaveOrderRoom = React.useCallback((orderId: string) => {
     if (socket && orderId) {
       socket.emit("leave:order", orderId);
     }
-  };
+  }, [socket]);
 
   return (
     <SocketContext.Provider
