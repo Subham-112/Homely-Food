@@ -33,7 +33,6 @@ const UserSchema: Schema<IUser> = new Schema(
       sparse: true,
       lowercase: true,
       trim: true,
-      default: "",
     },
     password: {
       type: String,
@@ -51,11 +50,9 @@ const UserSchema: Schema<IUser> = new Schema(
     },
     avatar: {
       type: String,
-      default: "",
     },
     refreshToken: {
       type: String,
-      default: "",
     },
   },
   {

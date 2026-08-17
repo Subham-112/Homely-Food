@@ -31,6 +31,7 @@ const createOrderSchema = z.object({
       })
     )
     .min(1, "Order must contain at least one item"),
+  paymentPreference: z.enum(["CASH", "ONLINE"]).optional().default("CASH"),
   payment: z
     .object({
       method: z.nativeEnum(PaymentMethod).optional(),
@@ -79,7 +80,22 @@ export class OrderController {
   static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const validatedData = createOrderSchema.parse(req.body);
-      const order = await OrderService.create(validatedData);
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?._id || validatedData.userId;
+
+      if (validatedData.paymentPreference === "ONLINE") {
+        const { PaymentService } = await import("../payment/payment.service");
+        const checkoutSession = await PaymentService.createPendingCheckout(
+          { ...validatedData, userId },
+          userId
+        );
+        res
+          .status(200)
+          .json(new ApiResponse(200, checkoutSession, "Razorpay checkout session created successfully"));
+        return;
+      }
+
+      const order = await OrderService.create({ ...validatedData, userId });
       res.status(201).json(new ApiResponse(201, order, "Order created successfully"));
     } catch (error) {
       if (error instanceof z.ZodError) {

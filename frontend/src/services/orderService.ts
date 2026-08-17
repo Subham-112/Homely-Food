@@ -52,6 +52,7 @@ export interface CreateOrderPayload {
   };
   notes?: string;
   discount?: number;
+  paymentPreference?: "CASH" | "ONLINE";
   orderType?: "dine-in" | "delivery" | "pickup";
   deliveryAddress?: string;
   pickupTiming?: string;
@@ -136,18 +137,22 @@ export interface Order {
   };
   items: OrderItem[];
   payment: {
+    mode?: "CASH" | "ONLINE";
     method: string;
     status: string;
     transactionId?: string;
-    amount: number;
+    paymentRef?: string;
+    subTotal?: number;
+    discount?: number;
+    totalAmount?: number;
   };
   status: string;
   orderType: "dine-in" | "delivery" | "pickup";
   deliveryAddress?: string;
   pickupTiming?: string;
-  subTotal: number;
-  discount: number;
-  totalAmount: number;
+  subTotal?: number;
+  discount?: number;
+  totalAmount?: number;
   notes?: string;
   createdBy?: "customer" | "admin";
   createdAt: string;

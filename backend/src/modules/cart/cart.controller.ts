@@ -27,6 +27,7 @@ const checkoutSchema = z.object({
   pickupTiming: z.string().optional(),
   notes: z.string().optional(),
   paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+  paymentPreference: z.enum(["CASH", "ONLINE"]).optional().default("CASH"),
   guest: z
     .object({
       name: z.string(),

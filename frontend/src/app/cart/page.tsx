@@ -22,6 +22,8 @@ import BottomNav from "@/components/BottomNav";
 import QuantitySelector from "@/components/QuantitySelector";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
+import RazorpayCheckoutButton from "@/components/RazorpayCheckoutButton";
+import { openRazorpaySDK } from "@/utils/razorpayHelper";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { getOffers, Offer } from "@/services/offerService";
@@ -42,7 +44,11 @@ export default function CartPage() {
     applyCoupon,
     removeCoupon,
     placeOrder,
+    refreshCart,
   } = useCart();
+
+  const [paymentPreference, setPaymentPreference] = useState<"CASH" | "ONLINE">("CASH");
+  const [onlineCheckoutSession, setOnlineCheckoutSession] = useState<any>(null);
 
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
@@ -127,16 +133,48 @@ export default function CartPage() {
 
     setIsSubmitting(true);
     try {
-      const createdOrder = await placeOrder(guestName, guestPhone, {
+      const result = await placeOrder(guestName, guestPhone, {
         orderType,
         deliveryAddress: orderType === "delivery" ? deliveryAddress : undefined,
         pickupTiming: orderType === "pickup" ? new Date(pickupTiming).toISOString() : undefined,
+        paymentPreference,
       });
+
+      if (paymentPreference === "ONLINE" && result?.requiresPayment) {
+        setIsSubmitting(true);
+        await openRazorpaySDK(
+          result,
+          async (createdOrder) => {
+            setIsSubmitting(false);
+            try {
+              await refreshCart();
+            } catch (rErr) {
+              console.error("Failed to refresh cart after payment:", rErr);
+            }
+            setPlacedOrderSuccess({
+              orderNumber: createdOrder?.orderNumber || "OD-" + Math.floor(100000 + Math.random() * 900000),
+              totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? finalAmount,
+              itemCount: totalItems,
+              orderType: orderType === "dine-in" ? "Normal / Dine-in" : orderType,
+            });
+          },
+          (err) => {
+            setIsSubmitting(false);
+            setFormError(err?.message || "Payment cancelled or failed.");
+          },
+          () => {
+            setIsSubmitting(false);
+          }
+        );
+        return;
+      }
+
+      const createdOrder = result;
 
       // Show Animated Success Modal
       setPlacedOrderSuccess({
         orderNumber: createdOrder?.orderNumber || "OD-" + Math.floor(100000 + Math.random() * 900000),
-        totalAmount: finalAmount,
+        totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? finalAmount,
         itemCount: totalItems,
         orderType: orderType === "dine-in" ? "Normal / Dine-in" : orderType,
       });
@@ -446,26 +484,72 @@ export default function CartPage() {
                   onChange={(e) => setGuestPhone(e.target.value)}
                 />
 
-                {cart.length > 0 && (
-                  <div className="mt-2">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-gray-700">Payment Method *</span>
+                  <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-xl text-xs font-bold">
                     <button
                       type="button"
-                      disabled={isSubmitting}
-                      onClick={handlePlaceOrder}
-                      className="w-full bg-[#C51E1E] hover:bg-[#A31818] text-white font-extrabold text-sm py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                      onClick={() => setPaymentPreference("CASH")}
+                      className={`py-2 rounded-lg text-center cursor-pointer transition-all ${
+                        paymentPreference === "CASH"
+                          ? "bg-[#0B392B] text-white shadow-xs"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
                     >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="w-4.5 h-4.5 animate-spin text-white" />
-                          <span>PLACING ORDER...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>PLACE ORDER (₹{finalAmount})</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
+                      Pay at Counter
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentPreference("ONLINE")}
+                      className={`py-2 rounded-lg text-center cursor-pointer transition-all ${
+                        paymentPreference === "ONLINE"
+                          ? "bg-[#0B392B] text-white shadow-xs"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      Pay Online
+                    </button>
+                  </div>
+                </div>
+
+                {cart.length > 0 && (
+                  <div className="mt-2">
+                    {onlineCheckoutSession ? (
+                      <RazorpayCheckoutButton
+                        checkoutSession={onlineCheckoutSession}
+                        onSuccess={(createdOrder) => {
+                          setOnlineCheckoutSession(null);
+                          setPlacedOrderSuccess({
+                            orderNumber: createdOrder?.orderNumber || "OD-" + Math.floor(100000 + Math.random() * 900000),
+                            totalAmount: createdOrder?.totalAmount || finalAmount,
+                            itemCount: totalItems,
+                            orderType: orderType === "dine-in" ? "Normal / Dine-in" : orderType,
+                          });
+                        }}
+                        onFailure={() => {
+                          setOnlineCheckoutSession(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={handlePlaceOrder}
+                        className="w-full bg-[#C51E1E] hover:bg-[#A31818] text-white font-extrabold text-sm py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-4.5 h-4.5 animate-spin text-white" />
+                            <span>{paymentPreference === "ONLINE" ? "INITIATING PAYMENT..." : "PLACING ORDER..."}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{paymentPreference === "ONLINE" ? `PROCEED TO PAY ONLINE (₹${finalAmount})` : `PLACE ORDER (₹${finalAmount})`}</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

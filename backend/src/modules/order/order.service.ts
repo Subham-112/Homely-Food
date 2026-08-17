@@ -32,20 +32,21 @@ export interface ICreateOrderPayload {
     status?: PaymentStatus;
     transactionId?: string;
   };
+  paymentPreference?: "CASH" | "ONLINE";
   notes?: string;
   discount?: number;
   orderType?: OrderType;
   deliveryAddress?: string;
   pickupTiming?: string;
+  createdBy?: string;
 }
 
 export class OrderService {
-  static async create(payload: ICreateOrderPayload) {
+  static async validateOrderPayload(payload: ICreateOrderPayload) {
     if (!payload.items || !Array.isArray(payload.items) || payload.items.length === 0) {
       throw new ApiError(400, "Order must contain at least one item.");
     }
 
-    // Process and validate items
     let subTotal = 0;
     const processedItems = await Promise.all(
       payload.items.map(async (itemInput) => {
@@ -55,7 +56,10 @@ export class OrderService {
         }
 
         const itemName = itemInput.name || menuItemDoc.name;
-        const itemPrice = itemInput.price !== undefined ? itemInput.price : (itemInput.variant?.price || menuItemDoc.price);
+        const itemPrice =
+          itemInput.price !== undefined
+            ? itemInput.price
+            : itemInput.variant?.price || menuItemDoc.price;
         const itemTotal = itemPrice * itemInput.quantity;
         subTotal += itemTotal;
 
@@ -78,15 +82,10 @@ export class OrderService {
     const discount = payload.discount || 0;
     const totalAmount = Math.max(0, subTotal - discount);
 
-    // Auto-generate order number (e.g. ORD-849201)
-    const orderNumber = `ORD-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
-
-    // Extract guest input
     const enteredPhone = (payload.guest?.phone || "").trim();
     const enteredName = (payload.guest?.name || "").trim();
     const enteredEmail = (payload.guest?.email || "").trim();
 
-    // Resolve registered user: check payload.userId or look up by entered phone
     let userId: any = undefined;
     let guestData = { name: enteredName, phone: enteredPhone, email: enteredEmail };
 
@@ -119,13 +118,26 @@ export class OrderService {
       }
     }
 
-    // Determine orderFor
     const orderFor = userId ? OrderFor.REGISTERED_USER : OrderFor.GUEST;
 
-    // Customer Sync: Find or create Customer profile
+    return {
+      subTotal,
+      discount,
+      totalAmount,
+      processedItems,
+      userId,
+      guestData,
+      orderFor,
+    };
+  }
+
+  static async create(payload: ICreateOrderPayload, paymentRef?: Types.ObjectId) {
+    const validated = await this.validateOrderPayload(payload);
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+
     let customerDoc: any = undefined;
-    const customerPhone = guestData.phone?.trim();
-    const customerName = guestData.name?.trim();
+    const customerPhone = validated.guestData.phone?.trim();
+    const customerName = validated.guestData.name?.trim();
 
     if (customerPhone && customerName) {
       try {
@@ -133,28 +145,26 @@ export class OrderService {
         if (!customer) {
           customer = new Customer({
             phone: customerPhone,
-            user: userId || undefined,
+            user: validated.userId || undefined,
             primaryName: customerName,
             names: [{ name: customerName, addedAt: new Date() }],
             orderCount: 1,
-            totalExpenses: totalAmount,
-            customerType: userId ? "registered" : "guest",
+            totalExpenses: validated.totalAmount,
+            customerType: validated.userId ? "registered" : "guest",
           });
           await customer.save();
         } else {
-          // Check if customerName exists in history (case-insensitive)
           const nameExists = customer.names.some(
             (n) => n.name.toLowerCase() === customerName.toLowerCase()
           );
           if (!nameExists) {
             customer.names.push({ name: customerName, addedAt: new Date() });
           }
-          // Update primaryName to latest entered name
           customer.primaryName = customerName;
           customer.orderCount += 1;
-          customer.totalExpenses += totalAmount;
-          if (userId) {
-            customer.user = userId;
+          customer.totalExpenses += validated.totalAmount;
+          if (validated.userId) {
+            customer.user = validated.userId;
             customer.customerType = "registered";
           }
           await customer.save();
@@ -165,31 +175,35 @@ export class OrderService {
       }
     }
 
+    const paymentPref = payload.paymentPreference || "CASH";
+    const defaultMethod = paymentPref === "ONLINE" ? PaymentMethod.RAZORPAY : (payload.payment?.method || PaymentMethod.CASH);
+    const defaultStatus = paymentPref === "ONLINE" ? PaymentStatus.PAID : (payload.payment?.status || PaymentStatus.UNPAID);
+
     const order = await Order.create({
       orderNumber,
-      user: userId,
+      user: validated.userId,
       customer: customerDoc ? customerDoc._id : undefined,
-      orderFor,
-      guest: guestData,
-      items: processedItems,
+      orderFor: validated.orderFor,
+      guest: validated.guestData,
+      items: validated.processedItems,
       payment: {
-        method: payload.payment?.method || "",
-        status: payload.payment?.status || PaymentStatus.UNPAID,
+        mode: paymentPref,
+        method: defaultMethod,
+        status: defaultStatus,
         transactionId: payload.payment?.transactionId || "",
-        amount: totalAmount,
+        paymentRef: paymentRef || undefined,
+        subTotal: validated.subTotal,
+        discount: validated.discount,
+        totalAmount: validated.totalAmount,
       },
       status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
       deliveryAddress: payload.deliveryAddress,
       pickupTiming: payload.pickupTiming,
-      subTotal,
-      discount,
-      totalAmount,
       notes: payload.notes?.trim() || "",
-      createdBy: "admin",
+      createdBy: payload.createdBy || "admin",
     });
 
-    // Real-Time Socket.io Event Emission
     try {
       emitNewOrder(order);
     } catch (socketErr) {

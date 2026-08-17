@@ -15,10 +15,14 @@ export interface IOrderItem {
 }
 
 export interface IPaymentInfo {
+  mode: "CASH" | "ONLINE";
   method: PaymentMethod | "";
   status: PaymentStatus;
   transactionId?: string;
-  amount: number;
+  paymentRef?: mongoose.Types.ObjectId;
+  subTotal: number;
+  discount?: number;
+  totalAmount: number;
 }
 
 export interface IGuestInfo {
@@ -40,9 +44,6 @@ export interface IOrder extends ISoftDeleteDocument {
   orderType: OrderType;
   deliveryAddress?: string;
   pickupTiming?: string;
-  subTotal: number;
-  discount?: number;
-  totalAmount: number;
   offer?: mongoose.Types.ObjectId;
   offerCode?: string;
   notes?: string;
@@ -81,6 +82,11 @@ const OrderItemSchema = new Schema<IOrderItem>(
 
 const PaymentInfoSchema = new Schema<IPaymentInfo>(
   {
+    mode: {
+      type: String,
+      enum: ["CASH", "ONLINE"],
+      default: "CASH",
+    },
     method: {
       type: String,
       enum: [...Object.values(PaymentMethod), ""],
@@ -95,7 +101,19 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
       type: String,
       trim: true,
     },
-    amount: {
+    paymentRef: {
+      type: Schema.Types.ObjectId,
+      ref: "Payment",
+    },
+    subTotal: {
+      type: Number,
+      required: true,
+    },
+    discount: {
+      type: Number,
+      default: 0,
+    },
+    totalAmount: {
       type: Number,
       required: true,
     },
@@ -175,18 +193,6 @@ const OrderSchema: Schema<IOrder> = new Schema(
       type: String,
       trim: true,
     },
-    subTotal: {
-      type: Number,
-      required: true,
-    },
-    discount: {
-      type: Number,
-      default: 0,
-    },
-    totalAmount: {
-      type: Number,
-      required: true,
-    },
     offer: {
       type: Schema.Types.ObjectId,
       ref: "Offer",
@@ -199,7 +205,6 @@ const OrderSchema: Schema<IOrder> = new Schema(
     notes: {
       type: String,
       trim: true,
-      default: "",
     },
     createdBy: {
       type: String,

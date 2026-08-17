@@ -8,6 +8,7 @@ import User from "../../models/user.model";
 import ApiError from "../../utils/ApiError";
 import { CartStatus, OfferType, OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { emitNewOrder } from "../../socket/socketService";
+import { OrderService } from "../order/order.service";
 
 export interface ISyncCartItemInput {
   menuItem: string;
@@ -22,6 +23,7 @@ export interface ICheckoutInput {
   pickupTiming?: string;
   notes?: string;
   paymentMethod?: PaymentMethod;
+  paymentPreference?: "CASH" | "ONLINE";
   guest?: {
     name: string;
     phone: string;
@@ -282,33 +284,12 @@ export class CartService {
     // Recalculate totals dynamically before creating order
     await this.recalculateCartTotals(cart);
 
-    // Build order items (name omitted, populated on demand)
-    const orderItems = await Promise.all(
-      cart.items.map(async (item) => {
-        const menuItemDoc = await MenuItem.findById(item.menuItem);
-        let price = menuItemDoc?.price || 0;
-        let variantData: any = undefined;
-
-        if (item.variant) {
-          const variantDoc = await MenuItemVariant.findById(item.variant);
-          if (variantDoc) {
-            price = variantDoc.price || price;
-            variantData = {
-              variantId: variantDoc._id,
-              label: variantDoc.label,
-              price: variantDoc.price,
-            };
-          }
-        }
-
-        return {
-          menuItem: item.menuItem,
-          price,
-          quantity: item.quantity,
-          variant: variantData,
-        };
-      })
-    );
+    // Build order items
+    const orderItems = cart.items.map((item) => ({
+      menuItem: item.menuItem.toString(),
+      quantity: item.quantity,
+      variant: item.variant ? { variantId: item.variant.toString() } : undefined,
+    }));
 
     // User details lookup
     const userDoc = await User.findById(userId);
@@ -318,75 +299,30 @@ export class CartService {
       email: userDoc?.email || "",
     };
 
-    // Generate Order Number
-    const orderNumber = `ORD-${Math.floor(100000000 + Math.random() * 900000000)}`;
-
-    const order = await Order.create({
-      orderNumber,
-      user: userId,
-      orderFor: OrderFor.REGISTERED_USER,
+    const orderPayload = {
+      userId,
       guest: guestData,
       items: orderItems,
-      payment: {
-        method: payload.paymentMethod,
-        status: PaymentStatus.UNPAID,
-        amount: cart.total.totalAmount,
-      },
-      status: OrderStatus.ACCEPTED,
+      discount: cart.total?.discount || 0,
       orderType: payload.orderType || OrderType.DINE_IN,
       deliveryAddress: payload.deliveryAddress,
       pickupTiming: payload.pickupTiming,
-      subTotal: cart.total.subTotal,
-      discount: cart.total.discount,
-      totalAmount: cart.total.totalAmount,
-      offer: cart.total.offer,
-      offerCode: cart.total.offerCode,
       notes: payload.notes || "",
+      paymentPreference: payload.paymentPreference || "CASH",
       createdBy: "customer",
-    });
+    };
 
-    // Sync Customer Profile
-    if (guestData.phone) {
-      let customer = await Customer.findOne({ phone: guestData.phone });
-      if (!customer) {
-        await Customer.create({
-          phone: guestData.phone,
-          user: userId,
-          primaryName: guestData.name,
-          names: [{ name: guestData.name, addedAt: new Date() }],
-          orderCount: 1,
-          totalExpenses: cart.total.totalAmount,
-          customerType: "registered",
-        });
-      } else {
-        customer.orderCount = (customer.orderCount || 0) + 1;
-        customer.totalExpenses = (customer.totalExpenses || 0) + cart.total.totalAmount;
-        await customer.save();
-      }
+    if (payload.paymentPreference === "ONLINE") {
+      const { PaymentService } = await import("../payment/payment.service");
+      return await PaymentService.createPendingCheckout(orderPayload, userId);
     }
 
-    // Mark cart as completed
+    const order = await OrderService.create(orderPayload);
+
+    // Mark cart as completed for CASH order
     cart.status = CartStatus.COMPLETED;
     await cart.save();
 
-    // Populate order for socket broadcast & response
-    const populatedOrder = await Order.findById(order._id)
-      .populate({
-        path: "items.menuItem",
-        select: "_id name price image",
-      })
-      .populate({
-        path: "items.variant.variantId",
-        select: "_id label price",
-      })
-      .populate({
-        path: "offer",
-        select: "_id title code offerType discountPercentage flatDiscountAmount",
-      });
-
-    // Real-Time Socket Broadcast
-    emitNewOrder(populatedOrder || order);
-
-    return populatedOrder || order;
+    return order;
   }
 }

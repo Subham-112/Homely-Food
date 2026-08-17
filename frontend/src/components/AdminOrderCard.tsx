@@ -82,7 +82,7 @@ export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: A
   const [isPaidSelection, setIsPaidSelection] = useState<boolean>(true);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("");
 
-  const isPaid = order.payment?.status?.toLowerCase() === "paid";
+  const isPaidAndCompleted = order.payment?.status?.toLowerCase() === "paid" && order.status.toLowerCase() === "completed";
   const nextAction = getNextStatusAction(order);
 
   let typeColorClass = "bg-orange-50 text-orange-700 border-orange-200";
@@ -103,6 +103,7 @@ export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: A
 
       if (onOrderUpdated) {
         onOrderUpdated(updatedOrder);
+        console.log("Order updated successfully:", updatedOrder);
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
@@ -123,7 +124,7 @@ export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: A
       <div
         onClick={() => onCardClick && onCardClick(order._id)}
         className={`rounded-2xl p-4 border flex flex-col justify-between gap-3 transition-all cursor-pointer ${
-          isPaid
+          isPaidAndCompleted
             ? "bg-gray-50 border-gray-200 opacity-70 saturate-50 shadow-none hover:shadow-xs"
             : "bg-white border-[#E1ECEE] shadow-2xs hover:shadow-xs hover:border-[#0B392B]/40"
         }`}
@@ -166,10 +167,10 @@ export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: A
 
           {/* Price & Paid Indicator on Right */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="font-extrabold text-sm text-[#0B251C]">₹{order.totalAmount}</span>
-            {isPaid && (
+            <span className="font-extrabold text-sm text-[#0B251C]">₹{order.payment?.totalAmount ?? order.totalAmount}</span>
+            {isPaidAndCompleted && (
               <span className="bg-emerald-600 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 tracking-wider uppercase shadow-3xs">
-                ✓ Paid
+                ✓ Paid & Completed
               </span>
             )}
           </div>
@@ -210,7 +211,7 @@ export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: A
               onClick={(e) => {
                 e.stopPropagation();
                 const targetVal = nextAction.value;
-                if (targetVal === "completed" || targetVal === "delivered") {
+                if ((targetVal === "completed" || targetVal === "delivered") && order.payment?.mode !== "ONLINE") {
                   setTargetStatus(targetVal);
                   setIsPaidSelection(true);
                   setSelectedPaymentMethod("");

@@ -49,16 +49,27 @@ export enum OrderType {
 
 export enum PaymentStatus {
   PENDING = "pending",
+  CREATED = "created",
+  ATTEMPTED = "attempted",
   PAID = "paid",
   UNPAID = "unpaid",
   FAILED = "failed",
+  EXPIRED = "expired",
+  REFUNDED = "refunded",
+  PARTIALLY_REFUNDED = "partially_refunded",
 }
 
 export enum PaymentMethod {
   CASH = "cash",
+  COD = "cod",
   ONLINE = "online",
+  RAZORPAY = "razorpay",
   UPI = "upi",
   CARD = "card",
+}
+
+export enum PaymentGateway {
+  RAZORPAY = "razorpay",
 }
 
 export enum OfferType {

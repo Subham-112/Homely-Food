@@ -41,4 +41,12 @@ export const config = {
     apiKey: process.env.CLOUDINARY_API_KEY || "",
     apiSecret: process.env.CLOUDINARY_API_SECRET || "",
   },
+
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID || "",
+    keySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    ttlMinutes: parseInt(process.env.PAYMENT_ORDER_TTL_MINUTES || "20", 10),
+    currency: process.env.PAYMENT_CURRENCY || "INR",
+  },
 };

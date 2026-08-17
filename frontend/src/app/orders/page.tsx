@@ -279,13 +279,15 @@ export default function OrdersPage() {
 
                   {/* Card Footer */}
                   <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-1">
-                    <div>
-                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">
-                        Total Paid
-                      </span>
+                    <div className="flex items-center gap-2">
                       <span className="text-base sm:text-lg font-extrabold text-[#0B392B]">
-                        ₹{order.totalAmount}
+                        ₹{order.payment?.totalAmount ?? order.totalAmount}
                       </span>
+                      {order.payment?.status?.toLowerCase() === "paid" && (
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wider">
+                          ✓ Paid
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -332,132 +334,173 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* High-End Order Details Modal */}
+      {/* High-End Responsive Order Details Modal */}
       {selectedOrderModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto border border-[#E8E1D3] relative animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-xl p-3.5 sm:p-5 max-w-md w-full shadow-2xl flex flex-col gap-3 h-[75vh] max-h-[580px] sm:max-h-[640px] border border-[#E8E1D3] relative animate-in fade-in zoom-in-95 duration-200">
+            {/* Fixed Modal Header */}
+            <div className="flex items-center justify-between pb-2.5 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-[#0B392B]" />
-                <h2 className="text-base sm:text-lg font-extrabold text-[#0B251C] font-poppins">
-                  Order #{selectedOrderModal.orderNumber}
-                </h2>
+                <Receipt className="w-4.5 h-4.5 text-[#0B392B]" />
+                <div>
+                  <h2 className="text-sm sm:text-base font-extrabold text-[#0B251C] font-poppins">
+                    Order #{selectedOrderModal.orderNumber}
+                  </h2>
+                </div>
               </div>
               <button
                 onClick={() => setSelectedOrderModal(null)}
                 className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4.5 h-4.5" />
               </button>
             </div>
 
-            {/* Status & Timing Banner */}
-            <div className="bg-[#FAF6ED] rounded-2xl p-3.5 border border-[#E8E1D3] flex items-center justify-between text-xs">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-gray-500 font-medium">Placed On</span>
-                <span className="font-bold text-[#0B251C]">
-                  {formatDate(selectedOrderModal.createdAt)} at {formatTime(selectedOrderModal.createdAt)}
-                </span>
-              </div>
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#0B392B] text-white uppercase tracking-wider">
-                {selectedOrderModal.status}
-              </span>
-            </div>
-
-            {/* Order Type & Address Details */}
-            <div className="flex flex-col gap-2 bg-gray-50 p-3.5 rounded-2xl border border-gray-100 text-xs">
-              <div className={`flex items-center justify-between font-bold text-gray-700 ${selectedOrderModal.deliveryAddress && "border-b border-gray-200/60 pb-2"}`}>
-                <span>Order Type</span>
-                <span className="capitalize text-[#0B392B]">
-                  {selectedOrderModal.orderType}
-                </span>
-              </div>
-
-              {selectedOrderModal.deliveryAddress && (
-                <div className="flex flex-col gap-0.5 pt-1 text-gray-600">
-                  <span className="font-bold text-gray-700 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-[#0B392B]" /> Delivery Address:
-                  </span>
-                  <p className="pl-4 text-gray-500 leading-relaxed font-medium">
-                    {selectedOrderModal.deliveryAddress}
-                  </p>
-                </div>
-              )}
-
-              {selectedOrderModal.pickupTiming && (
-                <div className="flex items-center justify-between pt-1 text-gray-600">
-                  <span className="font-bold text-gray-700 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-[#0B392B]" /> Pickup Timing:
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {formatUTCToIST(selectedOrderModal.pickupTiming)}
+            {/* Scrollable Modal Body */}
+            <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-3 min-h-0 pr-0.5">
+              {/* Status & Timing Banner */}
+              <div className="bg-[#FAF6ED] rounded-2xl p-2.5 sm:p-3 border border-[#E8E1D3] flex items-center justify-between text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-gray-500 font-medium text-[10px]">Placed On</span>
+                  <span className="font-bold text-[#0B251C] text-[11px]">
+                    {formatDate(selectedOrderModal.createdAt)} at {formatTime(selectedOrderModal.createdAt)}
                   </span>
                 </div>
-              )}
-            </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0B392B] text-white uppercase tracking-wider">
+                    {selectedOrderModal.status}
+                  </span>
+                </div>
+              </div>
 
-            {/* Items Breakdown List */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">
-                Ordered Items ({selectedOrderModal.items.length})
-              </span>
-              <div className="flex flex-col gap-2 bg-white rounded-2xl border border-gray-200/70 p-3">
-                {selectedOrderModal.items.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between text-xs py-1.5 border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-                      <VegBadge size={14} />
-                      <span className="font-extrabold text-[#0B251C] truncate">
-                        {item.menuItem?.name || item.name}
-                      </span>
-                      <span className="text-gray-400 font-bold text-[11px]">
-                        x{item.quantity}
-                      </span>
-                    </div>
-                    <span className="font-extrabold text-[#0B251C] shrink-0">
-                      ₹{item.price * item.quantity}
+              {/* Order Type & Address Details */}
+              <div className="flex flex-col gap-1.5 bg-gray-50 p-2.5 sm:p-3 rounded-2xl border border-gray-100 text-xs">
+                <div className={`flex items-center justify-between font-bold text-gray-700 ${selectedOrderModal.deliveryAddress && "border-b border-gray-200/60 pb-1.5"}`}>
+                  <span className="text-[11px]">Order Type</span>
+                  <span className="capitalize text-[#0B392B] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 text-[10px]">
+                    {selectedOrderModal.orderType}
+                  </span>
+                </div>
+
+                {selectedOrderModal.deliveryAddress && (
+                  <div className="flex flex-col gap-0.5 pt-0.5 text-gray-600">
+                    <span className="font-bold text-gray-700 text-[11px] flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#0B392B]" /> Delivery Address:
+                    </span>
+                    <p className="pl-4 text-gray-500 leading-snug font-medium text-[11px]">
+                      {selectedOrderModal.deliveryAddress}
+                    </p>
+                  </div>
+                )}
+
+                {selectedOrderModal.pickupTiming && (
+                  <div className="flex items-center justify-between pt-0.5 text-gray-600">
+                    <span className="font-bold text-gray-700 text-[11px] flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-[#0B392B]" /> Pickup Timing:
+                    </span>
+                    <span className="font-semibold text-gray-800 text-[11px]">
+                      {formatUTCToIST(selectedOrderModal.pickupTiming)}
                     </span>
                   </div>
-                ))}
+                )}
+
+                {selectedOrderModal.notes && (
+                  <div className="flex flex-col gap-0.5 pt-1 border-t border-gray-200/60 text-gray-600">
+                    <span className="font-bold text-gray-700 text-[11px]">Special Notes:</span>
+                    <p className="text-gray-500 font-medium italic text-[11px]">{selectedOrderModal.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Items Breakdown List */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+                  Ordered Items ({selectedOrderModal.items.length})
+                </span>
+                <div className="flex flex-col gap-1.5 bg-white rounded-2xl border border-gray-200/70 p-2.5">
+                  {selectedOrderModal.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between text-xs py-1 border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-2">
+                        <VegBadge size={12} />
+                        <span className="font-extrabold text-[#0B251C] truncate text-[11px]">
+                          {item.menuItem?.name || item.name}
+                        </span>
+                        <span className="text-gray-400 font-bold text-[10px]">
+                          x{item.quantity}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-[#0B251C] shrink-0 text-[11px]">
+                        ₹{item.price * item.quantity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial & Payment Summary */}
+              <div className="flex flex-col gap-1 bg-[#FAF6ED] p-2.5 sm:p-3 rounded-2xl border border-[#E8E1D3] text-xs text-gray-600">
+                <span className="font-extrabold text-gray-400 uppercase tracking-wider text-[9px] pb-1 border-b border-gray-200/70 mb-0.5">
+                  Payment Breakdown
+                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px]">Subtotal</span>
+                  <span className="font-bold text-gray-800 text-[11px]">
+                    ₹{selectedOrderModal.payment?.subTotal ?? selectedOrderModal.subTotal ?? selectedOrderModal.totalAmount ?? 0}
+                  </span>
+                </div>
+                {Boolean(selectedOrderModal.payment?.discount || selectedOrderModal.discount) && (
+                  <div className="flex items-center justify-between text-emerald-700 font-bold">
+                    <span className="text-[11px]">Discount</span>
+                    <span className="text-[11px]">-₹{selectedOrderModal.payment?.discount ?? selectedOrderModal.discount ?? 0}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px]">Payment Mode</span>
+                  <span className="font-bold uppercase text-[#0B392B] text-[11px]">
+                    {selectedOrderModal.payment?.mode || "CASH"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px]">Payment Status</span>
+                  <span
+                    className={`font-bold capitalize px-2 py-0.5 rounded-md text-[10px] ${
+                      selectedOrderModal.payment?.status?.toLowerCase() === "paid"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {selectedOrderModal.payment?.status || "unpaid"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-extrabold text-[#0B251C] pt-1.5 border-t border-gray-200 mt-0.5">
+                  <span>Total Amount</span>
+                  <span className="text-[#0B392B] text-sm font-extrabold">
+                    ₹{selectedOrderModal.payment?.totalAmount ?? selectedOrderModal.totalAmount ?? 0}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Payment Summary */}
-            <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100 text-xs text-gray-600">
-              <div className="flex items-center justify-between">
-                <span>Payment Method</span>
-                <span className="font-bold text-gray-800">{selectedOrderModal.payment?.method || "cash"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Payment Status</span>
-                <span className="font-bold text-emerald-700 capitalize">{selectedOrderModal.payment?.status || "pending"}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm font-extrabold text-[#0B251C] pt-2 border-t border-gray-200">
-                <span>Total Amount Paid</span>
-                <span className="text-[#0B392B] text-base">₹{selectedOrderModal.totalAmount}</span>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center gap-2 pt-2">
+            {/* Fixed Modal Actions Footer */}
+            <div className="flex items-center gap-2 pt-2 shrink-0 border-t border-gray-100">
               <button
                 onClick={() => {
                   const idToTrack = selectedOrderModal.orderNumber;
                   setSelectedOrderModal(null);
                   router.push(`/order-tracking?orderId=${idToTrack}`);
                 }}
-                className="flex-1 bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Utensils className="w-4 h-4 text-[#FFCC00]" />
+                <Utensils className="w-3.5 h-3.5 text-[#FFCC00]" />
                 <span>Track Order Real-Time</span>
               </button>
 
               <button
                 onClick={() => setSelectedOrderModal(null)}
-                className="px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
+                className="px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
               >
                 Close
               </button>

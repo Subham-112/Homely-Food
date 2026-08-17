@@ -66,6 +66,7 @@ interface CartContextType {
   removeFromCart: (itemId: string, variantId?: string) => void;
   updateQuantity: (itemId: string, delta: number, variantId?: string) => void;
   clearCart: () => void;
+  refreshCart: () => Promise<void>;
   totalItems: number;
   subTotal: number;
   discountAmount: number;
@@ -79,7 +80,12 @@ interface CartContextType {
   placeOrder: (
     guestName?: string,
     guestPhone?: string,
-    details?: { orderType: "dine-in" | "delivery" | "pickup"; deliveryAddress?: string; pickupTiming?: string }
+    details?: {
+      orderType: "dine-in" | "delivery" | "pickup";
+      deliveryAddress?: string;
+      pickupTiming?: string;
+      paymentPreference?: "CASH" | "ONLINE";
+    }
   ) => Promise<any>;
 }
 
@@ -89,7 +95,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { token } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartId, setCartId] = useState<string | null>(null);
-  const [cartTotal, setCartTotal] = useState<CartTotal>({ subTotal: 0, discount: 0, totalAmount: 0 });
+  const [cartTotal, setCartTotal] = useState<{ subTotal: number; discount: number; totalAmount: number; offerCode?: string }>({
+    subTotal: 0,
+    discount: 0,
+    totalAmount: 0,
+  });
   const [isCartLoading, setIsCartLoading] = useState<boolean>(true);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
@@ -121,92 +131,93 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }));
   };
 
-  // Load cart from backend if authenticated + sync any pending public cart
-  useEffect(() => {
-    const fetchCart = async () => {
-      if (!token) {
+  const fetchCart = async () => {
+    if (!token) {
+      setCart([]);
+      setCartId(null);
+      setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+      lastConfirmedCartRef.current = [];
+      setIsCartLoading(false);
+      return;
+    }
+    setIsCartLoading(true);
+    try {
+      // Check for pending public cart items to merge
+      let publicCartItems: { menuItem: string; quantity: number; variant?: string }[] = [];
+      try {
+        const stored = localStorage.getItem(PUBLIC_CART_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Array<{
+            id: string;
+            quantity: number;
+            variant?: { id: string; label: string; price: number };
+          }>;
+          publicCartItems = parsed.map((c) => ({
+            menuItem: c.id,
+            quantity: c.quantity,
+            variant: c.variant?.id,
+          }));
+        }
+      } catch {
+        publicCartItems = [];
+      }
+
+      // Fetch current backend cart
+      const backendCart = await getBackendCart();
+      let mergedItems: { menuItem: string; quantity: number; variant?: string }[] = [];
+
+      if (backendCart && backendCart.items) {
+        mergedItems = backendCart.items.map((c: any) => ({
+          menuItem: c.menuItem._id,
+          quantity: c.quantity,
+          variant: c.variant?._id,
+        }));
+      }
+
+      // Merge public cart into backend cart (add quantities for matching items)
+      if (publicCartItems.length > 0) {
+        for (const pubItem of publicCartItems) {
+          const existingIdx = mergedItems.findIndex(
+            (m) => m.menuItem === pubItem.menuItem && m.variant === pubItem.variant
+          );
+          if (existingIdx > -1) {
+            mergedItems[existingIdx].quantity += pubItem.quantity;
+          } else {
+            mergedItems.push(pubItem);
+          }
+        }
+        // Sync merged cart to backend
+        const syncedCart = await syncBackendCart(mergedItems);
+        // Clear public cart from localStorage after successful sync
+        localStorage.removeItem(PUBLIC_CART_KEY);
+        if (syncedCart) {
+          setCartId(syncedCart._id);
+          setCartTotal(syncedCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+          const formattedItems = formatBackendCartItems(syncedCart);
+          setCart(formattedItems);
+          lastConfirmedCartRef.current = formattedItems;
+        }
+      } else if (backendCart && backendCart.items) {
+        setCartId(backendCart._id);
+        setCartTotal(backendCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+        const formattedItems = formatBackendCartItems(backendCart);
+        setCart(formattedItems);
+        lastConfirmedCartRef.current = formattedItems;
+      } else {
         setCart([]);
         setCartId(null);
         setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
         lastConfirmedCartRef.current = [];
-        setIsCartLoading(false);
-        return;
       }
-      setIsCartLoading(true);
-      try {
-        // Check for pending public cart items to merge
-        let publicCartItems: { menuItem: string; quantity: number; variant?: string }[] = [];
-        try {
-          const stored = localStorage.getItem(PUBLIC_CART_KEY);
-          if (stored) {
-            const parsed = JSON.parse(stored) as Array<{
-              id: string;
-              quantity: number;
-              variant?: { id: string; label: string; price: number };
-            }>;
-            publicCartItems = parsed.map((c) => ({
-              menuItem: c.id,
-              quantity: c.quantity,
-              variant: c.variant?.id,
-            }));
-          }
-        } catch {
-          publicCartItems = [];
-        }
+    } catch (err) {
+      console.error("Failed to fetch backend cart:", err);
+    } finally {
+      setIsCartLoading(false);
+    }
+  };
 
-        // Fetch current backend cart
-        const backendCart = await getBackendCart();
-        let mergedItems: { menuItem: string; quantity: number; variant?: string }[] = [];
-
-        if (backendCart && backendCart.items) {
-          mergedItems = backendCart.items.map((c: any) => ({
-            menuItem: c.menuItem._id,
-            quantity: c.quantity,
-            variant: c.variant?._id,
-          }));
-        }
-
-        // Merge public cart into backend cart (add quantities for matching items)
-        if (publicCartItems.length > 0) {
-          for (const pubItem of publicCartItems) {
-            const existingIdx = mergedItems.findIndex(
-              (m) => m.menuItem === pubItem.menuItem && m.variant === pubItem.variant
-            );
-            if (existingIdx > -1) {
-              mergedItems[existingIdx].quantity += pubItem.quantity;
-            } else {
-              mergedItems.push(pubItem);
-            }
-          }
-          // Sync merged cart to backend
-          const syncedCart = await syncBackendCart(mergedItems);
-          // Clear public cart from localStorage after successful sync
-          localStorage.removeItem(PUBLIC_CART_KEY);
-          if (syncedCart) {
-            setCartId(syncedCart._id);
-            setCartTotal(syncedCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
-            const formattedItems = formatBackendCartItems(syncedCart);
-            setCart(formattedItems);
-            lastConfirmedCartRef.current = formattedItems;
-          }
-        } else if (backendCart && backendCart.items) {
-          setCartId(backendCart._id);
-          setCartTotal(backendCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
-          const formattedItems = formatBackendCartItems(backendCart);
-          setCart(formattedItems);
-          lastConfirmedCartRef.current = formattedItems;
-        } else {
-          setCart([]);
-          setCartId(null);
-          setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
-          lastConfirmedCartRef.current = [];
-        }
-      } catch (err) {
-        console.error("Failed to fetch backend cart:", err);
-      } finally {
-        setIsCartLoading(false);
-      }
-    };
+  // Load cart from backend if authenticated + sync any pending public cart
+  useEffect(() => {
     fetchCart();
   }, [token]);
 
@@ -376,7 +387,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const placeOrder = async (
     guestName?: string,
     guestPhone?: string,
-    details?: { orderType: "dine-in" | "delivery" | "pickup"; deliveryAddress?: string; pickupTiming?: string }
+    details?: {
+      orderType: "dine-in" | "delivery" | "pickup";
+      deliveryAddress?: string;
+      pickupTiming?: string;
+      paymentPreference?: "CASH" | "ONLINE";
+    }
   ): Promise<any> => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -385,11 +401,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const orderType = details?.orderType || "dine-in";
     const deliveryAddress = details?.deliveryAddress;
     const pickupTiming = details?.pickupTiming;
+    const paymentPreference = details?.paymentPreference || "CASH";
 
     const payload = {
       orderType,
       deliveryAddress,
       pickupTiming,
+      paymentPreference,
       guest: {
         name: guestName || "Guest User",
         phone: guestPhone || "0000000000",
@@ -398,7 +416,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       // Call dedicated POST /api/cart/checkout API
-      const createdOrder = await checkoutCart(cartId || "", payload);
+      const result = await checkoutCart(cartId || "", payload);
+
+      if (paymentPreference === "ONLINE" && result?.requiresPayment) {
+        // Online checkout session created! Do not clear cart yet.
+        return result;
+      }
+
+      const createdOrder = result;
       const formattedOrder: Order = {
         id: createdOrder.orderNumber || createdOrder._id,
         date: "Just Now",
@@ -446,6 +471,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         appliedOfferCode,
         applyCoupon,
         removeCoupon,
+        refreshCart: fetchCart,
         currentOrder,
         setCurrentOrder,
         placeOrder,

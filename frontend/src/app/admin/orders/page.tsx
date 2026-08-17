@@ -523,20 +523,20 @@ export default function AdminOrdersManagementPage() {
               <div className="flex flex-col gap-1.5 bg-[#FAF6ED] p-3.5 rounded-2xl border border-[#E8E1D3] text-xs">
                 <div className="flex items-center justify-between text-gray-600">
                   <span>Subtotal</span>
-                  <span className="font-bold text-gray-800">₹{selectedOrderModal.subTotal || selectedOrderModal.totalAmount}</span>
+                  <span className="font-bold text-gray-800">₹{selectedOrderModal.payment?.subTotal ?? selectedOrderModal.subTotal ?? selectedOrderModal.totalAmount ?? 0}</span>
                 </div>
-                {selectedOrderModal.discount > 0 && (
+                {Boolean(selectedOrderModal.payment?.discount || selectedOrderModal.discount) && (
                   <div className="flex items-center justify-between text-emerald-700">
                     <span>Discount</span>
-                    <span className="font-bold">-₹{selectedOrderModal.discount}</span>
+                    <span className="font-bold">-₹{selectedOrderModal.payment?.discount ?? selectedOrderModal.discount ?? 0}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between text-gray-600">
                   <span className="flex items-center gap-1.5">
-                    <CreditCard className="w-3.5 h-3.5 text-[#0B392B]" /> Payment Method
+                    Payment Mode
                   </span>
                   <span className="font-bold text-gray-800 uppercase text-[10px] tracking-wider px-2 py-0.5 bg-white rounded border border-gray-200">
-                    {selectedOrderModal.payment?.method || "Not set"}
+                    {selectedOrderModal.payment?.mode}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-gray-600">
