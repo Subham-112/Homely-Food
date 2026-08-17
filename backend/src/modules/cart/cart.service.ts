@@ -312,10 +312,11 @@ export class CartService {
 
     // User details lookup
     const userDoc = await User.findById(userId);
-    const guestData = payload.guest || {
-      name: userDoc?.name || "Customer",
-      phone: userDoc?.phone || "",
-      email: userDoc?.email || "",
+    const guestEmail = payload.guest?.email || userDoc?.email;
+    const guestData: { name: string; phone: string; email?: string } = {
+      name: payload.guest?.name || userDoc?.name || "Customer",
+      phone: payload.guest?.phone || userDoc?.phone || "",
+      ...(guestEmail && guestEmail.trim() ? { email: guestEmail.trim() } : {}),
     };
 
     // Generate Order Number
@@ -341,7 +342,7 @@ export class CartService {
       totalAmount: cart.total.totalAmount,
       offer: cart.total.offer,
       offerCode: cart.total.offerCode,
-      notes: payload.notes || "",
+      notes: payload.notes,
       createdBy: "customer",
     });
 

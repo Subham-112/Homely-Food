@@ -12,8 +12,9 @@ export class UserService {
       throw new ApiError(400, `An account with the phone number "${payload.phone}" already exists.`);
     }
 
-    if (payload.email) {
-      const existingEmail = await User.findOne({ email: payload.email.toLowerCase() });
+    const cleanEmail = payload.email && payload.email.trim() ? payload.email.trim().toLowerCase() : undefined;
+    if (cleanEmail) {
+      const existingEmail = await User.findOne({ email: cleanEmail });
       if (existingEmail) {
         throw new ApiError(400, `An account with the email "${payload.email}" already exists.`);
       }
@@ -23,7 +24,7 @@ export class UserService {
     const user = await User.create({
       name: payload.name,
       phone: payload.phone,
-      email: payload.email ? payload.email.toLowerCase() : "",
+      ...(cleanEmail ? { email: cleanEmail } : {}),
       password: hashedPassword,
       role: "user",
       status: "active",
@@ -125,7 +126,7 @@ export class UserService {
     if (!user) {
       throw new ApiError(404, "User not found");
     }
-    user.refreshToken = "";
+    user.refreshToken = undefined;
     await user.save();
     return true;
   }
@@ -144,12 +145,17 @@ export class UserService {
       throw new ApiError(404, "User not found");
     }
 
-    if (payload.email && payload.email !== user.email) {
-      const existingEmail = await User.findOne({ email: payload.email.toLowerCase(), _id: { $ne: userId } });
-      if (existingEmail) {
-        throw new ApiError(400, `An account with the email "${payload.email}" already exists.`);
+    if (payload.email !== undefined) {
+      const cleanEmail = payload.email.trim().toLowerCase();
+      if (cleanEmail === "") {
+        user.email = undefined;
+      } else if (cleanEmail !== user.email) {
+        const existingEmail = await User.findOne({ email: cleanEmail, _id: { $ne: userId } });
+        if (existingEmail) {
+          throw new ApiError(400, `An account with the email "${payload.email}" already exists.`);
+        }
+        user.email = cleanEmail;
       }
-      user.email = payload.email.toLowerCase();
     }
 
     if (payload.phone && payload.phone !== user.phone) {

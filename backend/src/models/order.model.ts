@@ -84,7 +84,6 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
     method: {
       type: String,
       enum: [...Object.values(PaymentMethod), ""],
-      default: "",
     },
     status: {
       type: String,
@@ -199,7 +198,6 @@ const OrderSchema: Schema<IOrder> = new Schema(
     notes: {
       type: String,
       trim: true,
-      default: "",
     },
     createdBy: {
       type: String,

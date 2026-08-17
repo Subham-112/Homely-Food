@@ -33,7 +33,6 @@ const UserSchema: Schema<IUser> = new Schema(
       sparse: true,
       lowercase: true,
       trim: true,
-      default: "",
     },
     password: {
       type: String,
@@ -51,17 +50,22 @@ const UserSchema: Schema<IUser> = new Schema(
     },
     avatar: {
       type: String,
-      default: "",
     },
     refreshToken: {
       type: String,
-      default: "",
     },
   },
   {
     timestamps: true,
   }
 );
+
+UserSchema.pre("save", function (next) {
+  if (typeof this.email === "string" && this.email.trim() === "") {
+    this.email = undefined;
+  }
+  next();
+});
 
 UserSchema.plugin(mongooseDelete, { overrideMethods: "all", deletedAt: true, deletedBy: true });
 

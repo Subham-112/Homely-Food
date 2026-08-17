@@ -46,7 +46,6 @@ const AdminSchema: Schema<IAdmin> = new Schema(
     },
     refreshToken: {
       type: String,
-      default: "",
     },
   },
   {

@@ -88,7 +88,11 @@ export class OrderService {
 
     // Resolve registered user: check payload.userId or look up by entered phone
     let userId: any = undefined;
-    let guestData = { name: enteredName, phone: enteredPhone, email: enteredEmail };
+    let guestData: { name: string; phone: string; email?: string } = {
+      name: enteredName,
+      phone: enteredPhone,
+      ...(enteredEmail ? { email: enteredEmail } : {}),
+    };
 
     if (payload.userId) {
       let existingUser = await User.findById(payload.userId);
@@ -108,7 +112,9 @@ export class OrderService {
         userId = existingUser._id;
         guestData.phone = enteredPhone || existingUser.phone || "";
         guestData.name = enteredName || existingUser.name || "";
-        guestData.email = enteredEmail || existingUser.email || "";
+        if (enteredEmail || existingUser.email) {
+          guestData.email = enteredEmail || existingUser.email;
+        }
       }
     }
 

@@ -42,7 +42,7 @@ export class MenuItemService {
     const menuItem = await MenuItem.create({
       name: payload.name,
       category: payload.category,
-      description: payload.description || "",
+      description: payload.description,
       status: payload.status || MenuItemStatus.AVAILABLE,
       price: payload.price,
       preparationTime: payload.preparationTime || 15,

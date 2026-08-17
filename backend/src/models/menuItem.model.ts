@@ -33,7 +33,6 @@ const MenuItemSchema: Schema<IMenuItem> = new Schema(
     description: {
       type: String,
       trim: true,
-      default: "",
     },
     status: {
       type: String,
