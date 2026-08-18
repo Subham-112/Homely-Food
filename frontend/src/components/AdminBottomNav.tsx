@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, UtensilsCrossed, Utensils, Users, MoreHorizontal, User, Tag } from "lucide-react";
+import { Home, UtensilsCrossed, Utensils, Users, MoreHorizontal, User, Tag, CreditCard, LayoutGrid } from "lucide-react";
 import AdminNewOrderAlert from "./AdminNewOrderAlert";
 
 export const AdminBottomNav: React.FC = () => {
@@ -44,7 +44,7 @@ export const AdminBottomNav: React.FC = () => {
                   : "text-gray-600 hover:bg-gray-50 hover:text-[#0B392B]"
               }`}
             >
-              <Tag className="w-4 h-4 shrink-0" />
+              <CreditCard className="w-4 h-4 shrink-0" />
               <span>Payments</span>
             </Link>
             <div className="h-[1px] bg-gray-100 mx-3" />
@@ -83,7 +83,7 @@ export const AdminBottomNav: React.FC = () => {
                   : "text-gray-600 hover:bg-gray-50 hover:text-[#0B392B]"
               }`}
             >
-              <Tag className="w-4 h-4 shrink-0" />
+              <LayoutGrid className="w-4 h-4 shrink-0" />
               <span>Categories</span>
             </Link>
           </div>

@@ -39,8 +39,6 @@ export class PaymentAnalyticsService {
     // Status filter
     if (filters.status && filters.status.length > 0) {
       matchStage.status = { $in: filters.status };
-    } else {
-      matchStage.status = PaymentStatus.PAID;
     }
 
     // Method filter
@@ -53,14 +51,11 @@ export class PaymentAnalyticsService {
       matchStage.paymentMode = { $in: filters.paymentMode };
     }
 
-    // Date range filter (Defaults to IST today)
+    // Date range filter (Only apply if explicitly supplied)
     if (filters.dateFrom || filters.dateTo) {
       matchStage.capturedAt = {};
       if (filters.dateFrom) matchStage.capturedAt.$gte = new Date(filters.dateFrom);
       if (filters.dateTo) matchStage.capturedAt.$lte = new Date(filters.dateTo);
-    } else {
-      const todayRange = this.getISTDayRange();
-      matchStage.capturedAt = { $gte: todayRange.start, $lte: todayRange.end };
     }
 
     const pipeline: any[] = [{ $match: matchStage }];
@@ -86,6 +81,16 @@ export class PaymentAnalyticsService {
         {
           $group: {
             _id: null,
+            totalVolume: {
+              $sum: {
+                $cond: [{ $eq: ["$status", PaymentStatus.PAID] }, "$amount", 0],
+              },
+            },
+            successfulPayments: {
+              $sum: {
+                $cond: [{ $eq: ["$status", PaymentStatus.PAID] }, 1, 0],
+              },
+            },
             grossAmount: { $sum: "$amount" },
             refundedAmount: {
               $sum: {
@@ -110,7 +115,7 @@ export class PaymentAnalyticsService {
                 ],
               },
             },
-            count: { $sum: 1 },
+            totalCount: { $sum: 1 },
           },
         },
       ],
@@ -148,10 +153,12 @@ export class PaymentAnalyticsService {
 
     const results = await Payment.aggregate(pipeline);
     const totals = results[0]?.totals[0] || {
+      totalVolume: 0,
+      successfulPayments: 0,
       grossAmount: 0,
       refundedAmount: 0,
       netAmount: 0,
-      count: 0,
+      totalCount: 0,
     };
     const byGroup = results[0]?.byGroup || [];
 

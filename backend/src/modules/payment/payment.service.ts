@@ -98,6 +98,19 @@ export class PaymentService {
     payment.status = PaymentStatus.PAID;
     payment.capturedAt = new Date();
 
+    // Fetch full gateway payment details asynchronously to store dashboard metadata
+    try {
+      const gatewayPayment = await razorpayService.fetchPayment(input.razorpayPaymentId);
+      if (gatewayPayment) {
+        if (gatewayPayment.method) {
+          payment.paymentMode = gatewayPayment.method.toUpperCase();
+        }
+        payment.details = razorpayService.extractPaymentDetails(gatewayPayment);
+      }
+    } catch (fetchErr) {
+      console.error("Failed to fetch full gateway payment details:", fetchErr);
+    }
+
     // Create real Order for the first time
     const draftPayload: ICreateOrderPayload = payment.draftPayload as ICreateOrderPayload;
     if (!draftPayload) {

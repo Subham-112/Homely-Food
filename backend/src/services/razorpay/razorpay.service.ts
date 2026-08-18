@@ -89,6 +89,63 @@ export class RazorpayService {
       );
     }
   }
+
+  public extractPaymentDetails(rawPayment: any): any {
+    if (!rawPayment) return undefined;
+
+    const method = rawPayment.method || "";
+    let methodDetails: any = { type: method };
+
+    if (method === "upi") {
+      methodDetails.vpa = rawPayment.vpa || "";
+      methodDetails.payerAccountType = rawPayment.ac_type || rawPayment.payer_account_type || "Bank Account";
+    } else if (method === "card") {
+      methodDetails.cardNetwork = rawPayment.card?.network || rawPayment.network || "";
+      methodDetails.cardType = rawPayment.card?.type || "";
+      methodDetails.cardLast4 = rawPayment.card?.last4 || "";
+    } else if (method === "netbanking") {
+      methodDetails.bankName = rawPayment.bank || "";
+    } else if (method === "wallet") {
+      methodDetails.walletName = rawPayment.wallet || "";
+    }
+
+    const feeInPaise = Number(rawPayment.fee || 0);
+    const taxInPaise = Number(rawPayment.tax || 0);
+    const totalFeeRupees = feeInPaise / 100;
+    const gstRupees = taxInPaise / 100;
+    const razorpayFeeRupees = Math.max(0, totalFeeRupees - gstRupees);
+
+    const acquirerData = rawPayment.acquirer_data || {};
+    const bankRrnVal =
+      acquirerData.bank_transaction_id ||
+      acquirerData.rrn ||
+      acquirerData.auth_code ||
+      rawPayment.ac_rrn ||
+      rawPayment.rrn ||
+      rawPayment.bank_rrn ||
+      "";
+
+    return {
+      bankRrn: bankRrnVal,
+      invoiceId: rawPayment.invoice_id || "",
+      paymentMethodDetails: methodDetails,
+      customerDetails: {
+        contact: rawPayment.contact || "",
+        email: rawPayment.email || "",
+      },
+      feeDetails: {
+        totalFee: totalFeeRupees,
+        razorpayFee: razorpayFeeRupees,
+        gst: gstRupees,
+        feeBearer: rawPayment.fee_bearer || "You pay the Razorpay platform fee",
+      },
+      appName: rawPayment.notes?.appName || "",
+      appId: rawPayment.notes?.appId || "",
+      description: rawPayment.description || "Food Order Payment",
+      notes: rawPayment.notes || {},
+      rawGatewayResponse: rawPayment,
+    };
+  }
 }
 
 export default new RazorpayService();

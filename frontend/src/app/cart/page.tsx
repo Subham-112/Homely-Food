@@ -16,6 +16,7 @@ import {
   Utensils,
   MapPin,
   Clock,
+  CreditCard,
 } from "lucide-react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -630,6 +631,40 @@ export default function CartPage() {
               >
                 <span>Back to Home Menu</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Processing & Verification Loader Overlay */}
+      {isSubmitting && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xs sm:max-w-sm w-full shadow-2xl flex flex-col items-center gap-4 border border-[#E8E1D3]">
+            <div className="relative flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full border-4 border-[#0B392B]/20 border-t-[#0B392B] animate-spin" />
+              <div className="absolute">
+                {paymentPreference === "ONLINE" ? (
+                  <CreditCard className="w-6 h-6 text-[#0B392B] animate-pulse" />
+                ) : (
+                  <ShoppingBag className="w-6 h-6 text-[#0B392B] animate-pulse" />
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base sm:text-lg font-extrabold text-[#0B251C] font-poppins">
+                {paymentPreference === "ONLINE" ? "Processing Online Payment" : "Placing Your Order"}
+              </h3>
+              <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                {paymentPreference === "ONLINE"
+                  ? "Please complete payment in Razorpay window. Verifying transaction with bank..."
+                  : "Sending checkout payload and confirming your food order..."}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FAF6ED] border border-[#E8E1D3] text-[11px] font-bold text-[#0B392B]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0B392B]" />
+              <span>Do not refresh or close this screen</span>
             </div>
           </div>
         </div>

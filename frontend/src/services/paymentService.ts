@@ -19,6 +19,35 @@ export interface PaymentRecord {
   status: string;
   method: string;
   paymentMode?: string;
+  details?: {
+    bankRrn?: string;
+    invoiceId?: string;
+    paymentMethodDetails?: {
+      type?: string;
+      vpa?: string;
+      payerAccountType?: string;
+      cardNetwork?: string;
+      cardType?: string;
+      cardLast4?: string;
+      bankName?: string;
+      walletName?: string;
+    };
+    customerDetails?: {
+      contact?: string;
+      email?: string;
+    };
+    feeDetails?: {
+      totalFee: number;
+      razorpayFee: number;
+      gst: number;
+      feeBearer?: string;
+    };
+    appName?: string;
+    appId?: string;
+    description?: string;
+    notes?: Record<string, string>;
+    rawGatewayResponse?: Record<string, any>;
+  };
   capturedAt?: string;
   createdAt: string;
 }

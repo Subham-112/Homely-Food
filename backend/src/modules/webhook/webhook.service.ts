@@ -48,9 +48,12 @@ export class WebhookService {
           if (payment) {
             paymentEvent.payment = payment._id;
             payment.gatewayPaymentId = paymentEntity.id;
-            payment.paymentMode = paymentEntity.method;
             payment.status = PaymentStatus.PAID;
             payment.capturedAt = new Date();
+            if (paymentEntity.method) {
+              payment.paymentMode = paymentEntity.method.toUpperCase();
+            }
+            payment.details = razorpayService.extractPaymentDetails(paymentEntity);
 
             // If order was not yet created (e.g. client closed browser before /verify)
             if (!payment.order && payment.draftPayload) {

@@ -9,6 +9,36 @@ export interface IRefundItem {
   createdAt: Date;
 }
 
+export interface IPaymentDetails {
+  bankRrn?: string;
+  invoiceId?: string;
+  paymentMethodDetails?: {
+    type?: string;
+    vpa?: string;
+    payerAccountType?: string;
+    cardNetwork?: string;
+    cardType?: string;
+    cardLast4?: string;
+    bankName?: string;
+    walletName?: string;
+  };
+  customerDetails?: {
+    contact?: string;
+    email?: string;
+  };
+  feeDetails?: {
+    totalFee: number;
+    razorpayFee: number;
+    gst: number;
+    feeBearer?: string;
+  };
+  appName?: string;
+  appId?: string;
+  description?: string;
+  notes?: Record<string, string>;
+  rawGatewayResponse?: Record<string, any>;
+}
+
 export interface IPayment extends Document {
   _id: mongoose.Types.ObjectId;
   order?: mongoose.Types.ObjectId | null;
@@ -29,6 +59,7 @@ export interface IPayment extends Document {
   refunds: IRefundItem[];
   capturedAt?: Date;
   expiresAt?: Date;
+  details?: IPaymentDetails;
   meta?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
@@ -125,6 +156,35 @@ const PaymentSchema: Schema<IPayment> = new Schema(
     },
     expiresAt: {
       type: Date,
+    },
+    details: {
+      bankRrn: { type: String, trim: true },
+      invoiceId: { type: String, trim: true },
+      paymentMethodDetails: {
+        type: { type: String, trim: true },
+        vpa: { type: String, trim: true },
+        payerAccountType: { type: String, trim: true },
+        cardNetwork: { type: String, trim: true },
+        cardType: { type: String, trim: true },
+        cardLast4: { type: String, trim: true },
+        bankName: { type: String, trim: true },
+        walletName: { type: String, trim: true },
+      },
+      customerDetails: {
+        contact: { type: String, trim: true },
+        email: { type: String, trim: true },
+      },
+      feeDetails: {
+        totalFee: { type: Number, default: 0 },
+        razorpayFee: { type: Number, default: 0 },
+        gst: { type: Number, default: 0 },
+        feeBearer: { type: String, default: "You pay the Razorpay platform fee" },
+      },
+      appName: { type: String, trim: true },
+      appId: { type: String, trim: true },
+      description: { type: String, trim: true },
+      notes: { type: Schema.Types.Mixed },
+      rawGatewayResponse: { type: Schema.Types.Mixed },
     },
     meta: {
       type: Schema.Types.Mixed,
