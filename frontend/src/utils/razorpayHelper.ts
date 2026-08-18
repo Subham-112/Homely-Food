@@ -6,6 +6,7 @@ export interface CheckoutSession {
   amount: number;
   currency: string;
   key: string;
+  configId?: string;
   paymentId: string;
 }
 
@@ -40,13 +41,30 @@ export const openRazorpaySDK = async (
     return;
   }
 
-  const options = {
+  const options: any = {
     key: checkoutSession.key || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
     amount: Math.round(checkoutSession.amount * 100),
     currency: checkoutSession.currency || "INR",
     name: "Homely Food",
     description: "Food Order Payment",
     order_id: checkoutSession.razorpayOrderId,
+    config_id: checkoutSession.configId || "config_TQVwBmNR7Fdusv",
+    checkout_config_id: checkoutSession.configId || "config_TQVwBmNR7Fdusv",
+    method: {
+      netbanking: true,
+      card: true,
+      upi: true,
+      wallet: false,
+      emi: false,
+      paylater: false,
+    },
+    display: {
+      hide: [
+        { method: "wallet" },
+        { method: "emi" },
+        { method: "paylater" },
+      ],
+    },
     handler: async (response: {
       razorpay_order_id: string;
       razorpay_payment_id: string;

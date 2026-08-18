@@ -56,6 +56,7 @@ export class PaymentService {
       amountInPaise,
       currency: razorpayOrder.currency,
       key: config.razorpay.keyId,
+      configId: config.razorpay.configId,
       paymentId: String(payment._id),
     };
   }

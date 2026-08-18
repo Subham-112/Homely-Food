@@ -3,6 +3,7 @@ export interface IRazorpayCreateOrderInput {
   currency?: string;
   receipt?: string;
   notes?: Record<string, string>;
+  config_id?: string;
 }
 
 export interface IRazorpayOrderOutput {

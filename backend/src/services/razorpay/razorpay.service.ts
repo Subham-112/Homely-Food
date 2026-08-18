@@ -15,18 +15,22 @@ export class RazorpayService {
   public async createOrder(input: IRazorpayCreateOrderInput): Promise<IRazorpayOrderOutput> {
     try {
       const razorpay = getRazorpayInstance();
-      const options = {
+      const options: any = {
         amount: Math.round(input.amount),
         currency: input.currency || config.razorpay.currency || "INR",
         receipt: input.receipt,
         notes: input.notes,
       };
+
       const response = await razorpay.orders.create(options);
       return response as unknown as IRazorpayOrderOutput;
     } catch (error: any) {
+      console.error("Razorpay createOrder raw error detail:", error?.error || error);
+      const errorMsg =
+        error?.error?.description || error?.description || error?.message || JSON.stringify(error);
       throw new ApiError(
-        error.statusCode || 500,
-        `Razorpay create order failed: ${error.description || error.message || "Unknown error"}`
+        error.statusCode || 400,
+        `Razorpay create order failed: ${errorMsg}`
       );
     }
   }
