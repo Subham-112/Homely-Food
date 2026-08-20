@@ -5,6 +5,7 @@ import { Customer } from "../../models/customer.model";
 import ApiError from "../../utils/ApiError";
 import { OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { emitNewOrder, emitOrderStatusUpdate } from "../../socket/socketService";
+import { CoinService } from "../coin/coin.service";
 import { Types } from "mongoose";
 
 export interface ICreateOrderItemInput {
@@ -405,9 +406,30 @@ export class OrderService {
 
     await order.save();
 
-    // Real-Time Socket.io Event Emission for Order Status Changes
+    let coinReward = null;
+    // Trigger Coin awarding for Completed / Delivered Orders
+    if ((status === OrderStatus.COMPLETED || status === OrderStatus.DELIVERED) && order.user) {
+      try {
+        const rewardResult = await CoinService.awardOrderCoins(String(order.user._id || order.user), String(order._id), order.payment?.totalAmount || 0);
+        if (rewardResult) {
+          coinReward = {
+            amount: rewardResult.transaction.amount,
+            newBalance: rewardResult.wallet.balance,
+            reason: rewardResult.transaction.reason,
+          };
+        }
+      } catch (coinErr) {
+        console.error("Failed to award coins on order status update:", coinErr);
+      }
+    }
+
+    // Real-Time Socket.io Event Emission for Order Status Changes (with coinReward data)
     try {
-      emitOrderStatusUpdate(order);
+      const orderObj = order.toObject ? order.toObject() : order;
+      if (coinReward) {
+        (orderObj as any).coinReward = coinReward;
+      }
+      emitOrderStatusUpdate(orderObj);
     } catch (socketErr) {
       console.error("Failed to emit socket event for status update:", socketErr);
     }

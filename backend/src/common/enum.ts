@@ -94,3 +94,18 @@ export enum CartStatus {
   ACTIVE = "active",
   COMPLETED = "completed"
 }
+
+export enum CoinTransactionType {
+  WELCOME_BONUS = "WELCOME_BONUS",
+  ORDER_REWARD_FIXED = "ORDER_REWARD_FIXED",
+  ORDER_REWARD_PERCENT = "ORDER_REWARD_PERCENT",
+  ADMIN_GRANT = "ADMIN_GRANT",
+  EXPIRED = "EXPIRED",
+  SPENT = "SPENT",
+}
+
+export enum CoinTransactionDirection {
+  CREDIT = "CREDIT",
+  DEBIT = "DEBIT",
+}
+

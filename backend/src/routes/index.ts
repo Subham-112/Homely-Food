@@ -10,6 +10,7 @@ import customerRoutes from "../modules/customer/customer.routes";
 import offerRoutes from "../modules/offer/offer.routes";
 import paymentRoutes from "../modules/payment/payment.routes";
 import webhookRoutes from "../modules/webhook/webhook.routes";
+import coinRoutes from "../modules/coin/coin.routes";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/customer", customerRoutes);
 router.use("/offer", offerRoutes);
 router.use("/payment", paymentRoutes);
 router.use("/webhook", webhookRoutes);
+router.use("/coins", coinRoutes);
 
 export default router;

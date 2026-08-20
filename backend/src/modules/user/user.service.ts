@@ -4,6 +4,7 @@ import { hashPassword, comparePassword } from "../../utils/auth";
 import { generateAccessToken, generateRefreshToken } from "../../utils/token";
 import ApiError from "../../utils/ApiError";
 import ApiResponse from "../../utils/ApiResponse";
+import { CoinService } from "../coin/coin.service";
 
 export class UserService {
   static async register(payload: { name: string; phone: string; email?: string; password?: string }) {
@@ -68,6 +69,13 @@ export class UserService {
       console.error("Failed to create customer profile during user register:", custError);
     }
 
+    // Award 50 Welcome Coins for first-time registration
+    try {
+      await CoinService.grantWelcomeBonus(user._id.toString());
+    } catch (coinError) {
+      console.error("Failed to grant welcome bonus during user register:", coinError);
+    }
+
     return {
       user: {
         id: user._id,
@@ -77,6 +85,7 @@ export class UserService {
         role: user.role,
         status: user.status,
         avatar: user.avatar,
+        welcomeRewardClaimed: user.welcomeRewardClaimed || false,
       },
       accessToken,
       refreshToken,
@@ -115,6 +124,7 @@ export class UserService {
         role: user.role,
         status: user.status,
         avatar: user.avatar,
+        welcomeRewardClaimed: user.welcomeRewardClaimed || false,
       },
       accessToken,
       refreshToken,

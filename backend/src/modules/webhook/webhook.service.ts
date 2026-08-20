@@ -5,6 +5,7 @@ import { OrderService } from "../order/order.service";
 import razorpayService from "../../services/razorpay/razorpay.service";
 import { CartStatus, PaymentStatus } from "../../common/enum";
 import { getIO } from "../../socket/socketService";
+import { CoinService } from "../coin/coin.service";
 
 export class WebhookService {
   public static async handleRazorpayWebhook(rawBody: string | Buffer, signatureHeader: string) {

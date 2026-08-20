@@ -180,3 +180,11 @@ export const emitMenuItemUpdate = (itemData: any) => {
     logger.info(`📢 Emitted 'menu:item_updated' for item ${itemData?._id}`);
   }
 };
+
+export const emitCoinsCredited = (userId: string, payload: any) => {
+  if (io) {
+    io.to(`user_${userId}`).emit("coins:credited", payload);
+    logger.info(`📢 Emitted 'coins:credited' for user ${userId} (+${payload.amount} coins)`);
+  }
+};
+

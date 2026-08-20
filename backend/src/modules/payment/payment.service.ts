@@ -8,6 +8,7 @@ import { config } from "../../config/config";
 import ApiError from "../../utils/ApiError";
 import { CartStatus, PaymentGateway, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { emitNewOrder, emitOrderStatusUpdate, getIO } from "../../socket/socketService";
+import { CoinService } from "../coin/coin.service";
 import mongoose from "mongoose";
 
 export class PaymentService {
@@ -17,9 +18,43 @@ export class PaymentService {
     const totalAmount = validated.totalAmount;
     const amountInPaise = Math.round(totalAmount * 100);
 
-    const receipt = `RCPT-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+    const now = new Date();
 
-    // 2. Create Razorpay order
+    // 2. Check for an existing unexpired payment intent record in "created" status
+    const query: any = {
+      status: PaymentStatus.CREATED,
+      expiresAt: { $gt: now },
+      order: null,
+      amount: totalAmount,
+    };
+
+    if (userId) {
+      query.user = new mongoose.Types.ObjectId(userId);
+    } else if (validated.guestData?.phone) {
+      query["draftPayload.guest.phone"] = validated.guestData.phone;
+    }
+
+    const existingPayments = await Payment.find(query).sort({ createdAt: -1 });
+
+    for (const existingPayment of existingPayments) {
+      // Confirm no Order document has been created for this payment record
+      const hasOrder = await Order.exists({ paymentRef: existingPayment._id });
+      if (!hasOrder && existingPayment.gatewayOrderId) {
+        return {
+          requiresPayment: true,
+          razorpayOrderId: existingPayment.gatewayOrderId,
+          amount: existingPayment.amount,
+          amountInPaise: existingPayment.amountInPaise,
+          currency: existingPayment.currency || "INR",
+          key: config.razorpay.keyId,
+          configId: config.razorpay.configId,
+          paymentId: String(existingPayment._id),
+        };
+      }
+    }
+
+    // 3. If no existing valid matching intent found, create new Razorpay order
+    const receipt = `RCPT-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
     const razorpayOrder = await razorpayService.createOrder({
       amount: amountInPaise,
       currency: config.razorpay.currency || "INR",
@@ -30,11 +65,11 @@ export class PaymentService {
       },
     });
 
-    // 3. Set expiry timestamp (default 20 min)
+    // 4. Set expiry timestamp (default 20 min)
     const ttlMinutes = config.razorpay.ttlMinutes || 20;
     const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
 
-    // 4. Save Payment intent document
+    // 5. Save Payment intent document
     const payment = await Payment.create({
       order: null,
       draftPayload: { ...payload, userId },
