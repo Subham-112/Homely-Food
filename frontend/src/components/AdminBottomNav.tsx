@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, UtensilsCrossed, Utensils, Users, MoreHorizontal, User, Tag, CreditCard, LayoutGrid } from "lucide-react";
+import { Home, UtensilsCrossed, Utensils, Users, MoreHorizontal, User, Tag, CreditCard, LayoutGrid, Coins } from "lucide-react";
 import AdminNewOrderAlert from "./AdminNewOrderAlert";
 
 export const AdminBottomNav: React.FC = () => {
@@ -35,6 +35,19 @@ export const AdminBottomNav: React.FC = () => {
             onClick={() => setShowMore(false)}
           />
           <div className="absolute right-4 bottom-16 z-50 bg-white border border-[#E1ECEE] rounded-2xl shadow-xl py-2.5 min-w-[160px] flex flex-col gap-1 overflow-hidden">
+            <Link
+              href="/admin/coins"
+              onClick={() => setShowMore(false)}
+              className={`flex items-center gap-2.5 px-4 py-2 text-xs font-bold transition-colors ${
+                pathname.startsWith("/admin/coins")
+                  ? "bg-[#0B392B]/5 text-[#0B392B]"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-[#0B392B]"
+              }`}
+            >
+              <Coins className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>Homely Coins</span>
+            </Link>
+            <div className="h-[1px] bg-gray-100 mx-3" />
             <Link
               href="/admin/payments"
               onClick={() => setShowMore(false)}

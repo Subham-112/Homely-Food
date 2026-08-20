@@ -15,9 +15,40 @@ import { getMenuItems, MenuItem as ApiMenuItem } from "@/services/menuItemServic
 import { getCategoryList } from "@/services/categoryService";
 import { getOffers, Offer } from "@/services/offerService";
 
+import { useAuth } from "@/context/AuthContext";
+import { getPublicCoinConfig } from "@/services/coinService";
+import { WelcomeBonusModal } from "@/components/WelcomeBonusModal";
+
 export default function HomePage() {
   const { cart, addToCart, updateQuantity, totalItems, totalAmount } = useCart();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [welcomeBonusCoins, setWelcomeBonusCoins] = useState(50);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const checkWelcomeModal = async () => {
+      if (typeof window !== "undefined") {
+        const hasShown = localStorage.getItem(`welcome_modal_shown_${user._id}`);
+        if (!hasShown && user.welcomeRewardClaimed) {
+          try {
+            const config = await getPublicCoinConfig();
+            if (config && config.welcomeBonusCoins) {
+              setWelcomeBonusCoins(config.welcomeBonusCoins);
+            }
+          } catch (err) {
+            console.error("Failed to load coin config:", err);
+          }
+          setShowWelcomeModal(true);
+          localStorage.setItem(`welcome_modal_shown_${user._id}`, "true");
+        }
+      }
+    };
+
+    checkWelcomeModal();
+  }, [user]);
 
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [menuItems, setMenuItems] = useState<CartMenuItem[]>([]);
@@ -238,6 +269,13 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Welcome Bonus Modal */}
+      <WelcomeBonusModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        bonusAmount={welcomeBonusCoins}
+      />
 
       {/* Fixed Bottom Navigation */}
       <BottomNav />

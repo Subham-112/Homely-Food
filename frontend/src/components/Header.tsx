@@ -3,14 +3,16 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag } from "lucide-react";
+import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { useCoins } from "@/context/CoinContext";
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
   const { totalItems } = useCart();
   const { isAuthenticated, isAdminAuthenticated, logout, adminLogout } = useAuth();
+  const { wallet, floatingAnimation } = useCoins();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isAdmin = pathname.startsWith("/admin");
@@ -49,18 +51,27 @@ export const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Right Side: High-End Cart Icon & Auth */}
-          <div className="flex items-center gap-2 z-10 pr-2">
-            {!isAdmin && (
+          {/* Right Side: Homely Coins Badge & Auth */}
+          <div className="flex items-center gap-2 z-20 pr-2">
+            {!isAdmin && isAuthenticated && (
               <Link
-                href="/cart"
-                className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0B392B]/10 hover:bg-[#0B392B]/20 text-[#0B392B] flex items-center justify-center transition-all cursor-pointer shadow-2xs"
-                aria-label="Cart"
+                href="/wallet"
+                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100/90 hover:bg-amber-200 text-amber-900 border border-amber-300/80 text-xs sm:text-sm font-extrabold transition cursor-pointer shadow-xs"
+                title="Homely Coins Wallet"
               >
-                <ShoppingCart className="w-6 h-6 sm:w-5 sm:h-5 text-[#0B392B]" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-[#C51E1E] text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center shadow-md border-2 border-[#F4F9FA]">
-                    {totalItems}
+                <Coins className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 animate-pulse shrink-0" />
+                <span>{wallet?.balance ?? 0}</span>
+
+                {/* Upwards Floating Coin Animation Badge */}
+                {floatingAnimation && (
+                  <span
+                    key={floatingAnimation.id}
+                    className="absolute top-10 right-1 bg-emerald-600 text-white font-extrabold text-sm px-1.5 py-0.5 rounded-lg shadow-md animate-bounce border border-emerald-300 pointer-events-none"
+                    style={{
+                      animation: "floatUp 1.8s ease-out forwards",
+                    }}
+                  >
+                    +{floatingAnimation.amount}
                   </span>
                 )}
               </Link>

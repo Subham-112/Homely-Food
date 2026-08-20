@@ -66,8 +66,14 @@ export default function SignupPage() {
         (res as any)?.data?.token;
 
       if (token) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("show_welcome_modal", "true");
+        }
         signup(token);
       } else {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("show_welcome_modal", "true");
+        }
         // Upon successful registration without direct auto-login token, navigate to /login page
         router.replace("/login");
       }

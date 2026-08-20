@@ -10,6 +10,7 @@ export interface UserProfile {
   phone: string;
   email?: string;
   status?: string;
+  welcomeRewardClaimed?: boolean;
 }
 
 export interface AdminProfile {
