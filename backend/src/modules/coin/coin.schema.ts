@@ -3,7 +3,7 @@ import { z } from "zod";
 export const adminGrantCoinsSchema = z.object({
   userIds: z.array(z.string().min(1)).min(1, "At least one userId is required."),
   amount: z.number().positive("Amount must be greater than zero."),
-  reason: z.string().min(1, "Reason is required."),
+  reason: z.string().optional(),
 });
 
 export const createCoinRuleSchema = z.object({

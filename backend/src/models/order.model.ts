@@ -23,6 +23,8 @@ export interface IPaymentInfo {
   subTotal: number;
   discount?: number;
   totalAmount: number;
+  discountType?: "offer" | "coins";
+  coinsUsed?: number;
 }
 
 export interface IGuestInfo {
@@ -109,6 +111,14 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
       required: true,
     },
     discount: {
+      type: Number,
+      default: 0,
+    },
+    discountType: {
+      type: String,
+      enum: ["offer", "coins"],
+    },
+    coinsUsed: {
       type: Number,
       default: 0,
     },

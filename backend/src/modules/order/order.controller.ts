@@ -41,6 +41,8 @@ const createOrderSchema = z.object({
     .optional(),
   notes: z.string().optional(),
   discount: z.number().optional(),
+  offerCode: z.string().optional(),
+  offer: z.string().optional(),
   orderType: z.enum([OrderType.DINE_IN, OrderType.DELIVERY, OrderType.PICKUP]).optional().default(OrderType.DINE_IN),
   deliveryAddress: z.string().optional(),
   pickupTiming: z.string().optional(),
@@ -112,6 +114,7 @@ export class OrderController {
       const orderType = req.query.orderType as string | undefined;
       const search = req.query.search as string | undefined;
       const userId = req.query.userId as string | undefined;
+      const userPhone = req.query.userPhone as string | undefined;
       const period = req.query.period as string | undefined;
       const startDateParam = req.query.startDate as string | undefined;
       const endDateParam = req.query.endDate as string | undefined;
@@ -127,6 +130,7 @@ export class OrderController {
         page,
         limit,
         userId,
+        userPhone,
         dateRange,
       });
       res.status(200).json(new ApiResponse(200, result, "Orders fetched successfully"));

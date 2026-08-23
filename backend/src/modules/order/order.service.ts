@@ -6,7 +6,7 @@ import ApiError from "../../utils/ApiError";
 import { OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { emitNewOrder, emitOrderStatusUpdate } from "../../socket/socketService";
 import { CoinService } from "../coin/coin.service";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 
 export interface ICreateOrderItemInput {
   menuItem: string;
@@ -36,6 +36,8 @@ export interface ICreateOrderPayload {
   paymentPreference?: "CASH" | "ONLINE";
   notes?: string;
   discount?: number;
+  offerCode?: string;
+  offer?: string;
   orderType?: OrderType;
   deliveryAddress?: string;
   pickupTiming?: string;
@@ -207,6 +209,11 @@ export class OrderService {
       orderType: payload.orderType || OrderType.DINE_IN,
       deliveryAddress: payload.deliveryAddress,
       pickupTiming: payload.pickupTiming,
+      subTotal: validated.subTotal,
+      discount: validated.discount,
+      totalAmount: validated.totalAmount,
+      offer: payload.offer as any,
+      offerCode: payload.offerCode,
       notes: payload.notes?.trim() || "",
       createdBy: payload.createdBy || "admin",
     });
@@ -227,6 +234,7 @@ export class OrderService {
     page?: number;
     limit?: number;
     userId?: string;
+    userPhone?: string;
     dateRange?: { startDate: Date; endDate: Date };
   }) {
     const page = Math.max(1, query.page || 1);
@@ -243,8 +251,71 @@ export class OrderService {
       filter.orderType = query.orderType;
     }
 
+    const andConditions: any[] = [];
+
     if (query.userId) {
-      filter.user = query.userId;
+      const val = query.userId.trim();
+      const isObjectId = mongoose.Types.ObjectId.isValid(val);
+
+      if (isObjectId) {
+        andConditions.push({
+          $or: [
+            { user: new mongoose.Types.ObjectId(val) },
+            { customer: new mongoose.Types.ObjectId(val) },
+            { "guest.phone": val },
+          ],
+        });
+      } else {
+        // Fallback if phone was passed in userId key
+        const { Customer } = await import("../../models/customer.model");
+        const { User } = await import("../../models/user.model");
+
+        const [matchingUsers, matchingCustomers] = await Promise.all([
+          User.find({ phone: val }).select("_id"),
+          Customer.find({ phone: val }).select("_id user"),
+        ]);
+
+        const matchedUserIds = matchingUsers.map((u) => u._id);
+        const matchedCustomerIds = matchingCustomers.map((c) => c._id);
+        
+        matchingCustomers.forEach((c) => {
+          if (c.user) matchedUserIds.push(c.user);
+        });
+
+        andConditions.push({
+          $or: [
+            { user: { $in: matchedUserIds } },
+            { customer: { $in: matchedCustomerIds } },
+            { "guest.phone": val },
+          ],
+        });
+      }
+    }
+
+    if (query.userPhone) {
+      const phoneVal = query.userPhone.trim();
+      const { Customer } = await import("../../models/customer.model");
+      const { User } = await import("../../models/user.model");
+
+      const [matchingUsers, matchingCustomers] = await Promise.all([
+        User.find({ phone: phoneVal }).select("_id"),
+        Customer.find({ phone: phoneVal }).select("_id user"),
+      ]);
+
+      const matchedUserIds = matchingUsers.map((u) => u._id);
+      const matchedCustomerIds = matchingCustomers.map((c) => c._id);
+
+      matchingCustomers.forEach((c) => {
+        if (c.user) matchedUserIds.push(c.user);
+      });
+
+      andConditions.push({
+        $or: [
+          { user: { $in: matchedUserIds } },
+          { customer: { $in: matchedCustomerIds } },
+          { "guest.phone": phoneVal },
+        ],
+      });
     }
 
     if (query.dateRange) {
@@ -256,11 +327,17 @@ export class OrderService {
 
     if (query.search && query.search.trim()) {
       const searchRegex = new RegExp(query.search.trim(), "i");
-      filter.$or = [
-        { orderNumber: searchRegex },
-        { "guest.name": searchRegex },
-        { "guest.phone": searchRegex },
-      ];
+      andConditions.push({
+        $or: [
+          { orderNumber: searchRegex },
+          { "guest.name": searchRegex },
+          { "guest.phone": searchRegex },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      filter.$and = andConditions;
     }
 
     const [orders, total] = await Promise.all([

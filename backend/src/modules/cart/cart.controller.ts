@@ -35,6 +35,8 @@ const checkoutSchema = z.object({
       email: z.string().optional(),
     })
     .optional(),
+  checkoutScope: z.enum(["all", "cart_only", "reorder_only"]).optional().default("all"),
+  keepRemaining: z.boolean().optional().default(false),
 });
 
 export class CartController {
@@ -127,6 +129,65 @@ export class CartController {
         next(new ApiError(400, error.errors.map((e) => e.message).join(". "), null, error.errors));
         return;
       }
+      next(error);
+    }
+  }
+
+  static async getCoinDeduction(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized: User context missing.");
+      }
+      const cartId = (req.params.cartId || req.query.cartId) as string | undefined;
+      const deductionData = await CartService.calculateCoinDeduction(userId, cartId);
+      res.status(200).json(new ApiResponse(200, deductionData, "Coin deduction calculated successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async applyCoins(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized: User context missing.");
+      }
+      const cartId = req.body.cartId as string | undefined;
+      const cart = await CartService.applyCoins(userId, cartId);
+      res.status(200).json(new ApiResponse(200, cart, "Homely Coins applied successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async removeCoins(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized: User context missing.");
+      }
+      const cartId = req.body.cartId as string | undefined;
+      const cart = await CartService.removeCoins(userId, cartId);
+      res.status(200).json(new ApiResponse(200, cart, "Homely Coins removed successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async reorder(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized: User context missing.");
+      }
+      const orderId = (req.body.orderId || req.params.orderId) as string;
+      if (!orderId) {
+        throw new ApiError(400, "Order ID is required to reorder.");
+      }
+      const cart = await CartService.reorderCart(userId, orderId);
+      res.status(200).json(new ApiResponse(200, cart, "Order items added to cart successfully"));
+    } catch (error) {
       next(error);
     }
   }

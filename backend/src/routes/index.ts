@@ -11,6 +11,7 @@ import offerRoutes from "../modules/offer/offer.routes";
 import paymentRoutes from "../modules/payment/payment.routes";
 import webhookRoutes from "../modules/webhook/webhook.routes";
 import coinRoutes from "../modules/coin/coin.routes";
+import shopDetailsRoutes from "../modules/shop-details/shop-details.routes";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use("/offer", offerRoutes);
 router.use("/payment", paymentRoutes);
 router.use("/webhook", webhookRoutes);
 router.use("/coins", coinRoutes);
+router.use("/shop-details", shopDetailsRoutes);
 
 export default router;

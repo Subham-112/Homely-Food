@@ -170,16 +170,40 @@ export class PaymentService {
     payment.draftPayload = undefined; // clear transient payload
     await payment.save();
 
-    // Mark active cart as completed
+    // Mark active cart as completed (unless remaining items were retained) & debit coin wallet if coins were applied
     const targetUserId = payment.user || draftPayload.userId;
     if (targetUserId) {
       try {
-        await Cart.updateMany(
-          { user: targetUserId, status: CartStatus.ACTIVE },
-          { $set: { status: CartStatus.COMPLETED } }
-        );
+        const activeCart = await Cart.findOne({ user: targetUserId, status: CartStatus.ACTIVE });
+        if (activeCart) {
+          if (activeCart.total?.discountType === "coins" && activeCart.total?.coinsUsed && activeCart.total.coinsUsed > 0) {
+            activeCart.total.coinStatus = "converted";
+            try {
+              const { CoinService } = await import("../coin/coin.service");
+              const { CoinTransactionType } = await import("../../common/enum");
+              await CoinService.debitWallet(targetUserId.toString(), activeCart.total.coinsUsed, {
+                type: CoinTransactionType.SPENT,
+                reason: "Applied for Discount",
+                orderId: createdOrder._id.toString(),
+              });
+            } catch (coinErr) {
+              console.error("Failed to debit coin wallet on online payment completion:", coinErr);
+            }
+          }
+
+          // If keepRemaining was true and remaining items exist in activeCart, do NOT close the cart!
+          const keepRemaining = Boolean((draftPayload as any)?.keepRemaining);
+          const remainingCount = Number((draftPayload as any)?.remainingItemCount || 0);
+
+          if (!keepRemaining || remainingCount === 0 || activeCart.items.length === 0) {
+            activeCart.status = CartStatus.COMPLETED;
+            await activeCart.save();
+          } else {
+            await activeCart.save();
+          }
+        }
       } catch (cartErr) {
-        console.error("Failed to update cart status to completed:", cartErr);
+        console.error("Failed to update cart status on payment verification:", cartErr);
       }
     }
 

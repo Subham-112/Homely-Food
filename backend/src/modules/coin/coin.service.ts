@@ -117,6 +117,67 @@ export class CoinService {
     }
   }
 
+  public static async debitWallet(
+    userId: string,
+    amount: number,
+    options: {
+      type: CoinTransactionType;
+      reason: string;
+      orderId?: string;
+      adminId?: string;
+      meta?: Record<string, any>;
+    }
+  ): Promise<{ wallet: ICoinWallet; transaction: ICoinTransaction }> {
+    if (amount <= 0) {
+      throw new ApiError(400, "Debit amount must be greater than zero.");
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const wallet = await CoinWallet.findOne({ user: userId }).session(session);
+      if (!wallet) {
+        throw new ApiError(404, "Coin wallet not found.");
+      }
+
+      if (!wallet.isActive) {
+        throw new ApiError(400, "Coin wallet is disabled for this user.");
+      }
+
+      if (wallet.balance < amount) {
+        throw new ApiError(400, `Insufficient coin balance. Available: ${wallet.balance}, Required: ${amount}`);
+      }
+
+      wallet.balance -= amount;
+      wallet.lifetimeSpent += amount;
+      await wallet.save({ session });
+
+      const transaction = new CoinTransaction({
+        user: userId,
+        type: options.type || CoinTransactionType.SPENT,
+        direction: CoinTransactionDirection.DEBIT,
+        amount,
+        balanceAfter: wallet.balance,
+        order: options.orderId,
+        performedByAdmin: options.adminId,
+        reason: options.reason,
+        meta: options.meta,
+      });
+
+      await transaction.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return { wallet, transaction };
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  }
+
   public static async grantWelcomeBonus(userId: string): Promise<void> {
     try {
       const config = await CoinConfigService.getConfig();
@@ -130,7 +191,7 @@ export class CoinService {
 
       await this.creditWallet(userId, config.welcomeBonusCoins, {
         type: CoinTransactionType.WELCOME_BONUS,
-        reason: `Welcome bonus of ${config.welcomeBonusCoins} coins for joining Homely-Food!`,
+        reason: "Welcome Discount Bonus",
       });
 
       await User.findByIdAndUpdate(userId, { welcomeRewardClaimed: true });
@@ -162,7 +223,7 @@ export class CoinService {
       if (netOrderAmount >= 20 && netOrderAmount < 49) {
         coinsToAward = 3;
         txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-        reason = "Order ₹20–₹48.99 reward (3 Coins)";
+        reason = "Earned Cash Savings";
         const baseTier = await CoinRuleService.resolveTier(netOrderAmount);
         tierId = baseTier?._id?.toString();
       } else {
@@ -180,7 +241,7 @@ export class CoinService {
         if (completedCount <= 5 && !isClaimedInTier && tier) {
           coinsToAward = tier.fixedCoins;
           txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-          reason = `Fixed tier reward (${tier.label})`;
+          reason = "Earned Cash Savings";
         } else if (completedCount > 5) {
           const minP = config.repeatRewardPercentMin || 10;
           const maxP = config.repeatRewardPercentMax || 15;
@@ -188,11 +249,11 @@ export class CoinService {
           coinsToAward = Math.round((netOrderAmount * percent) / 100);
           coinsToAward = Math.max(coinsToAward, 1);
           txnType = CoinTransactionType.ORDER_REWARD_PERCENT;
-          reason = `Repeat order reward (${percent}% of order amount)`;
+          reason = "Earned Cash Savings";
         } else {
           coinsToAward = tier ? tier.fixedCoins : 5;
           txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-          reason = `Fixed order reward (${coinsToAward} Coins)`;
+          reason = "Earned Cash Savings";
         }
       }
 
@@ -216,14 +277,13 @@ export class CoinService {
     adminId: string,
     userIds: string[],
     amount: number,
-    reason: string
+    reason?: string
   ): Promise<{ succeeded: string[]; failed: { userId: string; error: string }[] }> {
     if (amount <= 0) {
       throw new ApiError(400, "Grant amount must be greater than zero.");
     }
-    if (!reason || !reason.trim()) {
-      throw new ApiError(400, "Reason is required for manual admin coin grant.");
-    }
+
+    const grantReason = (reason && reason.trim()) ? reason.trim() : "Manual Admin Bonus";
 
     const succeeded: string[] = [];
     const failed: { userId: string; error: string }[] = [];
@@ -232,7 +292,7 @@ export class CoinService {
       try {
         await this.creditWallet(uid, amount, {
           type: CoinTransactionType.ADMIN_GRANT,
-          reason: `Admin Bonus: ${reason}`,
+          reason: `Admin Bonus: ${grantReason}`,
           adminId,
         });
         succeeded.push(uid);

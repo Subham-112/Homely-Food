@@ -5,6 +5,7 @@ export interface ICartItem {
   menuItem: mongoose.Types.ObjectId;
   quantity: number;
   variant?: mongoose.Types.ObjectId;
+  isReorder?: boolean;
 }
 
 export interface ICartTotal {
@@ -13,6 +14,9 @@ export interface ICartTotal {
   totalAmount: number;
   offer?: mongoose.Types.ObjectId;
   offerCode?: string;
+  discountType?: "offer" | "coins";
+  coinsUsed?: number;
+  coinStatus?: "none" | "applied" | "converted" | "cancelled";
 }
 
 export interface ICart extends Document {
@@ -42,6 +46,10 @@ const CartItemSchema = new Schema<ICartItem>(
       type: Schema.Types.ObjectId,
       ref: "MenuItemVariant",
     },
+    isReorder: {
+      type: Boolean,
+      default: false,
+    },
   },
   { _id: false }
 );
@@ -68,6 +76,20 @@ const CartTotalSchema = new Schema<ICartTotal>(
       type: String,
       uppercase: true,
       trim: true,
+    },
+    discountType: {
+      type: String,
+      enum: ["offer", "coins"],
+      default: undefined,
+    },
+    coinsUsed: {
+      type: Number,
+      default: 0,
+    },
+    coinStatus: {
+      type: String,
+      enum: ["none", "applied", "converted", "cancelled"],
+      default: "none",
     },
   },
   { _id: false }

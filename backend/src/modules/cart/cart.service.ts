@@ -6,7 +6,7 @@ import Order from "../../models/order.model";
 import { Customer } from "../../models/customer.model";
 import User from "../../models/user.model";
 import ApiError from "../../utils/ApiError";
-import { CartStatus, OfferType, OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
+import { CartStatus, MenuItemStatus, OfferType, OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus, VariantStatus } from "../../common/enum";
 import { emitNewOrder } from "../../socket/socketService";
 import { OrderService } from "../order/order.service";
 
@@ -14,6 +14,7 @@ export interface ISyncCartItemInput {
   menuItem: string;
   quantity: number;
   variant?: string;
+  isReorder?: boolean;
 }
 
 export interface ICheckoutInput {
@@ -29,6 +30,8 @@ export interface ICheckoutInput {
     phone: string;
     email?: string;
   };
+  checkoutScope?: "all" | "cart_only" | "reorder_only";
+  keepRemaining?: boolean;
 }
 
 export class CartService {
@@ -68,8 +71,10 @@ export class CartService {
     let discount = 0;
     let appliedOfferDoc: any = null;
 
-    // Re-verify attached offer/coupon if present
-    if (cart.total?.offerCode || cart.total?.offer) {
+    // Check if coins are applied vs offer coupon
+    if (cart.total?.discountType === "coins" && cart.total?.coinsUsed) {
+      discount = cart.total.coinsUsed;
+    } else if (cart.total?.offerCode || cart.total?.offer) {
       const query: any = cart.total.offerCode
         ? { code: cart.total.offerCode.trim().toUpperCase() }
         : { _id: cart.total.offer };
@@ -128,6 +133,9 @@ export class CartService {
       totalAmount,
       offer: appliedOfferDoc ? appliedOfferDoc._id : undefined,
       offerCode: appliedOfferDoc ? appliedOfferDoc.code : undefined,
+      discountType: cart.total?.discountType === "coins" ? "coins" : appliedOfferDoc ? "offer" : undefined,
+      coinsUsed: cart.total?.discountType === "coins" ? discount : 0,
+      coinStatus: cart.total?.discountType === "coins" ? (cart.total.coinStatus || "applied") : "none",
     };
 
     return cart;
@@ -191,6 +199,7 @@ export class CartService {
           menuItem: item.menuItem as any,
           quantity: item.quantity,
           variant: item.variant as any,
+          isReorder: Boolean(item.isReorder),
         })),
       });
     } else {
@@ -198,6 +207,7 @@ export class CartService {
         menuItem: item.menuItem as any,
         quantity: item.quantity,
         variant: item.variant as any,
+        isReorder: Boolean(item.isReorder),
       })) as any;
     }
 
@@ -230,6 +240,10 @@ export class CartService {
       throw new ApiError(400, `Coupon code "${cleanCode}" has expired.`);
     }
 
+    // Clear coins if coupon applied
+    cart.total.discountType = "offer";
+    cart.total.coinsUsed = 0;
+    cart.total.coinStatus = "none";
     cart.total.offerCode = cleanCode;
     cart.total.offer = offer._id as any;
 
@@ -238,6 +252,7 @@ export class CartService {
     if (cart.total.discount <= 0 && offer.minCartValue) {
       cart.total.offerCode = undefined;
       cart.total.offer = undefined;
+      cart.total.discountType = undefined;
       await cart.save();
       throw new ApiError(
         400,
@@ -254,6 +269,101 @@ export class CartService {
     if (cart) {
       cart.total.offer = undefined;
       cart.total.offerCode = undefined;
+      cart.total.discountType = undefined;
+      cart.total.discount = 0;
+      await this.recalculateCartTotals(cart);
+      await cart.save();
+    }
+    return this.getCart(userId);
+  }
+
+  /**
+   * Calculate exact deductible coins based on cart total & user wallet balance
+   * Rule: 50% of cart subTotal is max deductible; 1 coin = ₹1.
+   */
+  static async calculateCoinDeduction(userId: string, cartId?: string) {
+    const { CoinService } = await import("../coin/coin.service");
+    const wallet = await CoinService.getOrCreateWallet(userId);
+
+    const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
+    const cart = await Cart.findOne(query);
+
+    if (!cart || !cart.items || cart.items.length === 0) {
+      return {
+        userBalance: wallet.balance,
+        maxDeductible: 0,
+        deductedCoins: 0,
+        discountAmount: 0,
+      };
+    }
+
+    await this.recalculateCartTotals(cart);
+
+    const cartTotalAmount = cart.total.subTotal || 0;
+    const maxDeductible = Math.floor(cartTotalAmount * 0.5);
+    const deductedCoins = Math.min(wallet.balance, maxDeductible);
+
+    return {
+      userBalance: wallet.balance,
+      maxDeductible,
+      deductedCoins,
+      discountAmount: deductedCoins,
+    };
+  }
+
+  /**
+   * Attach/Apply coins discount to cart (set coinStatus to 'applied')
+   */
+  static async applyCoins(userId: string, cartId?: string) {
+    const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
+    const cart = await Cart.findOne(query);
+
+    if (!cart || !cart.items || cart.items.length === 0) {
+      throw new ApiError(404, "Active cart not found or cart is empty.");
+    }
+
+    const { CoinService } = await import("../coin/coin.service");
+    const wallet = await CoinService.getOrCreateWallet(userId);
+
+    if (wallet.balance <= 0) {
+      throw new ApiError(400, "You do not have any Homely Coins to redeem.");
+    }
+
+    await this.recalculateCartTotals(cart);
+
+    const cartTotalAmount = cart.total.subTotal || 0;
+    const maxDeductible = Math.floor(cartTotalAmount * 0.5);
+    const coinsToDeduct = Math.min(wallet.balance, maxDeductible);
+
+    if (coinsToDeduct <= 0) {
+      throw new ApiError(400, "Insufficient cart total for coin redemption.");
+    }
+
+    // Mutually exclusive: Clear attached offer coupon
+    cart.total.offer = undefined;
+    cart.total.offerCode = undefined;
+
+    cart.total.discountType = "coins";
+    cart.total.coinsUsed = coinsToDeduct;
+    cart.total.coinStatus = "applied";
+    cart.total.discount = coinsToDeduct;
+    cart.total.totalAmount = Math.max(0, cartTotalAmount - coinsToDeduct);
+
+    await cart.save();
+    return this.getCart(userId);
+  }
+
+  /**
+   * Remove applied coins discount from cart
+   */
+  static async removeCoins(userId: string, cartId?: string) {
+    const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
+    const cart = await Cart.findOne(query);
+
+    if (cart) {
+      cart.total.discountType = undefined;
+      cart.total.coinsUsed = 0;
+      cart.total.coinStatus = "none";
       cart.total.discount = 0;
       await this.recalculateCartTotals(cart);
       await cart.save();
@@ -281,11 +391,32 @@ export class CartService {
       throw new ApiError(404, "Active cart not found or cart is empty.");
     }
 
-    // Recalculate totals dynamically before creating order
-    await this.recalculateCartTotals(cart);
+    // Filter items based on checkoutScope ("all" | "cart_only" | "reorder_only")
+    const scope = payload.checkoutScope || "all";
+    let activeCheckoutItems = cart.items;
+    let remainingCartItems: typeof cart.items = [];
+
+    if (scope === "cart_only") {
+      activeCheckoutItems = cart.items.filter((i) => !i.isReorder);
+      remainingCartItems = cart.items.filter((i) => Boolean(i.isReorder));
+    } else if (scope === "reorder_only") {
+      activeCheckoutItems = cart.items.filter((i) => Boolean(i.isReorder));
+      remainingCartItems = cart.items.filter((i) => !i.isReorder);
+    }
+
+    if (activeCheckoutItems.length === 0) {
+      throw new ApiError(400, "No items match the selected checkout scope.");
+    }
+
+    // Create a temporary cart object to recalculate order totals for selected scope
+    const tempCart: any = {
+      items: activeCheckoutItems,
+      total: { ...cart.total },
+    };
+    await this.recalculateCartTotals(tempCart as any);
 
     // Build order items
-    const orderItems = cart.items.map((item) => ({
+    const orderItems = activeCheckoutItems.map((item) => ({
       menuItem: item.menuItem.toString(),
       quantity: item.quantity,
       variant: item.variant ? { variantId: item.variant.toString() } : undefined,
@@ -312,32 +443,167 @@ export class CartService {
       payment: {
         method: payload.paymentMethod,
         status: PaymentStatus.UNPAID,
-        amount: cart.total.totalAmount,
+        amount: tempCart.total.totalAmount,
+        discountType: tempCart.total.discountType,
+        coinsUsed: tempCart.total.coinsUsed,
       },
       status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
       deliveryAddress: payload.deliveryAddress,
       pickupTiming: payload.pickupTiming,
-      subTotal: cart.total.subTotal,
-      discount: cart.total.discount,
-      totalAmount: cart.total.totalAmount,
-      offer: cart.total.offer,
-      offerCode: cart.total.offerCode,
+      subTotal: tempCart.total.subTotal,
+      discount: tempCart.total.discount,
+      totalAmount: tempCart.total.totalAmount,
+      offer: tempCart.total.offer,
+      offerCode: tempCart.total.offerCode,
       notes: payload.notes,
       createdBy: "customer",
     };
 
+    // Handle cart cleanup vs retention of remaining items BEFORE payment branching
+    if (payload.keepRemaining && remainingCartItems.length > 0) {
+      // Keep un-ordered items in active cart
+      cart.items = remainingCartItems;
+      await this.recalculateCartTotals(cart);
+      await cart.save();
+    } else if (payload.paymentPreference !== "ONLINE") {
+      // Mark full cart as completed for CASH order
+      cart.status = CartStatus.COMPLETED;
+      await cart.save();
+    }
+
     if (payload.paymentPreference === "ONLINE") {
       const { PaymentService } = await import("../payment/payment.service");
-      return await PaymentService.createPendingCheckout(orderPayload, userId);
+      return await PaymentService.createPendingCheckout(
+        {
+          ...orderPayload,
+          keepRemaining: payload.keepRemaining,
+          remainingItemCount: remainingCartItems.length,
+        } as any,
+        userId
+      );
     }
 
     const order = await OrderService.create(orderPayload);
 
-    // Mark cart as completed for CASH order
-    cart.status = CartStatus.COMPLETED;
-    await cart.save();
+    // If coins were used, update cart coinStatus to 'converted' & debit user's wallet
+    if (tempCart.total.discountType === "coins" && tempCart.total.coinsUsed && tempCart.total.coinsUsed > 0) {
+      cart.total.coinStatus = "converted";
+      try {
+        const { CoinService } = await import("../coin/coin.service");
+        const { CoinTransactionType } = await import("../../common/enum");
+        await CoinService.debitWallet(userId, tempCart.total.coinsUsed, {
+          type: CoinTransactionType.SPENT,
+          reason: "Applied for Discount",
+          orderId: order._id.toString(),
+        });
+      } catch (err) {
+        console.error("Failed to debit wallet for coins redeemed on order:", err);
+      }
+    }
 
     return order;
+  }
+
+  /**
+   * Reorder items from a previous order into user's cart
+   */
+  static async reorderCart(userId: string, orderId: string): Promise<ICart> {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new ApiError(404, "Original order not found.");
+    }
+
+    if (order.user && order.user.toString() !== userId.toString()) {
+      throw new ApiError(403, "Forbidden: You can only reorder your own past orders.");
+    }
+
+    if (!order.items || order.items.length === 0) {
+      throw new ApiError(400, "Original order has no items to reorder.");
+    }
+
+    // Find active menu items from the order that are still available
+    const reorderItems: ISyncCartItemInput[] = [];
+
+    for (const item of order.items) {
+      const menuItemId = (item.menuItem as any)?._id?.toString() || item.menuItem?.toString();
+      if (!menuItemId) continue;
+
+      const menuItemDoc = await MenuItem.findById(menuItemId);
+      if (!menuItemDoc || menuItemDoc.status !== MenuItemStatus.AVAILABLE) continue;
+
+      let variantId: string | undefined = undefined;
+      if (item.variant) {
+        let rawVId: any = undefined;
+        if (typeof item.variant === "object" && item.variant !== null) {
+          rawVId = item.variant.variantId || (item.variant as any)._id;
+        } else if (typeof item.variant === "string") {
+          rawVId = item.variant;
+        }
+
+        const vIdStr = rawVId ? String(rawVId) : undefined;
+        if (vIdStr && vIdStr !== "[object Object]" && vIdStr !== "{}") {
+          const variantDoc = await MenuItemVariant.findById(vIdStr);
+          if (variantDoc && variantDoc.status === VariantStatus.ACTIVE) {
+            variantId = vIdStr;
+          }
+        }
+      }
+
+      reorderItems.push({
+        menuItem: menuItemId,
+        quantity: item.quantity || 1,
+        variant: variantId,
+      });
+    }
+
+    if (reorderItems.length === 0) {
+      throw new ApiError(400, "None of the items from this order are currently available for reorder.");
+    }
+
+    // Merge with existing cart items instead of overwriting
+    const existingCart = await Cart.findOne({ user: userId, status: "active" });
+    const mergedMap = new Map<string, ISyncCartItemInput>();
+
+    // 1. Add existing cart items into map (preserve their isReorder status)
+    if (existingCart && existingCart.items) {
+      for (const item of existingCart.items) {
+        const mId = item.menuItem.toString();
+        const vId = item.variant ? item.variant.toString() : "";
+        const key = `${mId}_${vId}`;
+        mergedMap.set(key, {
+          menuItem: mId,
+          quantity: item.quantity,
+          variant: vId || undefined,
+          isReorder: Boolean(item.isReorder),
+        });
+      }
+    }
+
+    // 2. Append/merge re-ordered items with isReorder: true
+    for (const rItem of reorderItems) {
+      const key = `${rItem.menuItem}_${rItem.variant || ""}`;
+      const existing = mergedMap.get(key);
+      if (existing) {
+        existing.quantity += rItem.quantity;
+        // Keep as reorder item if it was re-ordered
+        existing.isReorder = true;
+      } else {
+        mergedMap.set(key, {
+          ...rItem,
+          isReorder: true,
+        });
+      }
+    }
+
+    const finalMergedItems = Array.from(mergedMap.values());
+
+    // Sync user's cart with combined merged items
+    const updatedCart = await this.syncCart(userId, finalMergedItems);
+    if (!updatedCart) {
+      throw new ApiError(500, "Failed to update cart during reorder.");
+    }
+
+    return updatedCart;
   }
 }

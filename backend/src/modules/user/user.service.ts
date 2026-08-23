@@ -206,47 +206,32 @@ export class UserService {
 
     const searchRegex = { $regex: phone.trim(), $options: "i" };
 
-    // Query both collections in parallel
-    const [customers, users] = await Promise.all([
-      Customer.find({ phone: searchRegex }).limit(10),
-      User.find({ phone: searchRegex }).select("_id name phone email").limit(10),
-    ]);
+    // 1. Search in User model first
+    const users = await User.find({ phone: searchRegex }).select("_id name phone email").limit(10);
 
-    // Use a Map to merge suggestions by phone number to avoid duplicates
-    const resultsMap = new Map<string, any>();
-
-    // 1. Add Customer profile records
-    for (const c of customers) {
-      resultsMap.set(c.phone, {
-        _id: c._id.toString(), // Customer ID
-        name: c.primaryName,
-        phone: c.phone,
-        userId: c.user ? c.user.toString() : undefined,
-        orderCount: c.orderCount,
-        totalExpenses: c.totalExpenses,
-      });
+    if (users && users.length > 0) {
+      return users.map((u) => ({
+        id: u._id.toString(),
+        _id: u._id.toString(),
+        name: u.name,
+        phone: u.phone,
+        email: u.email,
+        userId: u._id.toString(),
+      }));
     }
 
-    // 2. Add User records (for users who haven't ordered yet or are missing from Customer)
-    for (const u of users) {
-      if (!resultsMap.has(u.phone)) {
-        resultsMap.set(u.phone, {
-          _id: u._id.toString(), // User ID
-          name: u.name,
-          phone: u.phone,
-          userId: u._id.toString(),
-          orderCount: 0,
-          totalExpenses: 0,
-        });
-      } else {
-        const existing = resultsMap.get(u.phone);
-        if (!existing.userId) {
-          existing.userId = u._id.toString();
-        }
-      }
-    }
+    // 2. If no User found, fallback search in Customer model
+    const customers = await Customer.find({ phone: searchRegex }).limit(10);
 
-    return Array.from(resultsMap.values());
+    return customers.map((c) => ({
+      id: c.user ? c.user.toString() : c._id.toString(),
+      _id: c.user ? c.user.toString() : c._id.toString(),
+      name: c.primaryName,
+      phone: c.phone,
+      userId: c.user ? c.user.toString() : c._id.toString(),
+      orderCount: c.orderCount,
+      totalExpenses: c.totalExpenses,
+    }));
   }
 
   static async isPhoneExists(phone: string): Promise<boolean> {

@@ -10,7 +10,7 @@ export interface ICoinTransaction extends Document {
   order?: mongoose.Types.ObjectId;
   tier?: mongoose.Types.ObjectId;
   performedByAdmin?: mongoose.Types.ObjectId;
-  reason: string;
+  reason?: string;
   meta?: Record<string, any>;
   createdAt: Date;
 }
@@ -56,20 +56,23 @@ const CoinTransactionSchema = new Schema<ICoinTransaction>(
       type: Schema.Types.ObjectId,
       ref: "Admin",
     },
-    reason: {
-      type: String,
-      required: true,
-    },
+    reason: { type: String },
     meta: {
       type: Schema.Types.Mixed,
     },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
-  }
+  },
 );
 
 CoinTransactionSchema.index({ user: 1, createdAt: -1 });
-CoinTransactionSchema.index({ order: 1, type: 1 }, { unique: true, partialFilterExpression: { order: { $exists: true } } });
+CoinTransactionSchema.index(
+  { order: 1, type: 1 },
+  { unique: true, partialFilterExpression: { order: { $exists: true } } },
+);
 
-export const CoinTransaction = mongoose.model<ICoinTransaction>("CoinTransaction", CoinTransactionSchema);
+export const CoinTransaction = mongoose.model<ICoinTransaction>(
+  "CoinTransaction",
+  CoinTransactionSchema,
+);
