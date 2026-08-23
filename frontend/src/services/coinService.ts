@@ -111,3 +111,9 @@ export async function getAdminCoinAnalytics(): Promise<any> {
   const res: any = await Fetch("/api/coins/admin/analytics");
   return res.data;
 }
+
+export async function searchUsersByPhone(phone: string): Promise<Array<{ id?: string; _id?: string; name: string; phone: string }>> {
+  if (!phone || !phone.trim()) return [];
+  const res: any = await Fetch(`/api/user/search-by-phone?phone=${encodeURIComponent(phone.trim())}`);
+  return res.data || [];
+}

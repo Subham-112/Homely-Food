@@ -11,7 +11,7 @@ import { useCoins } from "@/context/CoinContext";
 export const Header: React.FC = () => {
   const pathname = usePathname();
   const { totalItems } = useCart();
-  const { isAuthenticated, isAdminAuthenticated, logout, adminLogout } = useAuth();
+  const { user, isAuthenticated, isAdminAuthenticated, logout, adminLogout } = useAuth();
   const { wallet, floatingAnimation } = useCoins();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -119,12 +119,23 @@ export const Header: React.FC = () => {
           <div className="relative w-4/5 max-w-xs bg-[#FAF6ED] h-full shadow-2xl z-10 flex flex-col p-5 overflow-y-auto justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-                <span className="font-bold text-lg text-[#0B392B]">
-                  {isAdmin ? "Admin Navigation" : "Navigation"}
-                </span>
+                {!isAdmin && isAuthenticated && user ? (
+                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                    <div className="w-9 h-9 rounded-full bg-[#0B392B] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                      <User className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="font-extrabold text-sm text-[#0B251C] truncate font-poppins">
+                      {user.name || "Customer"}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="font-bold text-lg text-[#0B392B]">
+                    {isAdmin ? "Admin Navigation" : "Navigation"}
+                  </span>
+                )}
                 <button
                   onClick={() => setDrawerOpen(false)}
-                  className="p-1 text-gray-500 hover:text-black rounded-lg cursor-pointer"
+                  className="p-1 text-gray-500 hover:text-black rounded-lg cursor-pointer shrink-0"
                 >
                   <X className="w-6 h-6" />
                 </button>

@@ -4,6 +4,7 @@ export interface CartItemInput {
   menuItem: string;
   quantity: number;
   variant?: string;
+  isReorder?: boolean;
 }
 
 export interface PopulatedCartItem {
@@ -22,6 +23,7 @@ export interface PopulatedCartItem {
     price: number;
     status: string;
   };
+  isReorder?: boolean;
 }
 
 export interface CartTotal {
@@ -37,6 +39,16 @@ export interface CartTotal {
     flatDiscountAmount?: number;
   };
   offerCode?: string;
+  discountType?: "offer" | "coins";
+  coinsUsed?: number;
+  coinStatus?: "none" | "applied" | "converted" | "cancelled";
+}
+
+export interface CoinDeductionResponse {
+  userBalance: number;
+  maxDeductible: number;
+  deductedCoins: number;
+  discountAmount: number;
 }
 
 export interface CartResponse {
@@ -74,6 +86,22 @@ export const removeOfferFromCart = async (): Promise<CartResponse> => {
   return response.data;
 };
 
+export const getCoinDeduction = async (cartId?: string): Promise<CoinDeductionResponse> => {
+  const url = cartId ? `/api/cart/${cartId}/coin-deduction` : "/api/cart/coin-deduction";
+  const response = await Fetch<ApiResponse<CoinDeductionResponse>>(url);
+  return response.data;
+};
+
+export const applyCoinsToCart = async (cartId?: string): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/apply-coins", { cartId });
+  return response.data;
+};
+
+export const removeCoinsFromCart = async (cartId?: string): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/remove-coins", { cartId });
+  return response.data;
+};
+
 export const clearBackendCart = async (): Promise<void> => {
   await Delete<ApiResponse<void>>("/api/cart");
 };
@@ -83,5 +111,10 @@ export const checkoutCart = async (cartId: string, orderPayload: any): Promise<a
     cartId,
     ...orderPayload,
   });
+  return response.data;
+};
+
+export const reorderCartApi = async (orderId: string): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/reorder", { orderId });
   return response.data;
 };

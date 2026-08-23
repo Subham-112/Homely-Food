@@ -9,6 +9,8 @@ interface CoinContextType {
   wallet: CoinWalletRecord | null;
   loading: boolean;
   floatingAnimation: { amount: number; id: number } | null;
+  hasNewCoinsNotification: boolean;
+  clearNewCoinsNotification: () => void;
   refreshWallet: () => Promise<void>;
 }
 
@@ -16,6 +18,8 @@ const CoinContext = createContext<CoinContextType>({
   wallet: null,
   loading: true,
   floatingAnimation: null,
+  hasNewCoinsNotification: false,
+  clearNewCoinsNotification: () => {},
   refreshWallet: async () => {},
 });
 
@@ -25,6 +29,7 @@ export const CoinProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [wallet, setWallet] = useState<CoinWalletRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [floatingAnimation, setFloatingAnimation] = useState<{ amount: number; id: number } | null>(null);
+  const [hasNewCoinsNotification, setHasNewCoinsNotification] = useState<boolean>(false);
 
   const fetchWallet = async () => {
     if (!user) {
@@ -43,6 +48,10 @@ export const CoinProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const clearNewCoinsNotification = () => {
+    setHasNewCoinsNotification(false);
+  };
+
   useEffect(() => {
     fetchWallet();
   }, [user]);
@@ -54,6 +63,7 @@ export const CoinProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (gainedAmount > 0) {
         const animId = Date.now();
         setFloatingAnimation({ amount: gainedAmount, id: animId });
+        setHasNewCoinsNotification(true);
         setTimeout(() => {
           setFloatingAnimation((current) => (current?.id === animId ? null : current));
         }, 1800);
@@ -86,7 +96,16 @@ export const CoinProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [socket, user]);
 
   return (
-    <CoinContext.Provider value={{ wallet, loading, floatingAnimation, refreshWallet: fetchWallet }}>
+    <CoinContext.Provider
+      value={{
+        wallet,
+        loading,
+        floatingAnimation,
+        hasNewCoinsNotification,
+        clearNewCoinsNotification,
+        refreshWallet: fetchWallet,
+      }}
+    >
       {children}
     </CoinContext.Provider>
   );

@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { PublicCartProvider } from "@/context/PublicCartContext";
 import { SocketProvider } from "@/context/SocketContext";
 import { CoinProvider } from "@/context/CoinContext";
 
@@ -33,13 +34,15 @@ export default function RootLayout({
       <body className={`${poppins.className} text-[#0f261c] antialiased bg-[#FAF6ED] min-h-screen`}>
         <AuthProvider>
           <SocketProvider>
-            <CartProvider>
-              <CoinProvider>
-                <main className="mobile-viewport relative flex flex-col min-h-screen">
-                  {children}
-                </main>
-              </CoinProvider>
-            </CartProvider>
+            <PublicCartProvider>
+              <CartProvider>
+                <CoinProvider>
+                  <main className="mobile-viewport relative flex flex-col min-h-screen">
+                    {children}
+                  </main>
+                </CoinProvider>
+              </CartProvider>
+            </PublicCartProvider>
           </SocketProvider>
         </AuthProvider>
       </body>

@@ -9,6 +9,9 @@ import OffersSection from "@/components/home/OffersSection";
 import TodaysSpecialSection from "@/components/home/TodaysSpecialSection";
 import CategorySection from "@/components/home/CategorySection";
 import MenuListSection from "@/components/home/MenuListSection";
+import Footer from "@/components/Footer";
+
+import HomelyCoinCard from "@/components/HomelyCoinCard";
 
 import { useCart, MenuItem as CartMenuItem } from "@/context/CartContext";
 import { getMenuItems, MenuItem as ApiMenuItem } from "@/services/menuItemService";
@@ -199,12 +202,14 @@ export default function HomePage() {
       {/* Fixed Top Header */}
       <Header />
 
-      {/* Middle Scrollable Section with Infinite Scroll Listener */}
+      {/* Middle Scrollable Section */}
       <div
         ref={scrollContainerRef}
-        onScroll={handleScroll}
         className="flex-1 overflow-y-auto no-scrollbar p-3.5 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-3 pb-24"
       >
+        {/* 0. User Homely Coin Wallet Card (Top Header Section) */}
+        {user && <HomelyCoinCard showActionLink={true} />}
+
         {/* 1. Offers & Promotions Section (Top API Call) */}
         <OffersSection offers={activeOffers} />
 
@@ -224,16 +229,20 @@ export default function HomePage() {
           totalItemsCount={total}
         />
 
-        {/* 4. Menu Items Section (Paginated API Calls: Page 1, limit=10 -> Page 2, limit=10...) */}
+        {/* 4. Menu Items Section */}
         <MenuListSection
           filteredItems={filteredItems}
           selectedCategory={selectedCategory}
           loading={loading}
-          loadingMore={loadingMore}
           getItemQuantity={getItemQuantity}
           addToCart={addToCart}
           updateQuantity={updateQuantity}
         />
+
+        {/* 5. Shop Details Footer (Spans edge-to-edge independently) */}
+        <div className="-mx-3.5 sm:-mx-5 -mb-24 pt-4">
+          <Footer />
+        </div>
       </div>
 
       {/* Floating Bottom Cart Bar */}

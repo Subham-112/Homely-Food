@@ -16,10 +16,24 @@ import {
 import { getMenuItems, MenuItem as ApiMenuItem } from "@/services/menuItemService";
 import { getCategoryList } from "@/services/categoryService";
 import { usePublicCart, PublicCartItem } from "@/context/PublicCartContext";
+import { useCart, MenuItem as CartMenuItem } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import VegBadge from "@/components/VegBadge";
 import QuantitySelector from "@/components/QuantitySelector";
 
 export default function PublicAllItemsPage() {
+  const { user, token } = useAuth();
+
+  // Logged in User Cart state
+  const {
+    cart: regCart,
+    addToCart: addToRegCart,
+    updateQuantity: updateRegQuantity,
+    totalItems: regTotalItems,
+    subTotal: regSubTotal,
+  } = useCart();
+
+  // Public / Guest Cart state
   const {
     publicCart,
     addToPublicCart,
@@ -27,6 +41,13 @@ export default function PublicAllItemsPage() {
     publicCartTotalItems,
     publicCartSubTotal,
   } = usePublicCart();
+
+  const isRegisteredUser = Boolean(token && user);
+
+  // Active Cart metrics based on auth state
+  const activeTotalItems = isRegisteredUser ? regTotalItems : publicCartTotalItems;
+  const activeSubTotal = isRegisteredUser ? regSubTotal : publicCartSubTotal;
+  const targetCartUrl = isRegisteredUser ? "/cart" : "/public/cart";
 
   const [menuItems, setMenuItems] = useState<PublicCartItem[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
@@ -138,12 +159,36 @@ export default function PublicAllItemsPage() {
   });
 
   const getCartQty = (itemId: string, variantId?: string) => {
+    if (isRegisteredUser) {
+      const found = regCart.find((c) => c.item.id === itemId && c.variant?.id === variantId);
+      return found ? found.quantity : 0;
+    }
     const found = publicCart.find((c) => c.id === itemId && c.variant?.id === variantId);
     return found ? found.quantity : 0;
   };
 
   const handleAdd = (item: PublicCartItem) => {
-    addToPublicCart(item);
+    if (isRegisteredUser) {
+      addToRegCart({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        description: item.description,
+        image: item.image,
+        category: item.category,
+        preparationTime: item.preparationTime,
+      });
+    } else {
+      addToPublicCart(item);
+    }
+  };
+
+  const handleUpdateQuantity = (item: PublicCartItem, delta: number) => {
+    if (isRegisteredUser) {
+      updateRegQuantity(item.id, delta);
+    } else {
+      updatePublicCartQuantity(item.id, delta);
+    }
   };
 
   return (
@@ -165,18 +210,29 @@ export default function PublicAllItemsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="text-xs font-bold text-[#0B392B] hover:bg-[#0B392B]/10 px-3 py-1.5 rounded-xl transition-all"
-            >
-              Login
-            </Link>
-            <Link
-              href="/signup"
-              className="text-xs font-bold bg-[#0B392B] text-white hover:bg-[#07281E] px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
-            >
-              Sign Up
-            </Link>
+            {isRegisteredUser ? (
+              <div className="flex items-center gap-2 bg-[#0B392B]/10 px-3 py-1.5 rounded-xl border border-[#0B392B]/20">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                <span className="text-xs font-bold text-[#0B392B]">
+                  {user?.name || "Customer"}
+                </span>
+              </div>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="text-xs font-bold text-[#0B392B] hover:bg-[#0B392B]/10 px-3 py-1.5 rounded-xl transition-all"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/signup"
+                  className="text-xs font-bold bg-[#0B392B] text-white hover:bg-[#07281E] px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -292,8 +348,8 @@ export default function PublicAllItemsPage() {
                       {qty > 0 ? (
                         <QuantitySelector
                           quantity={qty}
-                          onIncrease={() => updatePublicCartQuantity(item.id, 1)}
-                          onDecrease={() => updatePublicCartQuantity(item.id, -1)}
+                          onIncrease={() => handleUpdateQuantity(item, 1)}
+                          onDecrease={() => handleUpdateQuantity(item, -1)}
                           size="sm"
                         />
                       ) : (
@@ -324,20 +380,20 @@ export default function PublicAllItemsPage() {
       </div>
 
       {/* Floating Cart Bar */}
-      {publicCartTotalItems > 0 && (
+      {activeTotalItems > 0 && (
         <div className="fixed bottom-6 left-4 right-4 z-50 max-w-lg mx-auto">
           <Link
-            href="/public/cart"
+            href={targetCartUrl}
             className="flex items-center justify-between bg-[#0B392B] text-white rounded-2xl px-5 py-3.5 shadow-xl active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-2">
               <div className="bg-white/20 rounded-lg px-2 py-1 text-xs font-extrabold">
-                {publicCartTotalItems}
+                {activeTotalItems}
               </div>
               <span className="text-sm font-bold">View Cart</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-extrabold">₹{publicCartSubTotal.toFixed(2)}</span>
+              <span className="text-sm font-extrabold">₹{activeSubTotal.toFixed(2)}</span>
               <ChevronRight className="w-4 h-4" />
             </div>
           </Link>

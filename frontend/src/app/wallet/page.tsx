@@ -1,89 +1,60 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Coins, ArrowUpRight, ArrowDownLeft, Clock, History, ChevronLeft, Award } from "lucide-react";
+import { Coins, ArrowUpRight, ArrowDownLeft, Clock, History, RefreshCw } from "lucide-react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import HomelyCoinCard from "@/components/HomelyCoinCard";
 import { useCoins } from "@/context/CoinContext";
 import { getUserCoinHistory, CoinTransactionRecord } from "@/services/coinService";
 import { formatUTCToIST } from "@/utils/datetime";
 
 export default function WalletPage() {
-  const { wallet, loading: walletLoading } = useCoins();
+  const { wallet, loading: walletLoading, hasNewCoinsNotification, clearNewCoinsNotification } = useCoins();
   const [transactions, setTransactions] = useState<CoinTransactionRecord[]>([]);
   const [pagination, setPagination] = useState<any>(null);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
+  const [showFloatingReload, setShowFloatingReload] = useState<boolean>(false);
+
+  const fetchHistory = async (isManualReload: boolean = false) => {
+    setLoadingHistory(true);
+    try {
+      const res = await getUserCoinHistory(page, 10);
+      setTransactions(res.transactions || []);
+      setPagination(res.pagination);
+      if (isManualReload) {
+        setShowFloatingReload(false);
+        clearNewCoinsNotification();
+      }
+    } catch (err) {
+      console.error("Failed to load coin history:", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      setLoadingHistory(true);
-      try {
-        const res = await getUserCoinHistory(page, 10);
-        setTransactions(res.transactions || []);
-        setPagination(res.pagination);
-      } catch (err) {
-        console.error("Failed to load coin history:", err);
-      } finally {
-        setLoadingHistory(false);
-      }
-    };
-
     fetchHistory();
   }, [page]);
 
+  // Show floating reload button when socket credits coins while user is on wallet page
+  useEffect(() => {
+    if (hasNewCoinsNotification) {
+      setShowFloatingReload(true);
+    }
+  }, [hasNewCoinsNotification]);
+
   return (
-    <div className="min-h-screen bg-[#FAF6ED] pb-24 flex flex-col">
+    <div className="min-h-screen bg-[#FAF6ED] pb-24 flex flex-col relative">
       <Header />
 
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
-        {/* Wallet Balance Hero Card */}
-        <div className="bg-gradient-to-br from-[#0B392B] to-[#07281E] text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden flex flex-col gap-5 border border-[#0B392B]">
-          <div className="flex items-center justify-between z-10">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-amber-400/20 text-amber-300 flex items-center justify-center border border-amber-300/30 shadow-inner">
-                <Coins className="w-6 h-6 animate-pulse" />
-              </div>
-              <div>
-                <h1 className="text-lg font-extrabold font-poppins text-amber-300">Homely Coins</h1>
-                <p className="text-[11px] text-emerald-200/80 font-medium">1 Coin = ₹1 Rewards Value</p>
-              </div>
-            </div>
-
-            {wallet?.nextExpiryCheckAt && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-bold border border-white/15">
-                <Clock className="w-3.5 h-3.5 text-amber-300" />
-                <span>Expires: {formatUTCToIST(wallet.nextExpiryCheckAt).split(",")[0]}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="z-10">
-            <span className="text-xs font-extrabold text-emerald-300/80 uppercase tracking-wider block">
-              Available Balance
-            </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-4xl sm:text-5xl font-extrabold text-white font-poppins">
-                {wallet?.balance ?? 0}
-              </span>
-              <span className="text-sm font-bold text-amber-300">Coins (₹{wallet?.balance ?? 0})</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/10 z-10 text-xs">
-            <div>
-              <span className="text-emerald-200/70 block text-[10px]">Lifetime Earned</span>
-              <span className="font-bold text-white text-sm">+{wallet?.lifetimeEarned ?? 0}</span>
-            </div>
-            <div>
-              <span className="text-emerald-200/70 block text-[10px]">Expired Coins</span>
-              <span className="font-bold text-white text-sm">-{wallet?.lifetimeExpired ?? 0}</span>
-            </div>
-          </div>
-        </div>
+        {/* Wallet Balance Hero Card Component */}
+        <HomelyCoinCard showActionLink={false} />
 
         {/* Transaction History Section */}
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E1D3] shadow-xs flex flex-col gap-4">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E1D3] shadow-xs flex flex-col">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3">
             <div className="flex items-center gap-2">
               <History className="w-5 h-5 text-[#0B392B]" />
@@ -95,7 +66,24 @@ export default function WalletPage() {
           </div>
 
           {loadingHistory ? (
-            <div className="py-12 text-center text-xs font-bold text-gray-400">Loading history...</div>
+            /* Skeleton Loading State */
+            <div className="flex flex-col divide-y divide-gray-100 animate-pulse">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="py-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-2xl bg-gray-200 shrink-0" />
+                    <div className="flex flex-col gap-1.5">
+                      <div className="w-36 h-3.5 bg-gray-200 rounded-md" />
+                      <div className="w-24 h-2.5 bg-gray-150 rounded-md" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="w-12 h-4 bg-gray-200 rounded-md" />
+                    <div className="w-16 h-2.5 bg-gray-150 rounded-md" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : transactions.length === 0 ? (
             <div className="py-12 text-center text-xs font-bold text-gray-400">
               No coin transactions yet. Place an order or register to earn your first coins!
@@ -103,7 +91,7 @@ export default function WalletPage() {
           ) : (
             <div className="flex flex-col divide-y divide-gray-100">
               {transactions.map((tx) => (
-                <div key={tx._id} className="py-3.5 flex items-center justify-between gap-3 text-xs">
+                <div key={tx._id} className="py-2 flex items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
@@ -125,11 +113,11 @@ export default function WalletPage() {
                       </span>
                       <div className="flex items-center gap-2 text-[10px] text-gray-400 font-medium mt-0.5">
                         <span>{formatUTCToIST(tx.createdAt)}</span>
-                        {tx.order?.orderNumber && (
+                        {/* {tx.order?.orderNumber && (
                           <span className="bg-emerald-50 text-[#0B392B] px-1.5 py-0.5 rounded-md font-mono font-bold">
                             #{tx.order.orderNumber}
                           </span>
-                        )}
+                        )} */}
                       </div>
                     </div>
                   </div>
@@ -177,6 +165,20 @@ export default function WalletPage() {
           )}
         </div>
       </main>
+
+      {/* Floating Bottom Middle Reload Button when new coins notification arrives */}
+      {showFloatingReload && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-bounce">
+          <button
+            type="button"
+            onClick={() => fetchHistory(true)}
+            className="bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs px-4 py-2.5 rounded-full shadow-lg border border-emerald-400/40 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+          >
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+            <span>New Transaction • Reload History</span>
+          </button>
+        </div>
+      )}
 
       <BottomNav />
     </div>

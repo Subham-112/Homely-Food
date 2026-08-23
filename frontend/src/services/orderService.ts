@@ -52,6 +52,8 @@ export interface CreateOrderPayload {
   };
   notes?: string;
   discount?: number;
+  offerCode?: string;
+  offer?: string;
   paymentPreference?: "CASH" | "ONLINE";
   orderType?: "dine-in" | "delivery" | "pickup";
   deliveryAddress?: string;
@@ -157,6 +159,9 @@ export interface Order {
   createdBy?: "customer" | "admin";
   createdAt: string;
   updatedAt: string;
+  preparingAt?: string;
+  readyAt?: string;
+  completedAt?: string;
 }
 
 export interface OrdersResponse {
@@ -178,6 +183,7 @@ export const getOrders = async (params?: {
   page?: number;
   limit?: number;
   userId?: string;
+  userPhone?: string;
   period?: "today" | "weekly" | "monthly" | "yearly" | "custom" | string;
   startDate?: string;
   endDate?: string;
@@ -189,6 +195,7 @@ export const getOrders = async (params?: {
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
   if (params?.userId) query.append("userId", params.userId);
+  if (params?.userPhone) query.append("userPhone", params.userPhone);
   if (params?.period) query.append("period", params.period);
   if (params?.startDate) query.append("startDate", params.startDate);
   if (params?.endDate) query.append("endDate", params.endDate);

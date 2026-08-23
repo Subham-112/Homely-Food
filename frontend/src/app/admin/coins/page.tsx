@@ -14,6 +14,10 @@ import {
   Trash2,
   ToggleLeft,
   ToggleRight,
+  Search,
+  UserCheck,
+  X,
+  Loader2,
 } from "lucide-react";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import {
@@ -27,6 +31,7 @@ import {
   toggleCoinRuleStatus,
   deleteCoinRule,
   updateAdminCoinConfig,
+  searchUsersByPhone,
   CoinRuleRecord,
   CoinWalletRecord,
   CoinConfigRecord,
@@ -42,11 +47,36 @@ export default function AdminCoinsPage() {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Grant Modal state
-  const [grantUserIds, setGrantUserIds] = useState<string>("");
+  const [selectedUsers, setSelectedUsers] = useState<Array<{ id: string; name: string; phone: string }>>([]);
+  const [phoneSearchQuery, setPhoneSearchQuery] = useState<string>("");
+  const [phoneSearchResults, setPhoneSearchResults] = useState<Array<{ id?: string; _id?: string; name: string; phone: string }>>([]);
+  const [isSearchingPhone, setIsSearchingPhone] = useState<boolean>(false);
   const [grantAmount, setGrantAmount] = useState<number>(10);
   const [grantReason, setGrantReason] = useState<string>("");
   const [grantSubmitting, setGrantSubmitting] = useState<boolean>(false);
   const [grantMessage, setGrantMessage] = useState<string>("");
+
+  // Search by Phone handler with debouncing
+  useEffect(() => {
+    if (!phoneSearchQuery.trim()) {
+      setPhoneSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingPhone(true);
+      try {
+        const results = await searchUsersByPhone(phoneSearchQuery.trim());
+        setPhoneSearchResults(results);
+      } catch (err) {
+        console.error("Failed searching users by phone:", err);
+      } finally {
+        setIsSearchingPhone(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [phoneSearchQuery]);
 
   // Rule Form state
   const [showRuleModal, setShowRuleModal] = useState<boolean>(false);
@@ -81,15 +111,23 @@ export default function AdminCoinsPage() {
 
   const handleGrantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!grantUserIds.trim() || !grantReason.trim() || grantAmount <= 0) return;
+    if (selectedUsers.length === 0) {
+      alert("Please search and select at least one user.");
+      return;
+    }
+    if (grantAmount <= 0) {
+      alert("Please enter a valid coin amount.");
+      return;
+    }
 
     setGrantSubmitting(true);
     setGrantMessage("");
     try {
-      const uids = grantUserIds.split(",").map((id) => id.trim()).filter(Boolean);
+      const uids = selectedUsers.map((u) => u.id);
       const res = await adminGrantCoins(uids, grantAmount, grantReason);
       setGrantMessage(`Successfully granted ${grantAmount} coins to ${res.succeeded?.length || 0} user(s).`);
-      setGrantUserIds("");
+      setSelectedUsers([]);
+      setPhoneSearchQuery("");
       setGrantReason("");
       fetchAllAdminData();
     } catch (err: any) {
@@ -394,18 +432,97 @@ export default function AdminCoinsPage() {
           </div>
 
           <form onSubmit={handleGrantSubmit} className="flex flex-col gap-4 text-xs">
-            <div>
-              <label className="font-extrabold text-gray-700 block mb-1">
-                User IDs (Comma separated for bulk grant)
+            {/* Search User by Phone */}
+            <div className="relative flex flex-col gap-2">
+              <label className="font-extrabold text-gray-700 block">
+                Search User by Phone Number
               </label>
-              <textarea
-                value={grantUserIds}
-                onChange={(e) => setGrantUserIds(e.target.value)}
-                placeholder="6a7790e6611d881a4628754c, 6a840a1d731a430ac8977312"
-                rows={3}
-                required
-                className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-[#0B392B] font-mono"
-              />
+
+              {/* Selected Users Chips List */}
+              {selectedUsers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                  {selectedUsers.map((su) => (
+                    <div
+                      key={su.id}
+                      className="inline-flex items-center gap-1.5 bg-white border border-emerald-300 text-[#0B251C] px-2.5 py-1 rounded-lg text-xs font-bold shadow-xs"
+                    >
+                      <UserCheck className="w-3.5 h-3.5 text-[#0B392B]" />
+                      <span>{su.name}</span>
+                      <span className="text-[10px] font-mono text-gray-500">({su.phone})</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUsers((prev) => prev.filter((u) => u.id !== su.id))}
+                        className="text-gray-400 hover:text-red-600 rounded-full hover:bg-gray-100 p-0.5 transition cursor-pointer ml-1"
+                        title="Remove user"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Search Box - Always Visible */}
+              <div className="relative">
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={phoneSearchQuery}
+                    onChange={(e) => setPhoneSearchQuery(e.target.value)}
+                    placeholder="Enter user phone number to search & add..."
+                    className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-[#0B392B] font-mono text-xs"
+                  />
+                  {isSearchingPhone && (
+                    <Loader2 className="w-3.5 h-3.5 text-[#0B392B] animate-spin absolute right-3" />
+                  )}
+                </div>
+
+                {/* Dropdown Results List */}
+                {phoneSearchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-gray-100">
+                    {phoneSearchResults.map((u) => {
+                      const uid = u.id || u._id || "";
+                      const isAlreadySelected = selectedUsers.some((su) => su.id === uid);
+                      return (
+                        <div
+                          key={uid || u.phone}
+                          onClick={() => {
+                            if (!isAlreadySelected && uid) {
+                              setSelectedUsers((prev) => [...prev, { id: uid, name: u.name, phone: u.phone }]);
+                            }
+                            setPhoneSearchQuery("");
+                            setPhoneSearchResults([]);
+                          }}
+                          className={`p-2.5 hover:bg-emerald-50/70 transition cursor-pointer flex items-center justify-between ${
+                            isAlreadySelected ? "opacity-50 cursor-not-allowed bg-gray-50" : ""
+                          }`}
+                        >
+                          <div>
+                            <span className="font-extrabold text-[#0B251C] block text-xs">{u.name}</span>
+                            <span className="text-[10px] font-mono text-gray-500 block">{u.phone}</span>
+                          </div>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                              isAlreadySelected
+                                ? "bg-gray-200 text-gray-600"
+                                : "bg-emerald-100 text-[#0B392B]"
+                            }`}
+                          >
+                            {isAlreadySelected ? "Added" : "+ Add User"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {phoneSearchQuery.trim() && !isSearchingPhone && phoneSearchResults.length === 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl p-3 shadow-lg z-50 text-center text-xs text-gray-400 font-medium">
+                    No registered user found with phone "{phoneSearchQuery}"
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
@@ -421,13 +538,14 @@ export default function AdminCoinsPage() {
             </div>
 
             <div>
-              <label className="font-extrabold text-gray-700 block mb-1">Reason for Grant</label>
+              <label className="font-extrabold text-gray-700 block mb-1">
+                Reason for Grant <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
               <input
                 type="text"
                 value={grantReason}
                 onChange={(e) => setGrantReason(e.target.value)}
                 placeholder="Festive Bonus / Festival Campaign"
-                required
                 className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-[#0B392B]"
               />
             </div>

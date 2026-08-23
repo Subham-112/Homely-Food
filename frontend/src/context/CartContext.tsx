@@ -37,6 +37,7 @@ export interface CartItem {
     label: string;
     price: number;
   };
+  isReorder?: boolean;
 }
 
 export interface OrderItem {
@@ -73,8 +74,20 @@ interface CartContextType {
   finalAmount: number;
   totalAmount: number;
   appliedOfferCode: string | null;
+  discountType: "offer" | "coins" | null;
+  coinsUsed: number;
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => Promise<void>;
+  coinDeductionInfo: {
+    userBalance: number;
+    maxDeductible: number;
+    deductedCoins: number;
+    discountAmount: number;
+  } | null;
+  isLoadingDeduction: boolean;
+  applyCoins: () => Promise<{ success: boolean; message: string }>;
+  removeCoins: () => Promise<void>;
+  reorderCart: (orderId: string) => Promise<void>;
   currentOrder: Order | null;
   setCurrentOrder: (order: Order | null) => void;
   placeOrder: (
@@ -85,6 +98,8 @@ interface CartContextType {
       deliveryAddress?: string;
       pickupTiming?: string;
       paymentPreference?: "CASH" | "ONLINE";
+      checkoutScope?: "all" | "cart_only" | "reorder_only";
+      keepRemaining?: boolean;
     }
   ) => Promise<any>;
 }
@@ -102,6 +117,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [isCartLoading, setIsCartLoading] = useState<boolean>(true);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+
+  // Coin Deduction calculation state
+  const [coinDeductionInfo, setCoinDeductionInfo] = useState<{
+    userBalance: number;
+    maxDeductible: number;
+    deductedCoins: number;
+    discountAmount: number;
+  } | null>(null);
+  const [isLoadingDeduction, setIsLoadingDeduction] = useState<boolean>(false);
+
+  const fetchCoinDeduction = async (currentCartId?: string) => {
+    if (!token) {
+      setCoinDeductionInfo(null);
+      setIsLoadingDeduction(false);
+      return;
+    }
+    setIsLoadingDeduction(true);
+    try {
+      const { getCoinDeduction } = await import("@/services/cartService");
+      const res = await getCoinDeduction(currentCartId || undefined);
+      setCoinDeductionInfo(res);
+    } catch (err) {
+      console.error("Failed to fetch coin deduction info:", err);
+    } finally {
+      setIsLoadingDeduction(false);
+    }
+  };
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastConfirmedCartRef = useRef<CartItem[]>([]);
@@ -128,6 +170,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               price: item.variant.price,
             }
           : undefined,
+        isReorder: Boolean(item.isReorder),
       }));
   };
 
@@ -196,6 +239,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const formattedItems = formatBackendCartItems(syncedCart);
           setCart(formattedItems);
           lastConfirmedCartRef.current = formattedItems;
+          fetchCoinDeduction(syncedCart._id);
         }
       } else if (backendCart && backendCart.items) {
         setCartId(backendCart._id);
@@ -203,11 +247,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const formattedItems = formatBackendCartItems(backendCart);
         setCart(formattedItems);
         lastConfirmedCartRef.current = formattedItems;
+        fetchCoinDeduction(backendCart._id);
       } else {
         setCart([]);
         setCartId(null);
         setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
         lastConfirmedCartRef.current = [];
+        setCoinDeductionInfo(null);
       }
     } catch (err) {
       console.error("Failed to fetch backend cart:", err);
@@ -237,6 +283,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           menuItem: c.item.id,
           quantity: c.quantity,
           variant: c.variant?.id,
+          isReorder: Boolean(c.isReorder),
         }));
         const resCart = await syncBackendCart(inputs);
         if (resCart) {
@@ -245,11 +292,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const confirmedItems = formatBackendCartItems(resCart);
           setCart(confirmedItems);
           lastConfirmedCartRef.current = confirmedItems;
+          // Trigger coin deduction fetch ONLY ONCE after cart sync succeeds!
+          fetchCoinDeduction(resCart._id);
         } else {
           setCartId(null);
           setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
           setCart([]);
           lastConfirmedCartRef.current = [];
+          setCoinDeductionInfo(null);
         }
       } catch (err) {
         console.error("Backend cart sync failed. Rolling back frontend state to match backend:", err);
@@ -378,11 +428,72 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const applyCoins = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      const { applyCoinsToCart } = await import("@/services/cartService");
+      const resCart = await applyCoinsToCart(cartId || undefined);
+      if (resCart) {
+        setCartTotal(resCart.total);
+        const confirmedItems = formatBackendCartItems(resCart);
+        setCart(confirmedItems);
+        lastConfirmedCartRef.current = confirmedItems;
+        return {
+          success: true,
+          message: `Redeemed ${resCart.total.coinsUsed || resCart.total.discount} Homely Coins for ₹${resCart.total.discount} discount!`,
+        };
+      }
+      return { success: false, message: "Failed to apply coins." };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || "Failed to redeem Homely Coins.",
+      };
+    }
+  };
+
+  const removeCoins = async () => {
+    try {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      const { removeCoinsFromCart } = await import("@/services/cartService");
+      const resCart = await removeCoinsFromCart(cartId || undefined);
+      if (resCart) {
+        setCartTotal(resCart.total);
+        const confirmedItems = formatBackendCartItems(resCart);
+        setCart(confirmedItems);
+        lastConfirmedCartRef.current = confirmedItems;
+      }
+    } catch (err) {
+      console.error("Failed to remove coins:", err);
+    }
+  };
+
+  const reorderCart = async (orderId: string): Promise<void> => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    const { reorderCartApi } = await import("@/services/cartService");
+    const resCart = await reorderCartApi(orderId);
+    if (resCart) {
+      setCartId(resCart._id);
+      setCartTotal(resCart.total);
+      const confirmedItems = formatBackendCartItems(resCart);
+      setCart(confirmedItems);
+      lastConfirmedCartRef.current = confirmedItems;
+    }
+  };
+
   const totalItems = cart.length;
   const subTotal = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
   const discountAmount = cartTotal.discount || 0;
   const finalAmount = Math.max(0, subTotal - discountAmount);
   const appliedOfferCode = cartTotal.offerCode || null;
+  const discountType = (cartTotal as any).discountType || (appliedOfferCode ? "offer" : null);
+  const coinsUsed = (cartTotal as any).coinsUsed || 0;
 
   const placeOrder = async (
     guestName?: string,
@@ -392,6 +503,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deliveryAddress?: string;
       pickupTiming?: string;
       paymentPreference?: "CASH" | "ONLINE";
+      checkoutScope?: "all" | "cart_only" | "reorder_only";
+      keepRemaining?: boolean;
     }
   ): Promise<any> => {
     if (debounceTimerRef.current) {
@@ -402,12 +515,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const deliveryAddress = details?.deliveryAddress;
     const pickupTiming = details?.pickupTiming;
     const paymentPreference = details?.paymentPreference || "CASH";
+    const checkoutScope = details?.checkoutScope || "all";
+    const keepRemaining = Boolean(details?.keepRemaining);
 
     const payload = {
       orderType,
       deliveryAddress,
       pickupTiming,
       paymentPreference,
+      checkoutScope,
+      keepRemaining,
       guest: {
         name: guestName || "Guest User",
         phone: guestPhone || "0000000000",
@@ -442,10 +559,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setCurrentOrder(formattedOrder);
-      setCart([]);
-      setCartId(null);
-      setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
-      lastConfirmedCartRef.current = [];
+      if (keepRemaining) {
+        await fetchCart();
+      } else {
+        setCart([]);
+        setCartId(null);
+        setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
+        lastConfirmedCartRef.current = [];
+      }
       return createdOrder;
     } catch (error) {
       console.error("Failed to checkout cart:", error);
@@ -469,8 +590,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         finalAmount,
         totalAmount: finalAmount,
         appliedOfferCode,
+        discountType,
+        coinsUsed,
         applyCoupon,
         removeCoupon,
+        coinDeductionInfo,
+        isLoadingDeduction,
+        applyCoins,
+        removeCoins,
+        reorderCart,
         refreshCart: fetchCart,
         currentOrder,
         setCurrentOrder,
