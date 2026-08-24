@@ -496,7 +496,7 @@ export default function CartPage() {
                             </div>
                             <span className="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-snug">
                               Current Balance: <strong className="text-gray-800">{coinDeductionInfo?.userBalance ?? 0} Coins</strong>{" "}
-                              <span className="block sm:inline text-gray-400 font-normal">(50% max per order)</span>
+                              <span className="block sm:inline text-gray-400 font-normal">(Redeem 50% of your coins)</span>
                             </span>
                           </div>
 
@@ -535,7 +535,7 @@ export default function CartPage() {
                         {coinFeedback && (
                           <div
                             className={`text-xs font-semibold px-3 py-2 rounded-xl border ${
-                              couponFeedback?.success
+                              coinFeedback.success
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                 : "bg-red-50 text-red-700 border-red-200"
                             }`}
@@ -952,7 +952,7 @@ export default function CartPage() {
                 <span className="font-extrabold text-[#0B392B] underline">
                   {coinDeductionInfo.deductedCoins} Homely Coins
                 </span>{" "}
-                for a instant discount of{" "}
+                (50% of your coin balance) for an instant discount of{" "}
                 <span className="font-extrabold text-emerald-700">
                   ₹{coinDeductionInfo.deductedCoins}
                 </span>{" "}

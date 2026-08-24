@@ -278,8 +278,8 @@ export class CartService {
   }
 
   /**
-   * Calculate exact deductible coins based on cart total & user wallet balance
-   * Rule: 50% of cart subTotal is max deductible; 1 coin = ₹1.
+   * Calculate exact deductible coins based on 50% of user's wallet balance
+   * Rule: 50% of user's existing coins is deductible; 1 coin = ₹1 (capped at cart subTotal).
    */
   static async calculateCoinDeduction(userId: string, cartId?: string) {
     const { CoinService } = await import("../coin/coin.service");
@@ -300,12 +300,12 @@ export class CartService {
     await this.recalculateCartTotals(cart);
 
     const cartTotalAmount = cart.total.subTotal || 0;
-    const maxDeductible = Math.floor(cartTotalAmount * 0.5);
-    const deductedCoins = Math.min(wallet.balance, maxDeductible);
+    const coinsFromBalance = Math.floor(wallet.balance * 0.5);
+    const deductedCoins = Math.min(coinsFromBalance, cartTotalAmount);
 
     return {
       userBalance: wallet.balance,
-      maxDeductible,
+      maxDeductible: coinsFromBalance,
       deductedCoins,
       discountAmount: deductedCoins,
     };
@@ -313,6 +313,7 @@ export class CartService {
 
   /**
    * Attach/Apply coins discount to cart (set coinStatus to 'applied')
+   * Deducts 50% of user's existing coins
    */
   static async applyCoins(userId: string, cartId?: string) {
     const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
@@ -325,18 +326,25 @@ export class CartService {
     const { CoinService } = await import("../coin/coin.service");
     const wallet = await CoinService.getOrCreateWallet(userId);
 
-    if (wallet.balance <= 0) {
-      throw new ApiError(400, "You do not have any Homely Coins to redeem.");
+    if (!wallet || wallet.balance <= 0) {
+      throw new ApiError(400, "You don't have any Homely Coins in your wallet to apply for a discount.");
     }
 
     await this.recalculateCartTotals(cart);
 
     const cartTotalAmount = cart.total.subTotal || 0;
-    const maxDeductible = Math.floor(cartTotalAmount * 0.5);
-    const coinsToDeduct = Math.min(wallet.balance, maxDeductible);
+    if (cartTotalAmount <= 0) {
+      throw new ApiError(400, "Your cart total must be greater than ₹0 to redeem Homely Coins.");
+    }
+
+    const coinsFromBalance = Math.floor(wallet.balance * 0.5);
+    const coinsToDeduct = Math.min(coinsFromBalance, cartTotalAmount);
 
     if (coinsToDeduct <= 0) {
-      throw new ApiError(400, "Insufficient cart total for coin redemption.");
+      if (wallet.balance < 2) {
+        throw new ApiError(400, "You don't have enough coin to use as discount");
+      }
+      throw new ApiError(400, "Unable to apply Homely Coins for this cart.");
     }
 
     // Mutually exclusive: Clear attached offer coupon
@@ -409,9 +417,24 @@ export class CartService {
     }
 
     // Create a temporary cart object to recalculate order totals for selected scope
+    const rawTotal = cart.total && typeof (cart.total as any).toObject === "function"
+      ? (cart.total as any).toObject()
+      : cart.total && (cart.total as any)._doc
+      ? (cart.total as any)._doc
+      : { ...cart.total };
+
     const tempCart: any = {
       items: activeCheckoutItems,
-      total: { ...cart.total },
+      total: {
+        subTotal: rawTotal?.subTotal || 0,
+        discount: rawTotal?.discount || 0,
+        totalAmount: rawTotal?.totalAmount || 0,
+        offer: rawTotal?.offer,
+        offerCode: rawTotal?.offerCode,
+        discountType: rawTotal?.discountType,
+        coinsUsed: rawTotal?.coinsUsed,
+        coinStatus: rawTotal?.coinStatus,
+      },
     };
     await this.recalculateCartTotals(tempCart as any);
 
@@ -454,6 +477,8 @@ export class CartService {
       subTotal: tempCart.total.subTotal,
       discount: tempCart.total.discount,
       totalAmount: tempCart.total.totalAmount,
+      discountType: tempCart.total.discountType,
+      coinsUsed: tempCart.total.coinsUsed,
       offer: tempCart.total.offer,
       offerCode: tempCart.total.offerCode,
       notes: payload.notes,
