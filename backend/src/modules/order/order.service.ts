@@ -36,6 +36,8 @@ export interface ICreateOrderPayload {
   paymentPreference?: "CASH" | "ONLINE";
   notes?: string;
   discount?: number;
+  discountType?: "offer" | "coins";
+  coinsUsed?: number;
   offerCode?: string;
   offer?: string;
   orderType?: OrderType;
@@ -204,6 +206,8 @@ export class OrderService {
         subTotal: validated.subTotal,
         discount: validated.discount,
         totalAmount: validated.totalAmount,
+        discountType: payload.discountType || (payload.payment as any)?.discountType,
+        coinsUsed: payload.coinsUsed || (payload.payment as any)?.coinsUsed,
       },
       status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
@@ -212,6 +216,8 @@ export class OrderService {
       subTotal: validated.subTotal,
       discount: validated.discount,
       totalAmount: validated.totalAmount,
+      discountType: payload.discountType || (payload.payment as any)?.discountType,
+      coinsUsed: payload.coinsUsed || (payload.payment as any)?.coinsUsed,
       offer: payload.offer as any,
       offerCode: payload.offerCode,
       notes: payload.notes?.trim() || "",
