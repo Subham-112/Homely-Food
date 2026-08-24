@@ -269,7 +269,7 @@ export default function GlobalOrderDetailsModal({
             </div>
             <div className="flex items-center justify-between text-sm font-extrabold text-[#0B251C] pt-2 border-t border-gray-300/70 mt-1">
               <span>Total Amount</span>
-              <span className="text-[#0B392B] text-base">₹{order.totalAmount}</span>
+              <span className="text-[#0B392B] text-base">₹{order.payment.totalAmount}</span>
             </div>
           </div>
 

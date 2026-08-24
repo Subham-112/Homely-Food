@@ -14,40 +14,8 @@ export const CustomerReadyOrderAlert: React.FC = () => {
 
   const [readyOrder, setReadyOrder] = useState<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const isAudioUnlockedRef = useRef<boolean>(false);
 
-  // 1. Pre-load & unlock browser audio playback context on first user interaction on customer panel
-  useEffect(() => {
-    const unlockAudio = () => {
-      if (audioRef.current && !isAudioUnlockedRef.current) {
-        audioRef.current.load();
-        const promise = audioRef.current.play();
-        if (promise !== undefined) {
-          promise
-            .then(() => {
-              if (audioRef.current && !readyOrder) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-              }
-              isAudioUnlockedRef.current = true;
-            })
-            .catch(() => {});
-        }
-      }
-    };
-
-    window.addEventListener("click", unlockAudio);
-    window.addEventListener("touchstart", unlockAudio);
-    window.addEventListener("keydown", unlockAudio);
-
-    return () => {
-      window.removeEventListener("click", unlockAudio);
-      window.removeEventListener("touchstart", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-    };
-  }, [readyOrder]);
-
-  // 2. Real-time socket listener for order status updates
+  // Real-time socket listener for order status updates
   useEffect(() => {
     // Only run on customer-facing routes (not admin)
     if (pathname.startsWith("/admin")) return;
@@ -94,7 +62,7 @@ export const CustomerReadyOrderAlert: React.FC = () => {
     return () => {
       socket.off("order:status_updated", handleStatusUpdate);
     };
-  }, [socket, pathname]);
+  }, [socket, pathname, user]);
 
   const stopAudio = () => {
     if (audioRef.current) {
