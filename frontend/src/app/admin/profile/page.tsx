@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Save, Loader2, Store, MapPin, Phone, Mail, Clock, ShieldCheck, Plus, X } from "lucide-react";
+import { Save, Loader2, Store, MapPin, Phone, Mail, Clock, ShieldCheck, Plus, X, Truck } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import Input from "@/components/Input";
@@ -271,18 +271,18 @@ export default function AdminProfilePage() {
                 <label className="block text-xs font-extrabold text-gray-700 mb-1">
                   Contact Phone Numbers *
                 </label>
-                <div className="flex gap-2 mb-2">
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
                   <input
                     type="tel"
                     placeholder="Enter phone number"
                     value={newPhoneInput}
                     onChange={(e) => setNewPhoneInput(e.target.value)}
-                    className="flex-1 px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                    className="w-full sm:flex-1 px-3.5 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
                   />
                   <button
                     type="button"
                     onClick={handleAddPhone}
-                    className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                    className="w-full sm:w-auto bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                   >
                     <Plus className="w-4 h-4" /> Add Phone
                   </button>
@@ -312,18 +312,18 @@ export default function AdminProfilePage() {
                 <label className="block text-xs font-extrabold text-gray-700 mb-1">
                   Contact Email Addresses *
                 </label>
-                <div className="flex gap-2 mb-2">
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
                   <input
                     type="email"
                     placeholder="Enter email address"
                     value={newEmailInput}
                     onChange={(e) => setNewEmailInput(e.target.value)}
-                    className="flex-1 px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                    className="w-full sm:flex-1 px-3.5 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
                   />
                   <button
                     type="button"
                     onClick={handleAddEmail}
-                    className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                    className="w-full sm:w-auto bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                   >
                     <Plus className="w-4 h-4" /> Add Email
                   </button>
@@ -442,6 +442,54 @@ export default function AdminProfilePage() {
                   </span>
                 ))}
               </div>
+            </div>
+
+            {/* 5. Store Timings & Delivery Configuration */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E1D3] shadow-2xs flex flex-col gap-4">
+              <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                <Clock className="w-5 h-5 text-[#0B392B]" />
+                <h2 className="text-base sm:text-lg font-extrabold text-[#0B251C]">
+                  Store Timings & Delivery Settings
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Opening Time"
+                  placeholder="e.g. 08:00 AM"
+                  value={openingTime}
+                  onChange={(e) => setOpeningTime(e.target.value)}
+                  icon={Clock}
+                />
+                <Input
+                  label="Closing Time"
+                  placeholder="e.g. 10:00 PM"
+                  value={closingTime}
+                  onChange={(e) => setClosingTime(e.target.value)}
+                  icon={Clock}
+                />
+                <Input
+                  label="Standard Delivery Charge (₹)"
+                  type="number"
+                  min="0"
+                  placeholder="30"
+                  value={deliveryCharge === 0 ? "0" : deliveryCharge || ""}
+                  onChange={(e) => setDeliveryCharge(Number(e.target.value) || 0)}
+                  icon={Truck}
+                />
+                <Input
+                  label="Free Delivery Threshold (₹)"
+                  type="number"
+                  min="0"
+                  placeholder="500"
+                  value={freeDeliveryThreshold === 0 ? "0" : freeDeliveryThreshold || ""}
+                  onChange={(e) => setFreeDeliveryThreshold(Number(e.target.value) || 0)}
+                  icon={Truck}
+                />
+              </div>
+              <p className="text-[11px] text-gray-500 font-medium -mt-1">
+                * Orders with a subtotal equal to or exceeding the Free Delivery Threshold will receive free delivery (₹0 delivery charge).
+              </p>
             </div>
 
             {/* 6. Regulatory & Licenses */}

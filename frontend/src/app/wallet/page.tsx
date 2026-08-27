@@ -46,7 +46,7 @@ export default function WalletPage() {
   }, [hasNewCoinsNotification]);
 
   return (
-    <div className="min-h-screen bg-[#FAF6ED] pb-24 flex flex-col relative">
+    <div className="w-full min-h-screen bg-[#FAF6ED] flex flex-col pb-28 relative">
       <Header />
 
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">

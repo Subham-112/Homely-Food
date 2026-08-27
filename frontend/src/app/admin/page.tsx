@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import AdminOrderCard from "@/components/AdminOrderCard";
 import VegBadge from "@/components/VegBadge";
+import GoToOrderModal from "@/components/GoToOrderModal";
 import { getOrderStats, getOrders, getOrderById, OrderStats, Order } from "@/services/orderService";
 import { formatUTCToIST } from "@/utils/datetime";
 import { useSocket } from "@/context/SocketContext";
@@ -18,6 +19,7 @@ export default function AdminHomePage() {
   const [loading, setLoading] = useState(true);
   const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
+  const [isGoToOrderOpen, setIsGoToOrderOpen] = useState(false);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -95,76 +97,100 @@ export default function AdminHomePage() {
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-5 pb-20">
         {/* Title & Live Status */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
-            Overview
-          </h1>
-          <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1.5 shadow-2xs">
-            <Radio className="w-3 h-3 text-emerald-600 animate-pulse" /> Live Socket Sync
-          </span>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
+              Overview
+            </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsGoToOrderOpen(true)}
+              className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Go to order</span>
+            </button>
+            <span className="hidden sm:flex text-[10px] font-extrabold px-3 py-2 rounded-full bg-emerald-100 text-emerald-800 items-center gap-1.5 shadow-2xs">
+              <Radio className="w-3 h-3 text-emerald-600 animate-pulse" /> Live Socket Sync
+            </span>
+          </div>
         </div>
 
         {/* Overview Stat Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Card 1: Today's Orders */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
+          <Link
+            href="/admin/orders?date=today"
+            className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between hover:shadow-md hover:border-gray-200 transition-all cursor-pointer group active:scale-[0.98]"
+          >
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block group-hover:text-[#0B392B] transition-colors">
                 TODAY'S ORDERS
               </span>
               <span className="text-2xl font-extrabold text-[#0B251C] mt-0.5 block">
                 {loading ? "..." : stats.total}
               </span>
             </div>
-            <div className="w-11 h-11 rounded-2xl bg-[#E2EAF0] text-[#0B392B] flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-[#E2EAF0] text-[#0B392B] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <FileText className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
 
           {/* Card 2: Pending */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
+          <Link
+            href="/admin/orders?status=pending&date=today"
+            className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between hover:shadow-md hover:border-red-100 transition-all cursor-pointer group active:scale-[0.98]"
+          >
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block group-hover:text-[#C51E1E] transition-colors">
                 PENDING
               </span>
               <span className="text-2xl font-extrabold text-[#C51E1E] mt-0.5 block">
                 {loading ? "..." : stats.pending}
               </span>
             </div>
-            <div className="w-11 h-11 rounded-2xl bg-[#FCE8E8] text-[#C51E1E] flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-[#FCE8E8] text-[#C51E1E] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <Clock className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
 
           {/* Card 3: Preparing */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
+          <Link
+            href="/admin/orders?status=preparing&date=today"
+            className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between hover:shadow-md hover:border-amber-100 transition-all cursor-pointer group active:scale-[0.98]"
+          >
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block group-hover:text-[#8C6B1B] transition-colors">
                 PREPARING
               </span>
               <span className="text-2xl font-extrabold text-[#8C6B1B] mt-0.5 block">
                 {loading ? "..." : stats.preparing}
               </span>
             </div>
-            <div className="w-11 h-11 rounded-2xl bg-[#F7EFE0] text-[#8C6B1B] flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-[#F7EFE0] text-[#8C6B1B] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <CookingPot className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
 
           {/* Card 4: Completed */}
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between">
+          <Link
+            href="/admin/orders?status=completed&date=today"
+            className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex items-center justify-between hover:shadow-md hover:border-emerald-100 transition-all cursor-pointer group active:scale-[0.98]"
+          >
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block group-hover:text-[#00875A] transition-colors">
                 COMPLETED
               </span>
               <span className="text-2xl font-extrabold text-[#00875A] mt-0.5 block">
                 {loading ? "..." : stats.completed}
               </span>
             </div>
-            <div className="w-11 h-11 rounded-2xl bg-[#EAF5EE] text-[#00875A] flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-[#EAF5EE] text-[#00875A] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <CheckCircle2 className="w-5 h-5" />
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Today's Orders Section */}
@@ -172,7 +198,7 @@ export default function AdminHomePage() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-[#0B251C]">Today's Orders</h2>
             <Link
-              href="/admin/orders"
+              href="/admin/orders?date=today"
               className="text-xs font-bold text-[#0B392B] hover:underline flex items-center gap-0.5"
             >
               View All <ChevronRight className="w-4 h-4" />
@@ -362,6 +388,18 @@ export default function AdminHomePage() {
                     <span className="font-bold">-₹{selectedOrderModal.payment?.discount ?? selectedOrderModal.discount ?? 0}</span>
                   </div>
                 )}
+                {(selectedOrderModal.orderType === "delivery" || (selectedOrderModal.payment?.deliveryCharge !== undefined && selectedOrderModal.payment?.deliveryCharge > 0) || (selectedOrderModal.deliveryCharge !== undefined && selectedOrderModal.deliveryCharge > 0)) && (
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Delivery Charge</span>
+                    <span className="font-bold text-gray-800">
+                      {(selectedOrderModal.payment?.deliveryCharge ?? selectedOrderModal.deliveryCharge ?? 0) === 0 ? (
+                        <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">FREE</span>
+                      ) : (
+                        `₹${selectedOrderModal.payment?.deliveryCharge ?? selectedOrderModal.deliveryCharge ?? 0}`
+                      )}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-gray-600">
                   <span className="flex items-center gap-1.5">
                     Payment Mode
@@ -396,6 +434,15 @@ export default function AdminHomePage() {
           ) : null}
         </div>
       )}
+
+      {/* Quick Go to Order Lookup Modal */}
+      <GoToOrderModal
+        isOpen={isGoToOrderOpen}
+        onClose={() => setIsGoToOrderOpen(false)}
+        onOrderFound={(foundOrder) => {
+          setSelectedOrderModal(foundOrder);
+        }}
+      />
 
       {/* Pinned Bottom Nav with Home Tab Active */}
       <AdminBottomNav />

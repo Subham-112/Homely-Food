@@ -199,7 +199,7 @@ export default function AdminCategoriesPage() {
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-2 pb-24">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-2 pb-36 sm:pb-40">
         
         {/* Category Management Page Header */}
         <div className="bg-white rounded-2xl px-2 py-3 border border-[#E1ECEE] shadow-2xs flex items-center justify-between gap-3">

@@ -14,6 +14,7 @@ interface MenuListSectionProps {
   getItemQuantity: (id: string) => number;
   addToCart: (item: CartMenuItem) => void;
   updateQuantity: (id: string, delta: number) => void;
+  sentinelRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function MenuListSection({
@@ -24,10 +25,8 @@ export default function MenuListSection({
   getItemQuantity,
   addToCart,
   updateQuantity,
+  sentinelRef,
 }: MenuListSectionProps) {
-  // Limit to 10 items for Explore Menu section on Home screen
-  const displayedItems = filteredItems.slice(0, 10);
-
   return (
     <section className="flex flex-col gap-3">
       {/* Menu Cards List / Empty State / Loader */}
@@ -36,7 +35,7 @@ export default function MenuListSection({
           <Loader2 className="w-8 h-8 animate-spin text-[#0B392B]" />
           <span className="text-xs font-semibold">Loading menu dishes...</span>
         </div>
-      ) : displayedItems.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-[#E8E1D3] flex flex-col items-center justify-center gap-3 my-2 shadow-2xs">
           <UtensilsCrossed className="w-12 h-12 text-gray-300" />
           <p className="text-base font-bold text-[#0B251C]">No items found</p>
@@ -47,7 +46,7 @@ export default function MenuListSection({
       ) : (
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {displayedItems.map((item) => (
+            {filteredItems.map((item) => (
               <MenuItemCard
                 key={item.id}
                 item={item}
@@ -58,16 +57,16 @@ export default function MenuListSection({
             ))}
           </div>
 
-          {/* Explore All Items Navigation Button */}
-          <div className="pt-2 pb-1 flex justify-center">
-            <a
-              href="/all-items"
-              className="bg-white hover:bg-emerald-50 text-[#0B392B] border border-[#0B392B]/30 hover:border-[#0B392B] font-extrabold text-xs px-6 py-2.5 rounded-2xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer active:scale-95"
-            >
-              <span>Explore All Items</span>
-              <span className="text-sm">→</span>
-            </a>
-          </div>
+          {/* Sentinel element to trigger infinite scroll as soon as user nears the end of menu list */}
+          <div ref={sentinelRef} className="h-2 w-full -mt-1 pointer-events-none" />
+
+          {/* Loading More Indicator */}
+          {loadingMore && (
+            <div className="py-3 flex items-center justify-center gap-2 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin text-[#0B392B]" />
+              <span className="text-xs font-semibold">Loading more dishes...</span>
+            </div>
+          )}
         </div>
       )}
     </section>

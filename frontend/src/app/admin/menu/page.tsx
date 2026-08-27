@@ -16,6 +16,11 @@ import {
   Upload,
   Clock,
   Eye,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  Check,
+  ListOrdered,
 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
@@ -31,6 +36,7 @@ import {
   updateMenuItem,
   toggleMenuItemStatus,
   deleteMenuItem,
+  reorderMenuItems,
   CreateMenuItemPayload,
 } from "@/services/menuItemService";
 import { getCategoryList, CategoryListItem } from "@/services/categoryService";
@@ -68,6 +74,16 @@ export default function AdminMenuPage() {
   const [selectedViewItem, setSelectedViewItem] = useState<MenuItem | null>(null);
   const [loadingViewItemId, setLoadingViewItemId] = useState<string | null>(null);
 
+  // Reorder Priority Modal State
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState<boolean>(false);
+  const [reorderCategory, setReorderCategory] = useState<string>("all");
+  const [reorderList, setReorderList] = useState<MenuItem[]>([]);
+  const [loadingReorder, setLoadingReorder] = useState<boolean>(false);
+  const [isSavingReorder, setIsSavingReorder] = useState<boolean>(false);
+  const [reorderSuccessMsg, setReorderSuccessMsg] = useState<string | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   // Image File Upload State
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
@@ -80,6 +96,7 @@ export default function AdminMenuPage() {
     description: string;
     price: string;
     preparationTime: string;
+    priority: string;
     status: MenuItemStatus;
     isTodaySpecial: boolean;
     tags: string;
@@ -90,6 +107,7 @@ export default function AdminMenuPage() {
     description: "",
     price: "",
     preparationTime: "15",
+    priority: "0",
     status: "available",
     isTodaySpecial: false,
     tags: "",
@@ -198,6 +216,7 @@ export default function AdminMenuPage() {
       description: "",
       price: "",
       preparationTime: "15",
+      priority: "0",
       status: "available",
       isTodaySpecial: false,
       tags: "",
@@ -234,6 +253,7 @@ export default function AdminMenuPage() {
           description: fetchedItem.description || "",
           price: fetchedItem.price !== undefined ? fetchedItem.price.toString() : "",
           preparationTime: fetchedItem.preparationTime ? fetchedItem.preparationTime.toString() : "15",
+          priority: fetchedItem.priority !== undefined ? fetchedItem.priority.toString() : "0",
           status: fetchedItem.status || "available",
           isTodaySpecial: !!fetchedItem.isTodaySpecial,
           tags: fetchedItem.tags ? fetchedItem.tags.join(", ") : "",
@@ -247,6 +267,109 @@ export default function AdminMenuPage() {
       console.error("Failed to fetch menu item details:", err);
     } finally {
       setLoadingEditItemId(null);
+    }
+  };
+
+  const handleOpenReorderModal = async (catId?: string) => {
+    const targetCat =
+      catId && catId !== "all"
+        ? catId
+        : selectedCategory !== "all"
+        ? selectedCategory
+        : categories.length > 0
+        ? categories[0]._id
+        : "";
+
+    setReorderCategory(targetCat);
+    setIsReorderModalOpen(true);
+    setReorderSuccessMsg(null);
+    if (!targetCat) return;
+
+    setLoadingReorder(true);
+    try {
+      const res = await getAdminMenuItems({
+        category: targetCat,
+        limit: 100,
+      });
+      setReorderList(res.items);
+    } catch (err: any) {
+      console.error("Failed to load items for reordering:", err);
+    } finally {
+      setLoadingReorder(false);
+    }
+  };
+
+  const handleReorderCategoryChange = async (catId: string) => {
+    setReorderCategory(catId);
+    setReorderSuccessMsg(null);
+    setLoadingReorder(true);
+    try {
+      const res = await getAdminMenuItems({
+        category: catId,
+        limit: 100,
+      });
+      setReorderList(res.items);
+    } catch (err: any) {
+      console.error("Failed to load items for reordering:", err);
+    } finally {
+      setLoadingReorder(false);
+    }
+  };
+
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= reorderList.length) return;
+    setReorderList((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      return updated;
+    });
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      moveItem(draggedIndex, index);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleSaveReorder = async () => {
+    if (reorderList.length === 0) return;
+    try {
+      setIsSavingReorder(true);
+      const orderedIds = reorderList.map((item) => item._id);
+      await reorderMenuItems(orderedIds);
+      setReorderSuccessMsg("Priority order saved successfully!");
+      await fetchItems();
+      setTimeout(() => {
+        setIsReorderModalOpen(false);
+      }, 800);
+    } catch (err: any) {
+      console.error("Failed to save reorder:", err);
+      alert(err?.message || "Failed to save reorder priorities.");
+    } finally {
+      setIsSavingReorder(false);
     }
   };
 
@@ -303,6 +426,7 @@ export default function AdminMenuPage() {
       description: formData.description.trim(),
       price: priceNum,
       preparationTime: parseInt(formData.preparationTime) || 15,
+      priority: formData.priority !== undefined ? parseInt(formData.priority, 10) : 0,
       status: formData.status,
       isTodaySpecial: formData.isTodaySpecial,
       tags: formData.tags ? formData.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
@@ -372,22 +496,33 @@ export default function AdminMenuPage() {
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-4 pb-24">
         {/* Title & Action Row */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C]">
               Menu Management
             </h1>
             <p className="text-xs text-gray-500 font-medium">
-              Manage items, prices, filters & image uploads.
+              Manage items, prices, priority sorting & image uploads.
             </p>
           </div>
 
-          <button
-            onClick={handleOpenCreateModal}
-            className="bg-[#0B392B] hover:bg-[#07281E] text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95 shrink-0"
-          >
-            <Plus className="w-4 h-4" /> New Item
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleOpenReorderModal()}
+              className="bg-white hover:bg-[#EBF4FA] text-[#0B392B] border border-[#0B392B]/30 font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all active:scale-95 shrink-0"
+              title="Drag & drop to set item priorities"
+            >
+              <ListOrdered className="w-4 h-4 text-[#0B392B]" />
+              <span>Reorder Priority</span>
+            </button>
+
+            <button
+              onClick={handleOpenCreateModal}
+              className="bg-[#0B392B] hover:bg-[#07281E] text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95 shrink-0"
+            >
+              <Plus className="w-4 h-4" /> New Item
+            </button>
+          </div>
         </div>
 
         {/* Search & Status Filter Bar */}
@@ -551,6 +686,14 @@ export default function AdminMenuPage() {
                     <div className="absolute top-1.5 left-1.5">
                       <VegBadge size={14} />
                     </div>
+                    {item.priority !== undefined && (
+                      <div
+                        className="absolute top-1.5 right-1.5 bg-black/65 backdrop-blur-xs text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shadow-xs"
+                        title={`Display Priority Order: ${item.priority}`}
+                      >
+                        P: {item.priority}
+                      </div>
+                    )}
                     {item.isTodaySpecial && (
                       <div className="absolute bottom-0 inset-x-0 bg-amber-500 text-white text-[9px] font-bold text-center py-0.5 uppercase tracking-wider">
                         Special
@@ -793,7 +936,7 @@ export default function AdminMenuPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2.5">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">
                     Prep Time (mins)
@@ -804,6 +947,20 @@ export default function AdminMenuPage() {
                     placeholder="15"
                     value={formData.preparationTime}
                     onChange={(e) => setFormData({ ...formData, preparationTime: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1" title="Lower numbers appear first">
+                    Priority #
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
                   />
                 </div>
@@ -1180,6 +1337,200 @@ export default function AdminMenuPage() {
               >
                 <Edit2 className="w-3.5 h-3.5" /> Edit Item
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reorder Priority Modal */}
+      {isReorderModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 max-h-[85vh] overflow-hidden relative border border-gray-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0B392B] flex items-center justify-center shrink-0">
+                  <ListOrdered className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-extrabold text-[#0B251C] leading-tight">
+                    Set Menu Display Priority
+                  </h2>
+                  <p className="text-[11px] text-gray-500 font-medium">
+                    Drag items or use arrows to set their display ranking.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsReorderModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Category Filter Inside Reorder Modal */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 shrink-0">
+              {categories.map((cat) => (
+                <button
+                  key={cat._id}
+                  type="button"
+                  onClick={() => handleReorderCategoryChange(cat._id)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    reorderCategory === cat._id
+                      ? "bg-[#0B392B] text-white shadow-xs"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {cat.name} {cat.itemCount !== undefined ? `(${cat.itemCount})` : ""}
+                </button>
+              ))}
+            </div>
+
+            {/* Success Message Banner */}
+            {reorderSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3 rounded-2xl font-bold flex items-center gap-2 animate-in fade-in">
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span>{reorderSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Draggable Items List */}
+            <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-2 p-1">
+              {loadingReorder ? (
+                <div className="py-16 flex flex-col items-center justify-center gap-2 text-gray-400">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#0B392B]" />
+                  <span className="text-xs font-medium">Loading items...</span>
+                </div>
+              ) : reorderList.length === 0 ? (
+                <div className="py-12 text-center text-xs font-semibold text-gray-400">
+                  No items found in this category to reorder.
+                </div>
+              ) : (
+                reorderList.map((item, index) => {
+                  const imageUrl =
+                    typeof item.image === "object" ? item.image?.url : item.image;
+                  const isDragging = draggedIndex === index;
+                  const isDragOver = dragOverIndex === index;
+
+                  return (
+                    <div
+                      key={item._id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={`flex items-center gap-2.5 p-2.5 rounded-2xl border transition-all select-none ${
+                        isDragging
+                          ? "opacity-40 bg-gray-100 border-dashed border-[#0B392B]"
+                          : isDragOver
+                          ? "border-[#0B392B] bg-emerald-50/50 shadow-xs"
+                          : "bg-white border-gray-150 hover:border-gray-300 shadow-2xs"
+                      }`}
+                    >
+                      {/* Drag Grip Handle */}
+                      <div
+                        className="p-1 text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing shrink-0"
+                        title="Drag to reorder"
+                      >
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+
+                      {/* Rank Number Badge */}
+                      <div className="w-6 h-6 rounded-lg bg-[#0B392B]/10 text-[#0B392B] text-xs font-black flex items-center justify-center shrink-0">
+                        #{index + 1}
+                      </div>
+
+                      {/* Thumbnail Image */}
+                      <div className="w-11 h-11 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100">
+                        <img
+                          src={imageUrl || "/default-food.jpg"}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80";
+                          }}
+                        />
+                      </div>
+
+                      {/* Item Info */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-[#0B251C] truncate">
+                          {item.name}
+                        </h4>
+                        <div className="flex items-center gap-2 text-[10px] text-gray-500 font-medium">
+                          <span>₹{item.price}</span>
+                          {item.isTodaySpecial && (
+                            <span className="bg-amber-100 text-amber-900 font-bold px-1 rounded">
+                              Special
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Move Up / Move Down Arrow Buttons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => moveItem(index, index - 1)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-[#0B392B] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                          title="Move Up"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === reorderList.length - 1}
+                          onClick={() => moveItem(index, index + 1)}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-[#0B392B] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                          title="Move Down"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
+              <span className="text-[11px] text-gray-400 font-medium hidden sm:inline">
+                {reorderList.length} items to order
+              </span>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsReorderModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingReorder || reorderList.length === 0}
+                  onClick={handleSaveReorder}
+                  className="bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50 transition-all active:scale-95"
+                >
+                  {isSavingReorder ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Order...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save Priority Order</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

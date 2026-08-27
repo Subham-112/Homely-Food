@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { ShoppingBag, ChevronRight, X, Sparkles } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
+import { TokenStorage } from "@/utils/api";
 
 export const CustomerReadyOrderAlert: React.FC = () => {
   const router = useRouter();
@@ -14,10 +15,95 @@ export const CustomerReadyOrderAlert: React.FC = () => {
 
   const [readyOrder, setReadyOrder] = useState<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioBufferRef = useRef<AudioBuffer | null>(null);
+
+  // Setup Web Audio and one-time global interaction unlocker
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass && !audioCtxRef.current) {
+          const ctx = new AudioContextClass();
+          audioCtxRef.current = ctx;
+          const response = await fetch("/sound/Order-status-update.mp3");
+          const arrayBuffer = await response.arrayBuffer();
+          const decoded = await ctx.decodeAudioData(arrayBuffer);
+          audioBufferRef.current = decoded;
+        }
+      } catch (err) {
+        console.warn("Customer audio init notice:", err);
+      }
+    };
+    initAudio();
+
+    const unlockAudio = () => {
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+      const el = audioRef.current;
+      if (el) {
+        el.play().then(() => {
+          el.pause();
+          el.currentTime = 0;
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  const playReadySound = () => {
+    // Strategy 1: Web Audio API
+    if (audioCtxRef.current && audioBufferRef.current) {
+      try {
+        if (audioCtxRef.current.state === "suspended") {
+          audioCtxRef.current.resume();
+        }
+        const source = audioCtxRef.current.createBufferSource();
+        source.buffer = audioBufferRef.current;
+        source.connect(audioCtxRef.current.destination);
+        source.start(0);
+      } catch (err) {
+        console.warn("Web Audio play notice:", err);
+      }
+    }
+
+    // Strategy 2: HTML5 Audio Tag
+    if (audioRef.current) {
+      try {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch((err) => {
+          console.warn("Autoplay notice:", err);
+        });
+      } catch (err) {
+        console.error("Audio playback error:", err);
+      }
+    }
+  };
+
+  // Helper to synchronously parse user ID from token
+  const getStoredUserId = (): string | null => {
+    try {
+      const stored = TokenStorage.getToken();
+      if (!stored) return null;
+      const parts = stored.split(".");
+      if (parts.length >= 2) {
+        const payload = JSON.parse(atob(parts[1]));
+        return payload._id || payload.sub || payload.id || null;
+      }
+    } catch (_) {}
+    return null;
+  };
 
   // Real-time socket listener for order status updates
   useEffect(() => {
-    // Only run on customer-facing routes (not admin)
     if (pathname.startsWith("/admin")) return;
 
     if (!socket) return;
@@ -29,7 +115,7 @@ export const CustomerReadyOrderAlert: React.FC = () => {
       // Check if order belongs to currently logged in user or matching customer phone
       const orderUserId = updatedOrder.user?._id || updatedOrder.user;
       const orderPhone = updatedOrder.guest?.phone;
-      const currentUserId = user?._id;
+      const currentUserId = user?._id || getStoredUserId();
       const currentUserPhone = user?.phone;
 
       const isMyOrder =
@@ -39,21 +125,7 @@ export const CustomerReadyOrderAlert: React.FC = () => {
       // Trigger notification popup and sound ONLY when order status is "ready" AND it belongs to this user
       if (statusLower === "ready" && isMyOrder) {
         setReadyOrder(updatedOrder);
-
-        // Play Order-status-update.mp3 sound
-        if (audioRef.current) {
-          try {
-            audioRef.current.currentTime = 0;
-            const playPromise = audioRef.current.play();
-            if (playPromise !== undefined) {
-              playPromise.catch((err) => {
-                console.warn("Audio autoplay notice:", err);
-              });
-            }
-          } catch (err) {
-            console.error("Failed to play order status update sound:", err);
-          }
-        }
+        playReadySound();
       }
     };
 

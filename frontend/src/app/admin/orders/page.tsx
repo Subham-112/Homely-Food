@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { Suspense, useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   Utensils,
@@ -23,14 +24,16 @@ import AdminBottomNav from "@/components/AdminBottomNav";
 import GlobalOrderCard from "@/components/GlobalOrderCard";
 import GlobalOrderDetailsModal from "@/components/GlobalOrderDetailsModal";
 import VegBadge from "@/components/VegBadge";
+import GoToOrderModal from "@/components/GoToOrderModal";
 import { getOrders, getOrderById, Order } from "@/services/orderService";
 import { formatUTCToIST } from "@/utils/datetime";
 import { useSocket } from "@/context/SocketContext";
 
-type FilterKey = "all" | "accepted" | "preparing" | "ready" | "delivered" | "completed" | "cancelled";
+type FilterKey = "all" | "pending" | "accepted" | "preparing" | "ready" | "delivered" | "completed" | "cancelled";
 
 const FILTERS: { label: string; value: FilterKey }[] = [
   { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
   { label: "Accepted", value: "accepted" },
   { label: "Preparing", value: "preparing" },
   { label: "Ready", value: "ready" },
@@ -39,20 +42,93 @@ const FILTERS: { label: string; value: FilterKey }[] = [
   { label: "Cancelled", value: "cancelled" },
 ];
 
-export default function AdminOrdersManagementPage() {
+const getTodayDateString = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getYesterdayDateString = (): string => {
+  const now = new Date();
+  now.setDate(now.getDate() - 1);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const resolveDateParam = (param: string | null): string => {
+  if (!param) return "";
+  const lower = param.toLowerCase().trim();
+  if (lower === "today") return getTodayDateString();
+  if (lower === "yesterday") return getYesterdayDateString();
+  return param;
+};
+
+const formatRelativeDateLabel = (dateStr: string): string => {
+  if (!dateStr) return "All Dates";
+
+  if (dateStr.toLowerCase() === "today") return "Today";
+  if (dateStr.toLowerCase() === "yesterday") return "Yesterday";
+
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return dateStr;
+
+  const [year, month, day] = parts;
+  const targetDate = new Date(year, month - 1, day);
+  const now = new Date();
+  const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const yesterday = new Date(todayZero);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const tomorrow = new Date(todayZero);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (targetDate.getTime() === todayZero.getTime()) {
+    return "Today";
+  } else if (targetDate.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  } else if (targetDate.getTime() === tomorrow.getTime()) {
+    return "Tomorrow";
+  } else {
+    const weekday = targetDate.toLocaleDateString("en-IN", { weekday: "short" });
+    const dayMonth = targetDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return `${weekday}, ${dayMonth}`;
+  }
+};
+
+function AdminOrdersManagementContent() {
   const { socket, joinAdminRoom } = useSocket();
+  const searchParams = useSearchParams();
+  const initialStatus = searchParams.get("status") || "all";
+  const initialDate = resolveDateParam(searchParams.get("date"));
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate);
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
   const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
   const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
+  const [isGoToOrderOpen, setIsGoToOrderOpen] = useState(false);
+
+  // Sync filter when URL search parameters change
+  useEffect(() => {
+    const statusFromUrl = searchParams.get("status") || "all";
+    const dateFromUrl = resolveDateParam(searchParams.get("date"));
+    setSelectedStatus(statusFromUrl);
+    setSelectedDate(dateFromUrl);
+    setPage(1);
+  }, [searchParams]);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -119,6 +195,7 @@ export default function AdminOrdersManagementPage() {
         status: selectedStatus === "all" ? undefined : selectedStatus,
         orderType: selectedType === "all" ? undefined : selectedType,
         search: debouncedSearch || undefined,
+        date: selectedDate || undefined,
         page,
         limit,
       });
@@ -130,7 +207,7 @@ export default function AdminOrdersManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedStatus, selectedType, debouncedSearch, page, limit]);
+  }, [selectedStatus, selectedType, selectedDate, debouncedSearch, page, limit]);
 
   useEffect(() => {
     fetchOrders();
@@ -176,7 +253,7 @@ export default function AdminOrdersManagementPage() {
       <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-4 pb-36">
         {/* Title & Real-Time Alert Banner */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C]">
                 Orders
@@ -185,9 +262,19 @@ export default function AdminOrdersManagementPage() {
                 Manage and track all incoming orders
               </p>
             </div>
-            <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live Sockets Active
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsGoToOrderOpen(true)}
+                className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Go to order</span>
+              </button>
+              <span className="hidden sm:flex text-[10px] font-extrabold px-3 py-2 rounded-full bg-emerald-100 text-emerald-800 items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live Sockets Active
+              </span>
+            </div>
           </div>
 
           {newOrderAlert && (
@@ -223,8 +310,46 @@ export default function AdminOrdersManagementPage() {
           )}
         </div>
 
-        {/* Dropdown Filters (Order Type & Order Status) */}
-        <div className="grid grid-cols-2 gap-3 shrink-0">
+        {/* Filters Grid (Order Date, Order Type & Order Status) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
+          {/* Order Date Filter */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-[#0B392B]" /> Order Date
+              </label>
+              {selectedDate && (
+                <span className="text-[10px] font-extrabold text-[#0B392B] bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                  {formatRelativeDateLabel(selectedDate)}
+                </span>
+              )}
+            </div>
+            <div className="relative flex items-center">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDate("");
+                    setPage(1);
+                  }}
+                  title="Clear Date Filter"
+                  className="absolute right-8 text-gray-400 hover:text-red-600 p-0.5 cursor-pointer bg-white rounded"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Order Type Dropdown */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -259,6 +384,7 @@ export default function AdminOrdersManagementPage() {
               className="bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
             >
               <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
               <option value="accepted">Accepted</option>
               <option value="preparing">Preparing</option>
               <option value="ready">Ready</option>
@@ -301,6 +427,8 @@ export default function AdminOrdersManagementPage() {
             <p className="text-xs text-gray-500 max-w-xs">
               {debouncedSearch
                 ? `No orders matching "${debouncedSearch}".`
+                : selectedDate
+                ? `No orders found for ${formatRelativeDateLabel(selectedDate)} (${selectedDate}).`
                 : selectedStatus !== "all" || selectedType !== "all"
                 ? `No orders matching the selected filter criteria.`
                 : "No orders have been placed yet."}
@@ -405,8 +533,31 @@ export default function AdminOrdersManagementPage() {
         />
       )}
 
+      {/* Quick Go to Order Lookup Modal */}
+      <GoToOrderModal
+        isOpen={isGoToOrderOpen}
+        onClose={() => setIsGoToOrderOpen(false)}
+        onOrderFound={(foundOrder) => {
+          setSelectedOrderModal(foundOrder);
+        }}
+      />
+
       {/* Pinned Bottom Nav with Orders Tab Active */}
       <AdminBottomNav />
     </div>
+  );
+}
+
+export default function AdminOrdersManagementPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col h-dvh bg-[#F4F8FA] items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#0B392B]" />
+        </div>
+      }
+    >
+      <AdminOrdersManagementContent />
+    </Suspense>
   );
 }

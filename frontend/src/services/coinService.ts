@@ -37,12 +37,18 @@ export interface CoinRuleRecord {
   isActive: boolean;
 }
 
+export interface CoinRedemptionRuleRecord {
+  _id: string;
+  label?: string;
+  minOrderAmount: number;
+  maxCoinsDeductible: number;
+  isActive: boolean;
+}
+
 export interface CoinConfigRecord {
   _id: string;
   coinToRupeeRatio: number;
   welcomeBonusCoins: number;
-  repeatRewardPercentMin: number;
-  repeatRewardPercentMax: number;
   expiryInactivityDays: number;
   extendExpiryOnEarn: boolean;
   isCoinSystemEnabled: boolean;
@@ -95,6 +101,30 @@ export async function toggleCoinRuleStatus(id: string): Promise<CoinRuleRecord> 
 
 export async function deleteCoinRule(id: string): Promise<void> {
   await Delete(`/api/coins/admin/rules/${id}`);
+}
+
+export async function getAdminRedemptionRules(): Promise<CoinRedemptionRuleRecord[]> {
+  const res: any = await Fetch("/api/coins/admin/redemption-rules");
+  return res.data;
+}
+
+export async function createRedemptionRule(payload: Partial<CoinRedemptionRuleRecord>): Promise<CoinRedemptionRuleRecord> {
+  const res: any = await Post("/api/coins/admin/redemption-rules", payload);
+  return res.data;
+}
+
+export async function updateRedemptionRule(id: string, payload: Partial<CoinRedemptionRuleRecord>): Promise<CoinRedemptionRuleRecord> {
+  const res: any = await Put(`/api/coins/admin/redemption-rules/${id}`, payload);
+  return res.data;
+}
+
+export async function toggleRedemptionRuleStatus(id: string): Promise<CoinRedemptionRuleRecord> {
+  const res: any = await Patch(`/api/coins/admin/redemption-rules/${id}/status`, {});
+  return res.data;
+}
+
+export async function deleteRedemptionRule(id: string): Promise<void> {
+  await Delete(`/api/coins/admin/redemption-rules/${id}`);
 }
 
 export async function getAdminCoinConfig(): Promise<CoinConfigRecord> {

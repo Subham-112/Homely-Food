@@ -14,7 +14,7 @@ import { useCart } from "@/context/CartContext";
 import { getMyOrders, Order } from "@/services/orderService";
 import { useSocket } from "@/context/SocketContext";
 
-type FilterType = "All" | "Active" | "Ready" | "Completed";
+type FilterType = "All" | "Preparing" | "Ready" | "Completed";
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -68,7 +68,8 @@ export default function OrdersPage() {
     setLoading(true);
     try {
       if (token) {
-        const resOrders = await getMyOrders(currentFilter);
+        const queryStatus = currentFilter === "All" ? undefined : currentFilter.toLowerCase();
+        const resOrders = await getMyOrders(queryStatus);
         setOrders(resOrders || []);
       } else {
         setOrders([]);
@@ -87,11 +88,11 @@ export default function OrdersPage() {
   const filteredOrders = orders.filter((order) => {
     const statusLower = (order.status || "").toLowerCase();
 
-    if (filter === "Active") {
+    if (filter === "Preparing") {
       return (
-        statusLower === "pending" ||
+        statusLower === "preparing" ||
         statusLower === "accepted" ||
-        statusLower === "preparing"
+        statusLower === "pending"
       );
     }
     if (filter === "Ready") {
@@ -123,9 +124,9 @@ export default function OrdersPage() {
           </span>
         </div>
 
-        {/* Status Filter Pills: All, Active, Ready, Completed */}
+        {/* Status Filter Pills: All, Preparing, Ready, Completed */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 shrink-0">
-          {(["All", "Active", "Ready", "Completed"] as const).map((tab) => {
+          {(["All", "Preparing", "Ready", "Completed"] as const).map((tab) => {
             const isActive = filter === tab;
             return (
               <button

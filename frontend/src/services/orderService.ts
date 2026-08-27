@@ -146,11 +146,13 @@ export interface Order {
     paymentRef?: string;
     subTotal?: number;
     discount?: number;
+    deliveryCharge?: number;
     totalAmount?: number;
   };
   status: string;
   orderType: "dine-in" | "delivery" | "pickup";
   deliveryAddress?: string;
+  deliveryCharge?: number;
   pickupTiming?: string;
   subTotal?: number;
   discount?: number;
@@ -180,6 +182,7 @@ export const getOrders = async (params?: {
   status?: string;
   orderType?: string;
   search?: string;
+  date?: string;
   page?: number;
   limit?: number;
   userId?: string;
@@ -192,6 +195,7 @@ export const getOrders = async (params?: {
   if (params?.status) query.append("status", params.status);
   if (params?.orderType) query.append("orderType", params.orderType);
   if (params?.search) query.append("search", params.search);
+  if (params?.date) query.append("date", params.date);
   if (params?.page) query.append("page", params.page.toString());
   if (params?.limit) query.append("limit", params.limit.toString());
   if (params?.userId) query.append("userId", params.userId);

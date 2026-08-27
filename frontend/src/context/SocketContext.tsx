@@ -49,17 +49,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       },
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000,
     });
 
     socketInstance.on("connect", () => {
       setIsConnected(true);
+      // Automatically join admin room if admin token exists
+      const currentAdminToken = adminToken || TokenStorage.getAdminToken();
+      if (currentAdminToken) {
+        socketInstance.emit("join:admin");
+      }
     });
 
     socketInstance.on("socket:authenticated", (data: { role: string; name: string }) => {
-      // Required Frontend Console Log Format
       console.log(`🔐 Authenticated Socket connected (role: ${data.role}, name: ${data.name})`);
+      if (data.role === "admin") {
+        socketInstance.emit("join:admin");
+      }
     });
 
     socketInstance.on("disconnect", () => {

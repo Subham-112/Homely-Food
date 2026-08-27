@@ -32,6 +32,7 @@ export interface MenuItem {
   status: MenuItemStatus;
   price: number;
   preparationTime?: number;
+  priority?: number;
   tags?: string[];
   allergens?: string[];
   image?: ImageObject | string;
@@ -48,6 +49,7 @@ export interface CreateMenuItemPayload {
   status?: MenuItemStatus;
   price: number;
   preparationTime?: number;
+  priority?: number;
   tags?: string[];
   allergens?: string[];
   image?: string;
@@ -186,6 +188,7 @@ const buildFormDataFromPayload = (payload: CreateMenuItemPayload | UpdateMenuIte
   if (payload.description !== undefined) formData.append("description", payload.description);
   if (payload.price !== undefined) formData.append("price", String(payload.price));
   if (payload.preparationTime !== undefined) formData.append("preparationTime", String(payload.preparationTime));
+  if (payload.priority !== undefined) formData.append("priority", String(payload.priority));
   if (payload.status) formData.append("status", payload.status);
   if (payload.isTodaySpecial !== undefined) formData.append("isTodaySpecial", String(payload.isTodaySpecial));
 
@@ -222,6 +225,11 @@ export const updateMenuItem = async (id: string, payload: UpdateMenuItemPayload)
   const formData = buildFormDataFromPayload(payload);
   const response = await Put<ApiResponse<MenuItem>>(`/api/menu-item/${id}`, formData);
   return response.data;
+};
+
+export const reorderMenuItems = async (orderedItemIds: string[]): Promise<boolean> => {
+  const response = await Patch<ApiResponse<null>>("/api/menu-item/admin/reorder", { orderedItemIds });
+  return response.success;
 };
 
 export const toggleMenuItemStatus = async (id: string, status?: MenuItemStatus): Promise<MenuItem> => {

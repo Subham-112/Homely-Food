@@ -22,7 +22,7 @@ interface MenuItemCardProps {
   onUpdateQuantity: (id: string, delta: number) => void;
 }
 
-export default function MenuItemCard({
+function MenuItemCardComponent({
   item,
   quantity,
   onAdd,
@@ -101,3 +101,6 @@ export default function MenuItemCard({
     </div>
   );
 }
+
+const MenuItemCard = React.memo(MenuItemCardComponent);
+export default MenuItemCard;

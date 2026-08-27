@@ -251,6 +251,18 @@ export default function GlobalOrderDetailsModal({
                 </span>
               </div>
             )}
+            {(order.orderType === "delivery" || (order.payment?.deliveryCharge !== undefined && order.payment?.deliveryCharge > 0) || (order.deliveryCharge !== undefined && order.deliveryCharge > 0)) && (
+              <div className="flex items-center justify-between text-gray-600">
+                <span className="text-[11px]">Delivery Charge</span>
+                <span className="font-bold text-gray-800 text-[11px]">
+                  {(order.payment?.deliveryCharge ?? order.deliveryCharge ?? 0) === 0 ? (
+                    <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">FREE</span>
+                  ) : (
+                    `₹${order.payment?.deliveryCharge ?? order.deliveryCharge ?? 0}`
+                  )}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-[11px]">Payment Mode</span>
               <span className="font-bold text-gray-800 uppercase text-[10px] tracking-wider px-2 py-0.5 bg-white rounded border border-gray-200">

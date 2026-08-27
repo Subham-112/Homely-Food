@@ -1,32 +1,33 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { BellRing, ChevronRight, X, Utensils, Phone, User, Receipt, Volume2, Sparkles } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { BellRing, ChevronRight, X, Utensils, Phone, User, Receipt } from "lucide-react";
 import { useSocket } from "@/context/SocketContext";
+import GlobalOrderDetailsModal from "@/components/GlobalOrderDetailsModal";
 
 export const AdminNewOrderAlert: React.FC = () => {
-  const router = useRouter();
   const pathname = usePathname();
   const { socket, joinAdminRoom } = useSocket();
 
   const [newOrder, setNewOrder] = useState<any>(null);
+  const [selectedDetailsOrder, setSelectedDetailsOrder] = useState<any>(null);
   const [isPlayingSound, setIsPlayingSound] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
-  // 1. Fetch & decode Web Audio buffer for /sound/Bell-ring.mp3 on mount
+  // 1. Fetch & decode Web Audio buffer and setup global interaction unlocker
   useEffect(() => {
     const initWebAudio = async () => {
       try {
-        const response = await fetch("/sound/Bell-ring.mp3");
-        const arrayBuffer = await response.arrayBuffer();
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
+        if (AudioContextClass && !audioCtxRef.current) {
           const ctx = new AudioContextClass();
           audioCtxRef.current = ctx;
+          const response = await fetch("/sound/Bell-ring.mp3");
+          const arrayBuffer = await response.arrayBuffer();
           const decoded = await ctx.decodeAudioData(arrayBuffer);
           audioBufferRef.current = decoded;
         }
@@ -35,16 +36,53 @@ export const AdminNewOrderAlert: React.FC = () => {
       }
     };
     initWebAudio();
+
+    // Unlock browser audio restriction on very first user interaction anywhere on the screen
+    const unlockAudio = () => {
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+      const el = audioRef.current;
+      if (el) {
+        el.play().then(() => {
+          el.pause();
+          el.currentTime = 0;
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
   }, []);
 
+  // Play fallback synthesized chime if buffer is not yet ready
+  const playFallbackOscillator = (ctx: AudioContext) => {
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch (_) {}
+  };
 
-
-  // Start looping sound using both Web Audio API & HTML5 Audio fallback
+  // Start looping sound using Web Audio API + HTML5 Audio fallback
   const startLoopingSound = () => {
     setIsPlayingSound(true);
 
-    // Strategy 1: Web Audio API (Highly reliable, bypasses standard element blockers once context resumed)
-    if (audioCtxRef.current && audioBufferRef.current) {
+    // Strategy 1: Web Audio API
+    if (audioCtxRef.current) {
       try {
         if (audioCtxRef.current.state === "suspended") {
           audioCtxRef.current.resume();
@@ -54,12 +92,17 @@ export const AdminNewOrderAlert: React.FC = () => {
             sourceNodeRef.current.stop();
           } catch (_) {}
         }
-        const source = audioCtxRef.current.createBufferSource();
-        source.buffer = audioBufferRef.current;
-        source.loop = true;
-        source.connect(audioCtxRef.current.destination);
-        source.start(0);
-        sourceNodeRef.current = source;
+
+        if (audioBufferRef.current) {
+          const source = audioCtxRef.current.createBufferSource();
+          source.buffer = audioBufferRef.current;
+          source.loop = true;
+          source.connect(audioCtxRef.current.destination);
+          source.start(0);
+          sourceNodeRef.current = source;
+        } else {
+          playFallbackOscillator(audioCtxRef.current);
+        }
       } catch (err) {
         console.warn("Web Audio start error:", err);
       }
@@ -71,7 +114,7 @@ export const AdminNewOrderAlert: React.FC = () => {
         audioRef.current.currentTime = 0;
         audioRef.current.loop = true;
         audioRef.current.play().catch((err) => {
-          console.warn("Autoplay blocked by browser policy until user click:", err);
+          console.warn("Autoplay notice:", err);
         });
       } catch (err) {
         console.error("HTML5 Audio error:", err);
@@ -110,7 +153,6 @@ export const AdminNewOrderAlert: React.FC = () => {
     const handleNewOrder = (incomingOrder: any) => {
       console.log("🔔 New Order socket event received in Admin Panel:", incomingOrder);
       if (incomingOrder?.createdBy === "admin") {
-        console.log("ℹ️ Order created by Admin. Skipping alert modal and sound.");
         return;
       }
       setNewOrder(incomingOrder);
@@ -124,26 +166,15 @@ export const AdminNewOrderAlert: React.FC = () => {
     };
   }, [socket, pathname, joinAdminRoom]);
 
-  // Test Order Trigger
-  const handleTestOrderAlert = () => {
-    const dummyOrder = {
-      orderNumber: `ORD-TEST-${Math.floor(100 + Math.random() * 900)}`,
-      guest: { name: "Sample Customer", phone: "9876543210" },
-      totalAmount: 250,
-      items: [
-        { menuItem: { name: "Special Homely Thali" }, quantity: 1, price: 180 },
-        { menuItem: { name: "Paneer Butter Masala" }, quantity: 1, price: 70 },
-      ],
-    };
-    setNewOrder(dummyOrder);
-    startLoopingSound();
-  };
-
   const handleViewOrder = () => {
     stopLoopingSound();
+    const orderToOpen = newOrder;
     setNewOrder(null);
     window.dispatchEvent(new CustomEvent("admin:order-alert-dismissed"));
-    router.push("/admin/orders");
+    // Directly open the Order Details Modal on the current page!
+    if (orderToOpen) {
+      setSelectedDetailsOrder(orderToOpen);
+    }
   };
 
   const handleDismiss = () => {
@@ -270,6 +301,15 @@ export const AdminNewOrderAlert: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Direct Order Details Modal when View Order is clicked */}
+      {selectedDetailsOrder && (
+        <GlobalOrderDetailsModal
+          order={selectedDetailsOrder}
+          variant="admin"
+          onClose={() => setSelectedDetailsOrder(null)}
+        />
       )}
     </>
   );

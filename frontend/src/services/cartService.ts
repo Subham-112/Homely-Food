@@ -29,6 +29,7 @@ export interface PopulatedCartItem {
 export interface CartTotal {
   subTotal: number;
   discount: number;
+  deliveryCharge?: number;
   totalAmount: number;
   offer?: {
     _id: string;
@@ -49,6 +50,7 @@ export interface CoinDeductionResponse {
   maxDeductible: number;
   deductedCoins: number;
   discountAmount: number;
+  minOrderRequired?: number;
 }
 
 export interface CartResponse {

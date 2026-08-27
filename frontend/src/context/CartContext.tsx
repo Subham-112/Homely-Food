@@ -83,6 +83,7 @@ interface CartContextType {
     maxDeductible: number;
     deductedCoins: number;
     discountAmount: number;
+    minOrderRequired?: number;
   } | null;
   isLoadingDeduction: boolean;
   applyCoins: () => Promise<{ success: boolean; message: string }>;
@@ -124,6 +125,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     maxDeductible: number;
     deductedCoins: number;
     discountAmount: number;
+    minOrderRequired?: number;
   } | null>(null);
   const [isLoadingDeduction, setIsLoadingDeduction] = useState<boolean>(false);
 
@@ -147,6 +149,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastConfirmedCartRef = useRef<CartItem[]>([]);
+  const syncSeqRef = useRef<number>(0);
+  const latestTargetCartRef = useRef<CartItem[]>([]);
 
   // Helper to format raw backend cart object to CartItem[] array
   const formatBackendCartItems = (backendCart: any): CartItem[] => {
@@ -180,6 +184,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCartId(null);
       setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
       lastConfirmedCartRef.current = [];
+      latestTargetCartRef.current = [];
       setIsCartLoading(false);
       return;
     }
@@ -239,6 +244,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const formattedItems = formatBackendCartItems(syncedCart);
           setCart(formattedItems);
           lastConfirmedCartRef.current = formattedItems;
+          latestTargetCartRef.current = formattedItems;
           fetchCoinDeduction(syncedCart._id);
         }
       } else if (backendCart && backendCart.items) {
@@ -247,12 +253,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const formattedItems = formatBackendCartItems(backendCart);
         setCart(formattedItems);
         lastConfirmedCartRef.current = formattedItems;
+        latestTargetCartRef.current = formattedItems;
         fetchCoinDeduction(backendCart._id);
       } else {
         setCart([]);
         setCartId(null);
         setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
         lastConfirmedCartRef.current = [];
+        latestTargetCartRef.current = [];
         setCoinDeductionInfo(null);
       }
     } catch (err) {
@@ -267,14 +275,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchCart();
   }, [token]);
 
-  // Helper: Trigger 500ms debounced sync with automatic rollback on backend API errors
+  // Helper: Trigger 400ms debounced sync with sequence ID versioning and automatic rollback
   const triggerDebouncedSync = (targetCart: CartItem[]) => {
+    latestTargetCartRef.current = targetCart;
+
+    // Instantly compute optimistic subtotal for immediate UI responsiveness
+    const optimisticSubTotal = targetCart.reduce((sum, c) => {
+      const p = c.variant ? c.variant.price : c.item.price;
+      return sum + p * c.quantity;
+    }, 0);
+    setCartTotal((prev) => ({
+      ...prev,
+      subTotal: optimisticSubTotal,
+      totalAmount: Math.max(0, optimisticSubTotal - (prev.discount || 0)),
+    }));
+
     if (!token) return;
 
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
+    const currentSeq = ++syncSeqRef.current;
     const previousConfirmedCart = lastConfirmedCartRef.current;
 
     debounceTimerRef.current = setTimeout(async () => {
@@ -286,24 +308,30 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isReorder: Boolean(c.isReorder),
         }));
         const resCart = await syncBackendCart(inputs);
+
+        // Discard stale in-flight response if another update occurred in the meantime
+        if (currentSeq !== syncSeqRef.current) return;
+
         if (resCart) {
           setCartId(resCart._id);
           setCartTotal(resCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
           const confirmedItems = formatBackendCartItems(resCart);
           setCart(confirmedItems);
           lastConfirmedCartRef.current = confirmedItems;
-          // Trigger coin deduction fetch ONLY ONCE after cart sync succeeds!
+          latestTargetCartRef.current = confirmedItems;
+          // Trigger coin deduction fetch ONLY ONCE after debounced sync completes
           fetchCoinDeduction(resCart._id);
         } else {
           setCartId(null);
           setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
           setCart([]);
           lastConfirmedCartRef.current = [];
+          latestTargetCartRef.current = [];
           setCoinDeductionInfo(null);
         }
       } catch (err) {
+        if (currentSeq !== syncSeqRef.current) return;
         console.error("Backend cart sync failed. Rolling back frontend state to match backend:", err);
-        // Rollback state by fetching authoritative backend cart
         try {
           const freshCart = await getBackendCart();
           if (freshCart && freshCart.items) {
@@ -312,18 +340,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const confirmedItems = formatBackendCartItems(freshCart);
             setCart(confirmedItems);
             lastConfirmedCartRef.current = confirmedItems;
+            latestTargetCartRef.current = confirmedItems;
           } else {
             setCart([]);
             setCartId(null);
             setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
             lastConfirmedCartRef.current = [];
+            latestTargetCartRef.current = [];
           }
         } catch (fetchErr) {
-          // Fallback to last confirmed cart array in memory
           setCart(previousConfirmedCart);
+          latestTargetCartRef.current = previousConfirmedCart;
         }
       }
-    }, 500);
+    }, 400);
   };
 
   const addToCart = (item: MenuItem, variant?: { id: string; label: string; price: number }) => {
@@ -376,6 +406,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCartId(null);
     setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
     lastConfirmedCartRef.current = [];
+    latestTargetCartRef.current = [];
     if (token) {
       try {
         await clearBackendCart();

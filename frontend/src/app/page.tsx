@@ -136,6 +136,8 @@ export default function HomePage() {
     fetchInitialData();
   }, []);
 
+  const isFirstRender = useRef(true);
+
   // Fetch next page of menu items when scrolling to bottom
   const loadNextPage = useCallback(async () => {
     if (loadingMore || !hasMore || loading) return;
@@ -143,7 +145,11 @@ export default function HomePage() {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const menuRes = await getMenuItems({ page: nextPage, limit: 10 });
+      const menuRes = await getMenuItems({
+        page: nextPage,
+        limit: 10,
+        category: selectedCategory !== "All" ? selectedCategory : undefined,
+      });
       const newItems = menuRes.items.map((i: ApiMenuItem) => {
         const imgUrl = typeof i.image === "object" ? i.image?.url : (typeof i.image === "string" && i.image.trim()) ? i.image : "";
         return {
@@ -175,22 +181,94 @@ export default function HomePage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [page, hasMore, loadingMore, loading]);
+  }, [page, hasMore, loadingMore, loading, selectedCategory]);
 
-  // Infinite Scroll Listener
+  // When category changes, reset pagination and fetch page 1
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const fetchCategoryItems = async () => {
+      setLoading(true);
+      try {
+        const menuRes = await getMenuItems({
+          page: 1,
+          limit: 10,
+          category: selectedCategory !== "All" ? selectedCategory : undefined,
+        });
+        const items = menuRes.items.map((i: ApiMenuItem) => {
+          const imgUrl = typeof i.image === "object" ? i.image?.url : (typeof i.image === "string" && i.image.trim()) ? i.image : "";
+          return {
+            id: i._id,
+            name: i.name,
+            price: i.price,
+            description: i.description || "",
+            image: imgUrl || "/default-food.jpg",
+            isSpecial: i.isTodaySpecial,
+            tag: i.isTodaySpecial ? "Special" : undefined,
+            category: typeof i.category === "object" ? (i.category as any)?.name : i.category || "",
+            preparationTime: i.preparationTime,
+            status: i.status,
+            tags: i.tags,
+            allergens: i.allergens,
+          };
+        });
+
+        setMenuItems(items);
+        setPage(1);
+        setHasMore(menuRes.pagination ? menuRes.pagination.page < menuRes.pagination.totalPages : false);
+        setTotal(Number(menuRes.pagination.total));
+      } catch (err) {
+        console.error("Failed to load category menu items:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCategoryItems();
+  }, [selectedCategory]);
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Trigger loading next page when user scrolls near the end of MenuListSection (before footer)
+  useEffect(() => {
+    if (!hasMore || loadingMore || loading) return;
+
+    const sentinel = sentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          loadNextPage();
+        }
+      },
+      {
+        root,
+        rootMargin: "300px", // Preload when within 300px of menu list end
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadNextPage]);
+
+  // Fallback Infinite Scroll Listener
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
-    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 120) {
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 350) {
       if (hasMore && !loadingMore && !loading) {
         loadNextPage();
       }
     }
   };
 
-  const filteredItems =
-    selectedCategory === "All"
-      ? menuItems
-      : menuItems.filter((item) => item.category === selectedCategory);
+  const filteredItems = menuItems;
 
   const getItemQuantity = (id: string) => {
     const found = cart.find((c) => c.item.id === id);
@@ -205,6 +283,7 @@ export default function HomePage() {
       {/* Middle Scrollable Section */}
       <div
         ref={scrollContainerRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto no-scrollbar p-3.5 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-3 pb-24"
       >
         {/* 0. User Homely Coin Wallet Card (Top Header Section) */}
@@ -234,9 +313,11 @@ export default function HomePage() {
           filteredItems={filteredItems}
           selectedCategory={selectedCategory}
           loading={loading}
+          loadingMore={loadingMore}
           getItemQuantity={getItemQuantity}
           addToCart={addToCart}
           updateQuantity={updateQuantity}
+          sentinelRef={sentinelRef}
         />
 
         {/* 5. Shop Details Footer (Spans edge-to-edge independently) */}

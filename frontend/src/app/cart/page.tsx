@@ -166,21 +166,38 @@ export default function CartPage() {
 
   const [deliveryPincode, setDeliveryPincode] = useState("");
   const [serviceablePincodes, setServiceablePincodes] = useState<string[]>([]);
+  const [shopDeliveryCharge, setShopDeliveryCharge] = useState<number>(30);
+  const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(500);
 
-  // Fetch Serviceable Pincodes from ShopDetails API
+  // Fetch Store Details & Delivery Configuration from ShopDetails API
   useEffect(() => {
-    const fetchPincodes = async () => {
+    const fetchStoreDetails = async () => {
       try {
         const details = await getShopDetails();
-        if (details && details.serviceablePincodes) {
-          setServiceablePincodes(details.serviceablePincodes);
+        if (details) {
+          if (details.serviceablePincodes) {
+            setServiceablePincodes(details.serviceablePincodes);
+          }
+          if (typeof details.deliveryCharge === "number") {
+            setShopDeliveryCharge(details.deliveryCharge);
+          }
+          if (typeof details.freeDeliveryThreshold === "number") {
+            setFreeDeliveryThreshold(details.freeDeliveryThreshold);
+          }
         }
       } catch (err) {
-        console.error("Failed to load serviceable pincodes for cart:", err);
+        console.error("Failed to load store details for cart:", err);
       }
     };
-    fetchPincodes();
+    fetchStoreDetails();
   }, []);
+
+  // Effective Delivery Charge & Total Amount
+  const isDelivery = orderType === "delivery";
+  const netItemAmount = Math.max(0, subTotal - discountAmount);
+  const isFreeDeliveryEligible = isDelivery && freeDeliveryThreshold > 0 && subTotal >= freeDeliveryThreshold;
+  const effectiveDeliveryCharge = isDelivery ? (isFreeDeliveryEligible ? 0 : shopDeliveryCharge) : 0;
+  const effectiveFinalAmount = netItemAmount + effectiveDeliveryCharge;
 
   const handlePlaceOrder = async (forceShowModal: boolean = false) => {
     setFormError(null);
@@ -242,7 +259,7 @@ export default function CartPage() {
             }
             setPlacedOrderSuccess({
               orderNumber: createdOrder?.orderNumber || "OD-" + Math.floor(100000 + Math.random() * 900000),
-              totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? finalAmount,
+              totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? effectiveFinalAmount,
               itemCount: totalItems,
               orderType: orderType === "dine-in" ? "Normal / Dine-in" : orderType,
             });
@@ -271,7 +288,7 @@ export default function CartPage() {
       // Show Animated Success Modal
       setPlacedOrderSuccess({
         orderNumber: createdOrder?.orderNumber || "OD-" + Math.floor(100000 + Math.random() * 900000),
-        totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? finalAmount,
+        totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? effectiveFinalAmount,
         itemCount: totalItems,
         orderType: orderType === "dine-in" ? "Normal / Dine-in" : orderType,
       });
@@ -496,7 +513,15 @@ export default function CartPage() {
                             </div>
                             <span className="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-snug">
                               Current Balance: <strong className="text-gray-800">{coinDeductionInfo?.userBalance ?? 0} Coins</strong>{" "}
-                              <span className="block sm:inline text-gray-400 font-normal">(Redeem 50% of your coins)</span>
+                              {coinDeductionInfo && coinDeductionInfo.maxDeductible > 0 ? (
+                                <span className="block sm:inline text-emerald-700 font-bold">
+                                  (Redeem up to {coinDeductionInfo.maxDeductible} coins on this order)
+                                </span>
+                              ) : coinDeductionInfo && coinDeductionInfo.minOrderRequired ? (
+                                <span className="block sm:inline text-amber-700 font-semibold">
+                                  (Min cart total ₹{coinDeductionInfo.minOrderRequired} required)
+                                </span>
+                              ) : null}
                             </span>
                           </div>
 
@@ -526,7 +551,9 @@ export default function CartPage() {
                               </>
                             ) : (
                               <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md whitespace-nowrap">
-                                No coins available
+                                {coinDeductionInfo && coinDeductionInfo.minOrderRequired && subTotal < coinDeductionInfo.minOrderRequired
+                                  ? `Min ₹${coinDeductionInfo.minOrderRequired}`
+                                  : "No coins available"}
                               </span>
                             )}
                           </div>
@@ -642,42 +669,9 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* Right Column: Summary & Checkout Form */}
+            {/* Right Column: Customer Details & Order Summary / Payment */}
             <div className="lg:col-span-5 flex flex-col gap-3">
-              {/* Order Summary Box */}
-              <div className="bg-white rounded-2xl p-5 border border-[#E8E1D3] shadow-xs flex flex-col gap-3">
-                <h2 className="text-base font-bold text-[#0B251C]">Order Summary</h2>
-
-                <div className="flex flex-col gap-2 text-xs sm:text-sm border-b border-gray-100 pb-3">
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Items Total</span>
-                    <span className="font-semibold text-gray-800">₹{subTotal}</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <div className="flex items-center justify-between text-emerald-700 font-bold">
-                      <span>{discountType === "coins" ? "🪙 Coins Discount" : "Coupon Discount"}</span>
-                      <span>-₹{discountAmount}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Delivery / Service</span>
-                    <span className="font-semibold text-gray-800">₹0</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-base font-bold text-[#0B251C]">
-                  <span>Total Amount</span>
-                  <span className="text-xl font-extrabold text-[#0B392B]">₹{finalAmount}</span>
-                </div>
-
-                {/* Info Banner */}
-                <div className="bg-[#EBF5FC] rounded-xl p-3 flex items-center gap-2.5 text-xs text-[#0B392B] border border-[#D4E8F8]">
-                  <Info className="w-4 h-4 shrink-0" />
-                  <span className="font-medium">Note: Payment: Offline / Cash</span>
-                </div>
-              </div>
-
-              {/* Checkout Form Box */}
+              {/* Customer Details Form Box */}
               <div className="bg-white rounded-2xl p-5 border border-[#E8E1D3] shadow-xs flex flex-col gap-4">
                 <div>
                   <h2 className="text-base sm:text-lg font-bold text-[#0B251C]">
@@ -774,8 +768,59 @@ export default function CartPage() {
                   value={guestPhone}
                   onChange={(e) => setGuestPhone(e.target.value)}
                 />
+              </div>
 
-                <div className="flex flex-col gap-1">
+              {/* Order Summary & Payment Container Box (Bottom) */}
+              <div className="bg-white rounded-2xl p-5 border border-[#E8E1D3] shadow-xs flex flex-col gap-3.5">
+                <h2 className="text-base font-bold text-[#0B251C]">Order Summary</h2>
+
+                <div className="flex flex-col gap-2 text-xs sm:text-sm border-b border-gray-100 pb-3">
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Items Total</span>
+                    <span className="font-semibold text-gray-800">₹{subTotal}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-emerald-700 font-bold">
+                      <span>{discountType === "coins" ? "🪙 Coins Discount" : "Coupon Discount"}</span>
+                      <span>-₹{discountAmount}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span className="flex items-center gap-1.5">
+                      <span>Delivery Charge</span>
+                      {isDelivery && freeDeliveryThreshold > 0 && (
+                        <span className="text-[10px] text-gray-400 font-normal">
+                          (Free above ₹{freeDeliveryThreshold})
+                        </span>
+                      )}
+                    </span>
+                    {isDelivery ? (
+                      effectiveDeliveryCharge === 0 ? (
+                        <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-xs">
+                          FREE
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-gray-800">₹{effectiveDeliveryCharge}</span>
+                      )
+                    ) : (
+                      <span className="font-semibold text-gray-800">₹0</span>
+                    )}
+                  </div>
+
+                  {isDelivery && !isFreeDeliveryEligible && freeDeliveryThreshold > 0 && subTotal > 0 && (
+                    <div className="text-[10px] text-[#0B392B] font-bold bg-emerald-50/70 border border-emerald-100 px-2.5 py-1 rounded-lg flex items-center justify-between">
+                      <span>🎉 Add ₹{Math.max(0, freeDeliveryThreshold - subTotal)} more for FREE Delivery</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-base font-bold text-[#0B251C]">
+                  <span>Total Amount</span>
+                  <span className="text-xl font-extrabold text-[#0B392B]">₹{effectiveFinalAmount}</span>
+                </div>
+
+                {/* Payment Method Selector */}
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
                   <span className="text-xs font-bold text-gray-700">Payment Method *</span>
                   <div className="grid grid-cols-2 gap-1 bg-gray-100 p-1 rounded-xl text-xs font-bold">
                     <button
@@ -803,8 +848,19 @@ export default function CartPage() {
                   </div>
                 </div>
 
+                {/* Info Banner */}
+                <div className="bg-[#EBF5FC] rounded-xl p-3 flex items-center gap-2.5 text-xs text-[#0B392B] border border-[#D4E8F8]">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span className="font-medium">
+                    {paymentPreference === "ONLINE"
+                      ? "Note: Secure online payment via UPI, Cards or NetBanking (Razorpay)."
+                      : "Note: Offline payment at counter / on delivery."}
+                  </span>
+                </div>
+
+                {/* Action Payment Button */}
                 {cart.length > 0 && (
-                  <div className="mt-2">
+                  <div className="mt-1">
                     {onlineCheckoutSession ? (
                       <RazorpayCheckoutButton
                         checkoutSession={onlineCheckoutSession}
@@ -812,7 +868,7 @@ export default function CartPage() {
                           setOnlineCheckoutSession(null);
                           setPlacedOrderSuccess({
                             orderNumber: createdOrder?.orderNumber || "OD-" + Math.floor(100000 + Math.random() * 900000),
-                            totalAmount: createdOrder?.totalAmount || finalAmount,
+                            totalAmount: createdOrder?.payment?.totalAmount ?? createdOrder?.totalAmount ?? effectiveFinalAmount,
                             itemCount: totalItems,
                             orderType: orderType === "dine-in" ? "Normal / Dine-in" : orderType,
                           });
@@ -835,7 +891,7 @@ export default function CartPage() {
                           </>
                         ) : (
                           <>
-                            <span>{paymentPreference === "ONLINE" ? `PROCEED TO PAY ONLINE (₹${finalAmount})` : `PLACE ORDER (₹${finalAmount})`}</span>
+                            <span>{paymentPreference === "ONLINE" ? `PROCEED TO PAY ONLINE (₹${effectiveFinalAmount})` : `PLACE ORDER (₹${effectiveFinalAmount})`}</span>
                             <ArrowRight className="w-4 h-4" />
                           </>
                         )}
