@@ -4,7 +4,7 @@ import { OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../comm
 import { z } from "zod";
 import ApiError from "../../utils/ApiError";
 import ApiResponse from "../../utils/ApiResponse";
-import { getDateRangeByPeriod } from "../../utils/dateHelper";
+import { getDateRangeByPeriod, getDateRangeForSpecificDate, DateRange } from "../../utils/dateHelper";
 import { AuthenticatedRequest } from "../../middlewares/authMiddleware";
 
 const createOrderSchema = z.object({
@@ -116,12 +116,18 @@ export class OrderController {
       const userId = req.query.userId as string | undefined;
       const userPhone = req.query.userPhone as string | undefined;
       const period = req.query.period as string | undefined;
+      const dateParam = req.query.date as string | undefined;
       const startDateParam = req.query.startDate as string | undefined;
       const endDateParam = req.query.endDate as string | undefined;
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
 
-      const dateRange = getDateRangeByPeriod(period, startDateParam, endDateParam);
+      let dateRange: DateRange | undefined;
+      if (dateParam && dateParam.trim()) {
+        dateRange = getDateRangeForSpecificDate(dateParam);
+      } else if (period || startDateParam || endDateParam) {
+        dateRange = getDateRangeByPeriod(period, startDateParam, endDateParam);
+      }
 
       const result = await OrderService.getAll({
         status,

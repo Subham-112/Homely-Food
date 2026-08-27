@@ -1,10 +1,17 @@
 import { Request, Response, NextFunction } from "express";
 import { CoinService } from "./coin.service";
 import { CoinRuleService } from "./coinRule.service";
+import { CoinRedemptionRuleService } from "./coinRedemptionRule.service";
 import { CoinConfigService } from "./coinConfig.service";
 import ApiResponse from "../../utils/ApiResponse";
 import { AuthenticatedRequest } from "../../middlewares/authMiddleware";
-import { adminGrantCoinsSchema, createCoinRuleSchema, updateCoinConfigSchema } from "./coin.schema";
+import {
+  adminGrantCoinsSchema,
+  createCoinRuleSchema,
+  updateCoinConfigSchema,
+  createCoinRedemptionRuleSchema,
+  updateCoinRedemptionRuleSchema,
+} from "./coin.schema";
 
 export class CoinController {
   public static async getUserWallet(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -144,6 +151,64 @@ export class CoinController {
     try {
       const analytics = await CoinService.getAdminAnalytics();
       return res.status(200).json(new ApiResponse(200, analytics, "Coin analytics fetched successfully."));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // --- Redemption Rules Handlers ---
+  public static async getAdminRedemptionRules(req: Request, res: Response, next: NextFunction) {
+    try {
+      await CoinRedemptionRuleService.seedDefaultRules();
+      const rules = await CoinRedemptionRuleService.getAllRules(true);
+      return res.status(200).json(new ApiResponse(200, rules, "Redemption rules fetched successfully."));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async createRedemptionRule(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const adminId = req.user?._id;
+      const validated = createCoinRedemptionRuleSchema.parse(req.body);
+      const rule = await CoinRedemptionRuleService.createRule(validated, adminId!);
+      return res.status(201).json(new ApiResponse(201, rule, "Redemption rule created successfully."));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async updateRedemptionRule(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const idStr = Array.isArray(id) ? id[0] : id;
+      const adminId = req.user?._id;
+      const validated = updateCoinRedemptionRuleSchema.parse(req.body);
+      const rule = await CoinRedemptionRuleService.updateRule(idStr, validated, adminId!);
+      return res.status(200).json(new ApiResponse(200, rule, "Redemption rule updated successfully."));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async toggleRedemptionRuleStatus(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const idStr = Array.isArray(id) ? id[0] : id;
+      const adminId = req.user?._id;
+      const rule = await CoinRedemptionRuleService.toggleStatus(idStr, adminId!);
+      return res.status(200).json(new ApiResponse(200, rule, "Redemption rule status toggled successfully."));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public static async deleteRedemptionRule(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const idStr = Array.isArray(id) ? id[0] : id;
+      await CoinRedemptionRuleService.deleteRule(idStr);
+      return res.status(200).json(new ApiResponse(200, null, "Redemption rule deleted successfully."));
     } catch (error) {
       next(error);
     }

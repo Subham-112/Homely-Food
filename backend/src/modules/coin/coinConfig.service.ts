@@ -16,8 +16,6 @@ export class CoinConfigService {
       config = await CoinConfig.create({
         coinToRupeeRatio: 1,
         welcomeBonusCoins: 50,
-        repeatRewardPercentMin: 10,
-        repeatRewardPercentMax: 15,
         expiryInactivityDays: 30,
         extendExpiryOnEarn: false,
         isCoinSystemEnabled: true,

@@ -2,6 +2,7 @@ import Order, { IOrder } from "../../models/order.model";
 import User from "../../models/user.model";
 import MenuItem from "../../models/menuItem.model";
 import { Customer } from "../../models/customer.model";
+import ShopDetails from "../../models/shopDetails.model";
 import ApiError from "../../utils/ApiError";
 import { OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { emitNewOrder, emitOrderStatusUpdate } from "../../socket/socketService";
@@ -32,6 +33,7 @@ export interface ICreateOrderPayload {
     method?: PaymentMethod;
     status?: PaymentStatus;
     transactionId?: string;
+    deliveryCharge?: number;
   };
   paymentPreference?: "CASH" | "ONLINE";
   notes?: string;
@@ -42,6 +44,7 @@ export interface ICreateOrderPayload {
   offer?: string;
   orderType?: OrderType;
   deliveryAddress?: string;
+  deliveryCharge?: number;
   pickupTiming?: string;
   createdBy?: string;
 }
@@ -85,7 +88,31 @@ export class OrderService {
     );
 
     const discount = payload.discount || 0;
-    const totalAmount = Math.max(0, subTotal - discount);
+    const netItemAmount = Math.max(0, subTotal - discount);
+
+    // Calculate delivery charge if orderType is delivery
+    let deliveryCharge = 0;
+    const isDelivery =
+      payload.orderType === OrderType.DELIVERY ||
+      String(payload.orderType).toLowerCase() === "delivery";
+
+    if (isDelivery) {
+      const shopDetails = await ShopDetails.findOne();
+      const shopDeliveryCharge =
+        typeof shopDetails?.deliveryCharge === "number" ? shopDetails.deliveryCharge : 30;
+      const freeDeliveryThreshold =
+        typeof shopDetails?.freeDeliveryThreshold === "number"
+          ? shopDetails.freeDeliveryThreshold
+          : 500;
+
+      if (freeDeliveryThreshold > 0 && subTotal >= freeDeliveryThreshold) {
+        deliveryCharge = 0; // Free delivery threshold met
+      } else {
+        deliveryCharge = shopDeliveryCharge;
+      }
+    }
+
+    const totalAmount = netItemAmount + deliveryCharge;
 
     const enteredPhone = (payload.guest?.phone || "").trim();
     const enteredName = (payload.guest?.name || "").trim();
@@ -134,6 +161,7 @@ export class OrderService {
     return {
       subTotal,
       discount,
+      deliveryCharge,
       totalAmount,
       processedItems,
       userId,
@@ -205,6 +233,7 @@ export class OrderService {
         paymentRef: paymentRef || undefined,
         subTotal: validated.subTotal,
         discount: validated.discount,
+        deliveryCharge: validated.deliveryCharge,
         totalAmount: validated.totalAmount,
         discountType: payload.discountType || (payload.payment as any)?.discountType,
         coinsUsed: payload.coinsUsed || (payload.payment as any)?.coinsUsed,
@@ -212,6 +241,7 @@ export class OrderService {
       status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
       deliveryAddress: payload.deliveryAddress,
+      deliveryCharge: validated.deliveryCharge,
       pickupTiming: payload.pickupTiming,
       subTotal: validated.subTotal,
       discount: validated.discount,
@@ -234,7 +264,7 @@ export class OrderService {
   }
 
   static async getAll(query: {
-    status?: OrderStatus;
+    status?: OrderStatus | string;
     orderType?: string;
     search?: string;
     page?: number;
@@ -250,7 +280,14 @@ export class OrderService {
     const filter: any = { deleted: { $ne: true } };
 
     if (query.status) {
-      filter.status = query.status;
+      const statusLower = String(query.status).toLowerCase();
+      if (statusLower === "pending") {
+        filter.status = { $in: [OrderStatus.PENDING, OrderStatus.ACCEPTED] };
+      } else if (statusLower === "completed") {
+        filter.status = { $in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] };
+      } else {
+        filter.status = query.status;
+      }
     }
 
     if (query.orderType) {

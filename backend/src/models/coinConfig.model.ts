@@ -3,8 +3,6 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ICoinConfig extends Document {
   coinToRupeeRatio: number;
   welcomeBonusCoins: number;
-  repeatRewardPercentMin: number;
-  repeatRewardPercentMax: number;
   expiryInactivityDays: number;
   extendExpiryOnEarn: boolean;
   isCoinSystemEnabled: boolean;
@@ -22,14 +20,6 @@ const CoinConfigSchema = new Schema<ICoinConfig>(
     welcomeBonusCoins: {
       type: Number,
       default: 50,
-    },
-    repeatRewardPercentMin: {
-      type: Number,
-      default: 10,
-    },
-    repeatRewardPercentMax: {
-      type: Number,
-      default: 15,
     },
     expiryInactivityDays: {
       type: Number,

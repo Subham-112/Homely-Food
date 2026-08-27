@@ -16,6 +16,7 @@ export interface IMenuItem extends ISoftDeleteDocument {
   allergens: string[];
   image?: IImage;
   isTodaySpecial: boolean;
+  priority: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,6 +46,11 @@ const MenuItemSchema: Schema<IMenuItem> = new Schema(
     preparationTime: {
       type: Number,
       default: 15,
+    },
+    priority: {
+      type: Number,
+      default: 0,
+      index: true,
     },
     tags: {
       type: [String],

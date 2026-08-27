@@ -1,8 +1,9 @@
+import mongoose from "mongoose";
 import MenuItem from "../../models/menuItem.model";
 import Category from "../../models/category.model";
 import MenuItemVariant from "../../models/menuItemVariant.model";
 import ApiError from "../../utils/ApiError";
-import { MenuItemStatus, VariantStatus } from "../../common/enum";
+import { MenuItemStatus, VariantStatus, CategoryStatus } from "../../common/enum";
 import { IImage } from "../../common/image.schema";
 
 export interface IVariantInput {
@@ -18,6 +19,7 @@ export interface IMenuItemPayload {
   status?: MenuItemStatus;
   price: number;
   preparationTime?: number;
+  priority?: number;
   tags?: string[];
   allergens?: string[];
   image?: IImage | string;
@@ -46,6 +48,7 @@ export class MenuItemService {
       status: payload.status || MenuItemStatus.AVAILABLE,
       price: payload.price,
       preparationTime: payload.preparationTime || 15,
+      priority: payload.priority !== undefined ? payload.priority : 0,
       tags: payload.tags || [],
       allergens: payload.allergens || [],
       image: imageObj,
@@ -81,7 +84,17 @@ export class MenuItemService {
     const limit = Math.max(1, Math.min(100, query.limit || 10));
     const skip = (page - 1) * limit;
 
-    const filter: any = { status: MenuItemStatus.AVAILABLE, deleted: { $ne: true } };
+    const activeCats = await Category.find({
+      status: CategoryStatus.ACTIVE,
+      deleted: { $ne: true },
+    }).select("_id");
+    const activeCategoryIds = activeCats.map((c) => c._id);
+
+    const filter: any = {
+      status: MenuItemStatus.AVAILABLE,
+      category: { $in: activeCategoryIds },
+      deleted: { $ne: true },
+    };
 
     if (query.search && query.search.trim()) {
       filter.name = { $regex: query.search.trim(), $options: "i" };
@@ -89,8 +102,8 @@ export class MenuItemService {
 
     const [itemsDocs, total] = await Promise.all([
       MenuItem.find(filter)
-        .select("_id name image price")
-        .sort({ name: 1 })
+        .select("_id name image price priority")
+        .sort({ priority: 1, name: 1 })
         .skip(skip)
         .limit(limit),
       MenuItem.countDocuments(filter),
@@ -101,6 +114,7 @@ export class MenuItemService {
       name: item.name,
       image: typeof item.image === "object" ? item.image?.url || "" : item.image || "",
       price: item.price,
+      priority: (item as any).priority ?? 0,
     }));
 
     const totalPages = Math.ceil(total / limit) || 1;
@@ -125,9 +139,50 @@ export class MenuItemService {
     search?: string;
     page?: number;
     limit?: number;
+    requireActiveCategory?: boolean;
   }) {
-    const filter: any = {};
-    if (query.category) filter.category = query.category;
+    const filter: any = { deleted: { $ne: true } };
+    const requireActiveCategory = query.requireActiveCategory !== false;
+
+    if (query.category && query.category.trim() && query.category !== "All") {
+      const catVal = query.category.trim();
+      const isObjectId = mongoose.Types.ObjectId.isValid(catVal);
+
+      const catFilter: any = isObjectId
+        ? { _id: new mongoose.Types.ObjectId(catVal) }
+        : { name: { $regex: `^${catVal}$`, $options: "i" } };
+
+      if (requireActiveCategory) {
+        catFilter.status = CategoryStatus.ACTIVE;
+        catFilter.deleted = { $ne: true };
+      }
+
+      const matchedCat = await Category.findOne(catFilter).select("_id");
+      if (!matchedCat) {
+        const page = Math.max(1, query.page || 1);
+        const limit = Math.max(1, query.limit || 10);
+        return {
+          items: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        };
+      }
+      filter.category = matchedCat._id;
+    } else if (requireActiveCategory) {
+      const activeCats = await Category.find({
+        status: CategoryStatus.ACTIVE,
+        deleted: { $ne: true },
+      }).select("_id");
+      const activeCategoryIds = activeCats.map((c) => c._id);
+      filter.category = { $in: activeCategoryIds };
+    }
+
     if (query.status) filter.status = query.status;
     if (query.isTodaySpecial !== undefined) filter.isTodaySpecial = query.isTodaySpecial;
     if (query.search && query.search.trim()) {
@@ -140,8 +195,8 @@ export class MenuItemService {
 
     const total = await MenuItem.countDocuments(filter);
     const items = await MenuItem.find(filter)
-      .populate("category", "name slug")
-      .sort({ createdAt: -1 })
+      .populate("category", "name slug status")
+      .sort({ priority: 1, createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
@@ -161,9 +216,18 @@ export class MenuItemService {
   }
 
   static async getById(id: string) {
-    const menuItem = await MenuItem.findById(id).populate("category", "name slug");
+    const menuItem = await MenuItem.findOne({
+      _id: id,
+      deleted: { $ne: true },
+    }).populate("category", "name slug status");
+
     if (!menuItem) {
       throw new ApiError(404, "Menu item not found");
+    }
+
+    const cat = menuItem.category as any;
+    if (cat && cat.status && cat.status !== CategoryStatus.ACTIVE) {
+      throw new ApiError(404, "Menu item is currently unavailable (Category is inactive)");
     }
 
     const variants = await MenuItemVariant.find({ menuItem: id, status: "active" }).select("_id label price");
@@ -193,6 +257,7 @@ export class MenuItemService {
     if (payload.status !== undefined) menuItem.status = payload.status;
     if (payload.price !== undefined) menuItem.price = payload.price;
     if (payload.preparationTime !== undefined) menuItem.preparationTime = payload.preparationTime;
+    if (payload.priority !== undefined) menuItem.priority = payload.priority;
     if (payload.tags !== undefined) menuItem.tags = payload.tags;
     if (payload.allergens !== undefined) menuItem.allergens = payload.allergens;
     if (payload.image !== undefined) {
@@ -203,6 +268,22 @@ export class MenuItemService {
 
     await menuItem.save();
     return menuItem;
+  }
+
+  static async reorderPriority(orderedItemIds: string[]) {
+    if (!Array.isArray(orderedItemIds) || orderedItemIds.length === 0) {
+      throw new ApiError(400, "orderedItemIds must be a non-empty array of item IDs");
+    }
+
+    const bulkOps = orderedItemIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { priority: index } },
+      },
+    }));
+
+    await MenuItem.bulkWrite(bulkOps);
+    return true;
   }
 
   static async toggleStatus(id: string, status?: MenuItemStatus) {

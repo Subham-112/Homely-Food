@@ -11,6 +11,7 @@ export interface ICartItem {
 export interface ICartTotal {
   subTotal: number;
   discount: number;
+  deliveryCharge?: number;
   totalAmount: number;
   offer?: mongoose.Types.ObjectId;
   offerCode?: string;
@@ -61,6 +62,10 @@ const CartTotalSchema = new Schema<ICartTotal>(
       default: 0,
     },
     discount: {
+      type: Number,
+      default: 0,
+    },
+    deliveryCharge: {
       type: Number,
       default: 0,
     },

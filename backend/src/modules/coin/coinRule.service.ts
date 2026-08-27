@@ -7,10 +7,9 @@ export class CoinRuleService {
     if (count > 0) return;
 
     const defaultRules = [
-      { label: "Base Tier", minOrderAmount: 20, fixedCoins: 3, isBaseTier: true, repeatCapCoins: 3, isActive: true },
-      { label: "Tier 1 (₹49+)", minOrderAmount: 49, fixedCoins: 5, isBaseTier: false, isActive: true },
-      { label: "Tier 2 (₹99+)", minOrderAmount: 99, fixedCoins: 15, isBaseTier: false, isActive: true },
-      { label: "Tier 3 (₹199+)", minOrderAmount: 199, fixedCoins: 50, isBaseTier: false, isActive: true },
+      { label: "Tier 1 (₹69+)", minOrderAmount: 69, fixedCoins: 10, isBaseTier: false, isActive: true },
+      { label: "Tier 2 (₹149+)", minOrderAmount: 149, fixedCoins: 25, isBaseTier: false, isActive: true },
+      { label: "Tier 3 (₹249+)", minOrderAmount: 249, fixedCoins: 50, isBaseTier: false, isActive: true },
     ];
 
     await CoinRule.insertMany(defaultRules);
@@ -29,7 +28,7 @@ export class CoinRuleService {
         return rule;
       }
     }
-    return rules.find((r) => r.isBaseTier) || null;
+    return null;
   }
 
   public static async createRule(data: Partial<ICoinRule>, adminId: string): Promise<ICoinRule> {

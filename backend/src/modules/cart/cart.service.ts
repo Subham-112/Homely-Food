@@ -278,11 +278,13 @@ export class CartService {
   }
 
   /**
-   * Calculate exact deductible coins based on 50% of user's wallet balance
-   * Rule: 50% of user's existing coins is deductible; 1 coin = ₹1 (capped at cart subTotal).
+   * Calculate exact deductible coins based on order amount and redemption rules
    */
   static async calculateCoinDeduction(userId: string, cartId?: string) {
     const { CoinService } = await import("../coin/coin.service");
+    const { CoinRedemptionRuleService } = await import("../coin/coinRedemptionRule.service");
+    await CoinRedemptionRuleService.seedDefaultRules();
+
     const wallet = await CoinService.getOrCreateWallet(userId);
 
     const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
@@ -300,20 +302,34 @@ export class CartService {
     await this.recalculateCartTotals(cart);
 
     const cartTotalAmount = cart.total.subTotal || 0;
-    const coinsFromBalance = Math.floor(wallet.balance * 0.5);
-    const deductedCoins = Math.min(coinsFromBalance, cartTotalAmount);
+    const matchingRule = await CoinRedemptionRuleService.resolveRedemptionRule(cartTotalAmount);
+
+    if (!matchingRule) {
+      const minThreshold = await CoinRedemptionRuleService.getMinThreshold();
+      return {
+        userBalance: wallet.balance,
+        maxDeductible: 0,
+        deductedCoins: 0,
+        discountAmount: 0,
+        minOrderRequired: minThreshold || 0,
+      };
+    }
+
+    const maxAllowedCoins = matchingRule.maxCoinsDeductible;
+    const deductedCoins = Math.min(wallet.balance, maxAllowedCoins, cartTotalAmount);
 
     return {
       userBalance: wallet.balance,
-      maxDeductible: coinsFromBalance,
+      maxDeductible: maxAllowedCoins,
       deductedCoins,
       discountAmount: deductedCoins,
+      minOrderRequired: matchingRule.minOrderAmount,
     };
   }
 
   /**
    * Attach/Apply coins discount to cart (set coinStatus to 'applied')
-   * Deducts 50% of user's existing coins
+   * Deducts coins according to qualifying redemption rule
    */
   static async applyCoins(userId: string, cartId?: string) {
     const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
@@ -324,6 +340,9 @@ export class CartService {
     }
 
     const { CoinService } = await import("../coin/coin.service");
+    const { CoinRedemptionRuleService } = await import("../coin/coinRedemptionRule.service");
+    await CoinRedemptionRuleService.seedDefaultRules();
+
     const wallet = await CoinService.getOrCreateWallet(userId);
 
     if (!wallet || wallet.balance <= 0) {
@@ -337,14 +356,23 @@ export class CartService {
       throw new ApiError(400, "Your cart total must be greater than ₹0 to redeem Homely Coins.");
     }
 
-    const coinsFromBalance = Math.floor(wallet.balance * 0.5);
-    const coinsToDeduct = Math.min(coinsFromBalance, cartTotalAmount);
+    const matchingRule = await CoinRedemptionRuleService.resolveRedemptionRule(cartTotalAmount);
+    if (!matchingRule) {
+      const minThreshold = await CoinRedemptionRuleService.getMinThreshold();
+      if (minThreshold && cartTotalAmount < minThreshold) {
+        throw new ApiError(
+          400,
+          `Minimum cart value of ₹${minThreshold} is required to redeem Homely Coins.`
+        );
+      }
+      throw new ApiError(400, "No active coin redemption tier applies to this order amount.");
+    }
+
+    const maxAllowedCoins = matchingRule.maxCoinsDeductible;
+    const coinsToDeduct = Math.min(wallet.balance, maxAllowedCoins, cartTotalAmount);
 
     if (coinsToDeduct <= 0) {
-      if (wallet.balance < 2) {
-        throw new ApiError(400, "You don't have enough coin to use as discount");
-      }
-      throw new ApiError(400, "Unable to apply Homely Coins for this cart.");
+      throw new ApiError(400, "You don't have enough coins to use as discount.");
     }
 
     // Mutually exclusive: Clear attached offer coupon

@@ -24,6 +24,7 @@ const createMenuItemSchema = z.object({
   status: z.nativeEnum(MenuItemStatus, { errorMap: () => ({ message: "Status must be either available or unavailable" }) }).optional(),
   price: z.preprocess((val) => (typeof val === "string" ? parseFloat(val) : val), z.number({ required_error: "Price is required" }).min(0, "Price cannot be negative")),
   preparationTime: z.preprocess((val) => (typeof val === "string" ? parseInt(val, 10) : val), z.number().optional()),
+  priority: z.preprocess((val) => (typeof val === "string" ? parseInt(val, 10) : val), z.number().min(0).optional()),
   tags: z.preprocess((val) => {
     if (typeof val === "string") {
       try { return JSON.parse(val); } catch { return val.split(",").map(s => s.trim()).filter(Boolean); }
@@ -64,6 +65,10 @@ const createMenuItemSchema = z.object({
 const updateMenuItemSchema = createMenuItemSchema.partial();
 const toggleStatusSchema = z.object({
   status: z.nativeEnum(MenuItemStatus, { errorMap: () => ({ message: "Status must be either available or unavailable" }) }).optional(),
+});
+
+const reorderMenuItemSchema = z.object({
+  orderedItemIds: z.array(z.string(), { required_error: "orderedItemIds is required" }).min(1, "At least one item ID is required"),
 });
 
 export class MenuItemController {
@@ -139,6 +144,7 @@ export class MenuItemController {
         search: typeof search === "string" ? search : typeof name === "string" ? name : undefined,
         page: page ? parseInt(page as string, 10) : 1,
         limit: limit ? parseInt(limit as string, 10) : 10,
+        requireActiveCategory: false,
       });
       res.status(200).json(new ApiResponse(200, result, "Admin menu items fetched successfully"));
     } catch (error) {
@@ -195,6 +201,20 @@ export class MenuItemController {
       const validatedData = toggleStatusSchema.parse(req.body);
       const menuItem = await MenuItemService.toggleStatus(id, validatedData.status);
       res.status(200).json(new ApiResponse(200, menuItem, `Menu item status updated to ${menuItem.status}`));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        next(new ApiError(400, error.errors.map((e) => e.message).join(". "), null, error.errors));
+        return;
+      }
+      next(error);
+    }
+  }
+
+  static async reorderPriority(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const validatedData = reorderMenuItemSchema.parse(req.body);
+      await MenuItemService.reorderPriority(validatedData.orderedItemIds);
+      res.status(200).json(new ApiResponse(200, null, "Menu items priority reordered successfully"));
     } catch (error) {
       if (error instanceof z.ZodError) {
         next(new ApiError(400, error.errors.map((e) => e.message).join(". "), null, error.errors));

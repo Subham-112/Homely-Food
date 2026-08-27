@@ -205,57 +205,19 @@ export class CoinService {
       const config = await CoinConfigService.getConfig();
       if (!config.isCoinSystemEnabled) return null;
 
-      if (netOrderAmount < 20) {
-        return null; // No rewards for orders under ₹20
-      }
-
       const existingTx = await CoinTransaction.findOne({
         order: orderId,
         type: { $in: [CoinTransactionType.ORDER_REWARD_FIXED, CoinTransactionType.ORDER_REWARD_PERCENT] },
       });
       if (existingTx) return null;
 
-      let coinsToAward = 0;
-      let txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-      let reason = "";
-      let tierId: string | undefined = undefined;
+      const tier = await CoinRuleService.resolveTier(netOrderAmount);
+      if (!tier) return null;
 
-      if (netOrderAmount >= 20 && netOrderAmount < 49) {
-        coinsToAward = 3;
-        txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-        reason = "Earned Cash Savings";
-        const baseTier = await CoinRuleService.resolveTier(netOrderAmount);
-        tierId = baseTier?._id?.toString();
-      } else {
-        const completedCount = await Order.countDocuments({
-          user: userId,
-          status: { $in: [OrderStatus.COMPLETED, OrderStatus.DELIVERED] },
-        });
-
-        const tier = await CoinRuleService.resolveTier(netOrderAmount);
-        tierId = tier?._id?.toString();
-        const wallet = await this.getOrCreateWallet(userId);
-
-        const isClaimedInTier = tierId ? wallet.achievedTierIds.some((id) => id.toString() === tierId) : false;
-
-        if (completedCount <= 5 && !isClaimedInTier && tier) {
-          coinsToAward = tier.fixedCoins;
-          txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-          reason = "Earned Cash Savings";
-        } else if (completedCount > 5) {
-          const minP = config.repeatRewardPercentMin || 10;
-          const maxP = config.repeatRewardPercentMax || 15;
-          const percent = Math.floor(Math.random() * (maxP - minP + 1)) + minP;
-          coinsToAward = Math.round((netOrderAmount * percent) / 100);
-          coinsToAward = Math.max(coinsToAward, 1);
-          txnType = CoinTransactionType.ORDER_REWARD_PERCENT;
-          reason = "Earned Cash Savings";
-        } else {
-          coinsToAward = tier ? tier.fixedCoins : 5;
-          txnType = CoinTransactionType.ORDER_REWARD_FIXED;
-          reason = "Earned Cash Savings";
-        }
-      }
+      const coinsToAward = tier.fixedCoins;
+      const txnType = CoinTransactionType.ORDER_REWARD_FIXED;
+      const reason = "Earned Cash Savings";
+      const tierId = tier._id?.toString();
 
       if (coinsToAward <= 0) return null;
 

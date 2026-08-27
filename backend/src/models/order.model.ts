@@ -22,6 +22,7 @@ export interface IPaymentInfo {
   paymentRef?: mongoose.Types.ObjectId;
   subTotal: number;
   discount?: number;
+  deliveryCharge?: number;
   totalAmount: number;
   discountType?: "offer" | "coins";
   coinsUsed?: number;
@@ -45,6 +46,7 @@ export interface IOrder extends ISoftDeleteDocument {
   status: OrderStatus;
   orderType: OrderType;
   deliveryAddress?: string;
+  deliveryCharge?: number;
   pickupTiming?: string;
   offer?: mongoose.Types.ObjectId;
   offerCode?: string;
@@ -111,6 +113,10 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
       required: true,
     },
     discount: {
+      type: Number,
+      default: 0,
+    },
+    deliveryCharge: {
       type: Number,
       default: 0,
     },
@@ -197,6 +203,10 @@ const OrderSchema: Schema<IOrder> = new Schema(
     deliveryAddress: {
       type: String,
       trim: true,
+    },
+    deliveryCharge: {
+      type: Number,
+      default: 0,
     },
     pickupTiming: {
       type: String,
