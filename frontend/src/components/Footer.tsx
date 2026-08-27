@@ -35,7 +35,7 @@ export default function Footer() {
   const primaryEmail = shop.emails && shop.emails.length > 0 ? shop.emails[0] : "";
 
   return (
-    <footer className="w-full bg-[#0B251C] text-white pt-8 pb-16 px-4 sm:px-6 border-t border-emerald-900/40">
+    <footer className="w-full bg-[#0B251C] text-white pt-8 pb-24 px-4 sm:px-6 border-t border-emerald-900/40">
       <div className="max-w-5xl mx-auto flex flex-col gap-6">
         {/* Top Branding Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-900/50 pb-6">
