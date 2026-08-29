@@ -25,6 +25,8 @@ export interface ShopDetails {
   minimumOrderAmount?: number;
   deliveryCharge?: number;
   freeDeliveryThreshold?: number;
+  discountMode?: "global" | "item_only" | "hybrid" | "none";
+  globalDiscountPercent?: number;
   fssaiLicenseNumber?: string;
   gstNumber?: string;
   createdAt?: string;

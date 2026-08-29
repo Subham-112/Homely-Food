@@ -10,6 +10,7 @@ import {
   removeOfferFromCart,
   checkoutCart,
   CartTotal,
+  CoinDeductionResponse,
 } from "@/services/cartService";
 
 const PUBLIC_CART_KEY = "homely_public_cart";
@@ -18,6 +19,8 @@ export interface MenuItem {
   id: string;
   name: string;
   price: number;
+  discountPercent?: number;
+  discountedPrice?: number;
   description?: string;
   image: string;
   isSpecial?: boolean;
@@ -78,13 +81,7 @@ interface CartContextType {
   coinsUsed: number;
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => Promise<void>;
-  coinDeductionInfo: {
-    userBalance: number;
-    maxDeductible: number;
-    deductedCoins: number;
-    discountAmount: number;
-    minOrderRequired?: number;
-  } | null;
+  coinDeductionInfo: CoinDeductionResponse | null;
   isLoadingDeduction: boolean;
   applyCoins: () => Promise<{ success: boolean; message: string }>;
   removeCoins: () => Promise<void>;
@@ -111,22 +108,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { token } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartId, setCartId] = useState<string | null>(null);
-  const [cartTotal, setCartTotal] = useState<{ subTotal: number; discount: number; totalAmount: number; offerCode?: string }>({
+  const [cartTotal, setCartTotal] = useState<CartTotal>({
     subTotal: 0,
     discount: 0,
+    deliveryCharge: 0,
     totalAmount: 0,
+    coinsUsed: 0,
+    coinStatus: "none",
   });
   const [isCartLoading, setIsCartLoading] = useState<boolean>(true);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
 
   // Coin Deduction calculation state
-  const [coinDeductionInfo, setCoinDeductionInfo] = useState<{
-    userBalance: number;
-    maxDeductible: number;
-    deductedCoins: number;
-    discountAmount: number;
-    minOrderRequired?: number;
-  } | null>(null);
+  const [coinDeductionInfo, setCoinDeductionInfo] = useState<CoinDeductionResponse | null>(null);
   const [isLoadingDeduction, setIsLoadingDeduction] = useState<boolean>(false);
 
   const fetchCoinDeduction = async (currentCartId?: string) => {
@@ -161,7 +155,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         item: {
           id: item.menuItem._id,
           name: item.menuItem.name,
-          price: item.variant ? item.variant.price : item.menuItem.price,
+          price: item.menuItem.price,
+          discountPercent: item.menuItem.discountPercent,
+          discountedPrice: item.menuItem.discountedPrice !== undefined ? item.menuItem.discountedPrice : item.menuItem.price,
           description: "",
           image: typeof item.menuItem.image === "object" ? item.menuItem.image.url : item.menuItem.image || "",
           category: typeof item.menuItem.category === "object" ? (item.menuItem.category as any)?.name : item.menuItem.category || "",
@@ -238,7 +234,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const syncedCart = await syncBackendCart(mergedItems);
         // Clear public cart from localStorage after successful sync
         localStorage.removeItem(PUBLIC_CART_KEY);
-        if (syncedCart) {
+        if (syncedCart && syncedCart.items) {
           setCartId(syncedCart._id);
           setCartTotal(syncedCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
           const formattedItems = formatBackendCartItems(syncedCart);
@@ -246,6 +242,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastConfirmedCartRef.current = formattedItems;
           latestTargetCartRef.current = formattedItems;
           fetchCoinDeduction(syncedCart._id);
+          return;
         }
       } else if (backendCart && backendCart.items) {
         setCartId(backendCart._id);
@@ -281,7 +278,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Instantly compute optimistic subtotal for immediate UI responsiveness
     const optimisticSubTotal = targetCart.reduce((sum, c) => {
-      const p = c.variant ? c.variant.price : c.item.price;
+      const p = c.variant ? c.variant.price : (c.item.discountedPrice !== undefined ? c.item.discountedPrice : c.item.price);
       return sum + p * c.quantity;
     }, 0);
     setCartTotal((prev) => ({
@@ -518,13 +515,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const totalItems = cart.length;
-  const subTotal = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
+  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
+  const calculatedSubTotal = cart.reduce((sum, c) => {
+    const itemUnitPrice = c.variant?.price ?? (c.item.discountedPrice !== undefined ? c.item.discountedPrice : c.item.price);
+    return sum + itemUnitPrice * c.quantity;
+  }, 0);
+  const subTotal = cartTotal.subTotal > 0 ? cartTotal.subTotal : calculatedSubTotal;
   const discountAmount = cartTotal.discount || 0;
-  const finalAmount = Math.max(0, subTotal - discountAmount);
+  const finalAmount = cartTotal.totalAmount > 0 ? cartTotal.totalAmount : Math.max(0, subTotal - discountAmount);
+  const totalAmount = finalAmount;
   const appliedOfferCode = cartTotal.offerCode || null;
-  const discountType = (cartTotal as any).discountType || (appliedOfferCode ? "offer" : null);
-  const coinsUsed = (cartTotal as any).coinsUsed || 0;
+  const discountType = cartTotal.discountType || (appliedOfferCode ? "offer" : null);
+  const coinsUsed = cartTotal.coinsUsed || 0;
 
   const placeOrder = async (
     guestName?: string,

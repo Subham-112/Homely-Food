@@ -39,6 +39,8 @@ export default function AllItemsPage() {
       id: i._id,
       name: i.name,
       price: i.price,
+      discountPercent: i.discountPercent,
+      discountedPrice: i.discountedPrice,
       description: i.description || "",
       image: imgUrl || "/default-food.jpg",
       isSpecial: i.isTodaySpecial,

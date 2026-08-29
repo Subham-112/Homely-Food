@@ -5,6 +5,8 @@ export interface CompactMenuItem {
   name: string;
   image: string;
   price: number;
+  discountPercent?: number;
+  discountedPrice?: number;
 }
 
 export interface SearchedUser {

@@ -12,6 +12,8 @@ export interface PopulatedCartItem {
     _id: string;
     name: string;
     price: number;
+    discountPercent?: number;
+    discountedPrice?: number;
     image?: string | { url: string };
     category?: string;
     status: string;
@@ -47,10 +49,24 @@ export interface CartTotal {
 
 export interface CoinDeductionResponse {
   userBalance: number;
+  isEligible?: boolean;
   maxDeductible: number;
   deductedCoins: number;
   discountAmount: number;
   minOrderRequired?: number;
+  currentTier?: {
+    minOrderAmount: number;
+    maxCoinsDeductible: number;
+    label?: string;
+  } | null;
+  nextTier?: {
+    minOrderAmount: number;
+    maxCoinsDeductible: number;
+    shortfall: number;
+  } | null;
+  eligibleMessage?: string | null;
+  nudgeMessage?: string | null;
+  status?: "eligible" | "below_minimum" | "no_coins" | "empty_cart" | "no_rules";
 }
 
 export interface CartResponse {

@@ -9,6 +9,8 @@ export interface MenuItemCardData {
   id: string;
   name: string;
   price: number;
+  discountPercent?: number;
+  discountedPrice?: number;
   description?: string;
   image?: string;
   isSpecial?: boolean;
@@ -28,6 +30,9 @@ function MenuItemCardComponent({
   onAdd,
   onUpdateQuantity,
 }: MenuItemCardProps) {
+  const hasDiscount = Boolean(item.discountPercent && item.discountPercent > 0);
+  const displayPrice = hasDiscount && item.discountedPrice !== undefined ? item.discountedPrice : item.price;
+
   return (
     <div className="bg-white rounded-2xl p-2.5 sm:p-4 border border-[#EBE5D8] shadow-2xs hover:shadow-xs hover:border-[#0B392B]/30 transition-all flex items-center gap-3.5 w-full">
       {/* Left Dish Image */}
@@ -74,9 +79,21 @@ function MenuItemCardComponent({
 
         {/* Price & Action Row */}
         <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-100/80">
-          <span className="font-extrabold text-base sm:text-lg text-[#0B251C] shrink-0">
-            ₹{item.price}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            <span className="font-extrabold text-base sm:text-lg text-[#0B251C] shrink-0">
+              ₹{displayPrice}
+            </span>
+            {hasDiscount && (
+              <>
+                <span className="text-xs text-gray-400 line-through font-semibold shrink-0">
+                  ₹{item.price}
+                </span>
+                <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                  {item.discountPercent}% OFF
+                </span>
+              </>
+            )}
+          </div>
 
           {quantity > 0 ? (
             <div className="shrink-0">

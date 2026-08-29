@@ -42,6 +42,7 @@ export default function TodaysSpecialSection({
       <div className="flex items-stretch gap-2 overflow-x-auto no-scrollbar py-1 shrink-0">
         {specialItems.map((item) => {
           const qty = getItemQuantity(item.id);
+          const hasDiscount = Boolean(item.discountPercent && item.discountPercent > 0);
           return (
             <div
               key={item.id}
@@ -89,9 +90,21 @@ export default function TodaysSpecialSection({
 
                 {/* Card Footer: Price & Action */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100 mt-1">
-                  <span className="font-extrabold text-sm sm:text-base text-[#0B251C] shrink-0">
-                    ₹{item.price}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className="font-extrabold text-sm sm:text-base text-[#0B251C] shrink-0">
+                      ₹{hasDiscount && item.discountedPrice !== undefined ? item.discountedPrice : item.price}
+                    </span>
+                    {hasDiscount && (
+                      <>
+                        <span className="text-[11px] text-gray-400 line-through font-semibold shrink-0">
+                          ₹{item.price}
+                        </span>
+                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                          {item.discountPercent}% OFF
+                        </span>
+                      </>
+                    )}
+                  </div>
 
                   {qty > 0 ? (
                     <div className="shrink-0">

@@ -6,6 +6,8 @@ export interface PublicCartItem {
   id: string;
   name: string;
   price: number;
+  discountPercent?: number;
+  discountedPrice?: number;
   description?: string;
   image: string;
   category: string;
@@ -121,7 +123,7 @@ export const PublicCartProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const publicCartTotalItems = publicCart.reduce((sum, c) => sum + c.quantity, 0);
   const publicCartSubTotal = publicCart.reduce(
-    (sum, c) => sum + (c.variant ? c.variant.price : c.price) * c.quantity,
+    (sum, c) => sum + (c.variant ? c.variant.price : (c.discountedPrice !== undefined ? c.discountedPrice : c.price)) * c.quantity,
     0
   );
 

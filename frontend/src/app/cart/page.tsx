@@ -355,38 +355,57 @@ export default function CartPage() {
                     </span>
                   </h2>
 
-                  {regularCartItems.map(({ item, quantity, variant }, index) => (
-                    <div
-                      key={`${item.id}_${variant?.id || ""}`}
-                      className={`flex items-center justify-between py-2 ${
-                        index !== regularCartItems.length - 1 ? "border-b border-gray-100" : ""
-                      }`}
-                    >
-                      {/* Left: Item Name ONLY */}
-                      <div className="flex items-center flex-1 min-w-0 pr-3">
-                        <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
-                          {item.name}
-                        </span>
-                      </div>
+                  {regularCartItems.map(({ item, quantity, variant }, index) => {
+                    const hasDiscount = Boolean(item.discountPercent && item.discountPercent > 0);
+                    const unitPrice = hasDiscount && item.discountedPrice !== undefined ? item.discountedPrice : item.price;
+                    return (
+                      <div
+                        key={`${item.id}_${variant?.id || ""}`}
+                        className={`flex items-center justify-between py-2.5 ${
+                          index !== regularCartItems.length - 1 ? "border-b border-gray-100" : ""
+                        }`}
+                      >
+                        {/* Left: Item Name & Price Info */}
+                        <div className="flex flex-col flex-1 min-w-0 pr-3">
+                          <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
+                            {item.name}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-xs font-extrabold text-[#0B392B]">
+                              ₹{unitPrice}
+                            </span>
+                            {hasDiscount && (
+                              <>
+                                <span className="text-[10px] text-gray-400 line-through font-semibold">
+                                  ₹{item.price}
+                                </span>
+                                <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                  {item.discountPercent}% OFF
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
 
-                      {/* Right: Quantity Selector & Delete Icon ONLY */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        <QuantitySelector
-                          quantity={quantity}
-                          onIncrease={() => updateQuantity(item.id, 1, variant?.id)}
-                          onDecrease={() => updateQuantity(item.id, -1, variant?.id)}
-                          size="sm"
-                        />
-                        <button
-                          onClick={() => removeFromCart(item.id, variant?.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          aria-label="Delete item"
-                        >
-                          <Trash2 className="w-4.5 h-4.5" />
-                        </button>
+                        {/* Right: Quantity Selector & Delete Icon ONLY */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <QuantitySelector
+                            quantity={quantity}
+                            onIncrease={() => updateQuantity(item.id, 1, variant?.id)}
+                            onDecrease={() => updateQuantity(item.id, -1, variant?.id)}
+                            size="sm"
+                          />
+                          <button
+                            onClick={() => removeFromCart(item.id, variant?.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            aria-label="Delete item"
+                          >
+                            <Trash2 className="w-4.5 h-4.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -402,38 +421,57 @@ export default function CartPage() {
                     </span>
                   </h2>
 
-                  {reorderedCartItems.map(({ item, quantity, variant }, index) => (
-                    <div
-                      key={`${item.id}_${variant?.id || ""}`}
-                      className={`flex items-center justify-between py-2 ${
-                        index !== reorderedCartItems.length - 1 ? "border-b border-emerald-100/40" : ""
-                      }`}
-                    >
-                      {/* Left: Item Name ONLY */}
-                      <div className="flex items-center flex-1 min-w-0 pr-3">
-                        <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
-                          {item.name}
-                        </span>
-                      </div>
+                  {reorderedCartItems.map(({ item, quantity, variant }, index) => {
+                    const hasDiscount = Boolean(item.discountPercent && item.discountPercent > 0);
+                    const unitPrice = hasDiscount && item.discountedPrice !== undefined ? item.discountedPrice : item.price;
+                    return (
+                      <div
+                        key={`${item.id}_${variant?.id || ""}`}
+                        className={`flex items-center justify-between py-2.5 ${
+                          index !== reorderedCartItems.length - 1 ? "border-b border-emerald-100/40" : ""
+                        }`}
+                      >
+                        {/* Left: Item Name & Price Info */}
+                        <div className="flex flex-col flex-1 min-w-0 pr-3">
+                          <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
+                            {item.name}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-xs font-extrabold text-[#0B392B]">
+                              ₹{unitPrice}
+                            </span>
+                            {hasDiscount && (
+                              <>
+                                <span className="text-[10px] text-gray-400 line-through font-semibold">
+                                  ₹{item.price}
+                                </span>
+                                <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                  {item.discountPercent}% OFF
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
 
-                      {/* Right: Quantity Selector & Delete Icon ONLY */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        <QuantitySelector
-                          quantity={quantity}
-                          onIncrease={() => updateQuantity(item.id, 1, variant?.id)}
-                          onDecrease={() => updateQuantity(item.id, -1, variant?.id)}
-                          size="sm"
-                        />
-                        <button
-                          onClick={() => removeFromCart(item.id, variant?.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          aria-label="Delete item"
-                        >
-                          <Trash2 className="w-4.5 h-4.5" />
-                        </button>
+                        {/* Right: Quantity Selector & Delete Icon ONLY */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <QuantitySelector
+                            quantity={quantity}
+                            onIncrease={() => updateQuantity(item.id, 1, variant?.id)}
+                            onDecrease={() => updateQuantity(item.id, -1, variant?.id)}
+                            size="sm"
+                          />
+                          <button
+                            onClick={() => removeFromCart(item.id, variant?.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            aria-label="Delete item"
+                          >
+                            <Trash2 className="w-4.5 h-4.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -502,7 +540,7 @@ export default function CartPage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="bg-[#FAF6ED] border border-[#E8E1D3] rounded-2xl p-3 sm:p-3.5 flex flex-col gap-2">
+                      <div className="bg-[#FAF6ED] border border-[#E8E1D3] rounded-2xl p-3.5 sm:p-4 flex flex-col gap-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -512,16 +550,7 @@ export default function CartPage() {
                               </span>
                             </div>
                             <span className="text-[10px] sm:text-[11px] text-gray-500 font-medium leading-snug">
-                              Current Balance: <strong className="text-gray-800">{coinDeductionInfo?.userBalance ?? 0} Coins</strong>{" "}
-                              {coinDeductionInfo && coinDeductionInfo.maxDeductible > 0 ? (
-                                <span className="block sm:inline text-emerald-700 font-bold">
-                                  (Redeem up to {coinDeductionInfo.maxDeductible} coins on this order)
-                                </span>
-                              ) : coinDeductionInfo && coinDeductionInfo.minOrderRequired ? (
-                                <span className="block sm:inline text-amber-700 font-semibold">
-                                  (Min cart total ₹{coinDeductionInfo.minOrderRequired} required)
-                                </span>
-                              ) : null}
+                              Current Balance: <strong className="text-gray-800">{coinDeductionInfo?.userBalance ?? 0} Coins</strong>
                             </span>
                           </div>
 
@@ -531,7 +560,7 @@ export default function CartPage() {
                               <div className="flex items-center justify-center p-2 bg-emerald-50/50 rounded-xl border border-emerald-100/50 min-w-[70px]">
                                 <Loader2 className="w-4 h-4 animate-spin text-[#0B392B]" />
                               </div>
-                            ) : coinDeductionInfo && coinDeductionInfo.deductedCoins > 0 ? (
+                            ) : coinDeductionInfo && coinDeductionInfo.isEligible && coinDeductionInfo.deductedCoins > 0 ? (
                               <>
                                 <span className="font-extrabold text-[11px] text-[#0B392B] bg-emerald-100/90 border border-emerald-200/80 px-2 py-0.5 rounded-lg whitespace-nowrap">
                                   -₹{coinDeductionInfo.deductedCoins} ({coinDeductionInfo.deductedCoins} Coins)
@@ -540,7 +569,7 @@ export default function CartPage() {
                                   type="button"
                                   disabled={isApplyingCoins}
                                   onClick={() => setShowCoinConfirmModal(true)}
-                                  className="w-full bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-1 px-3 rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-75"
+                                  className="w-full bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-1.5 px-3 rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-75"
                                 >
                                   {isApplyingCoins ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
@@ -550,14 +579,32 @@ export default function CartPage() {
                                 </button>
                               </>
                             ) : (
-                              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md whitespace-nowrap">
-                                {coinDeductionInfo && coinDeductionInfo.minOrderRequired && subTotal < coinDeductionInfo.minOrderRequired
+                              <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2 py-1 rounded-md whitespace-nowrap">
+                                {coinDeductionInfo?.status === "below_minimum"
                                   ? `Min ₹${coinDeductionInfo.minOrderRequired}`
-                                  : "No coins available"}
+                                  : (coinDeductionInfo?.userBalance ?? 0) === 0
+                                  ? "0 Coins Available"
+                                  : "Not eligible"}
                               </span>
                             )}
                           </div>
                         </div>
+
+                        {/* Eligible Highlight Banner */}
+                        {coinDeductionInfo?.isEligible && coinDeductionInfo?.eligibleMessage && (
+                          <div className="text-[11px] text-emerald-800 font-bold bg-emerald-50/80 border border-emerald-200/80 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                            <span>🎉</span>
+                            <span>{coinDeductionInfo.eligibleMessage}</span>
+                          </div>
+                        )}
+
+                        {/* Next Tier Upgrade Nudge or Below Minimum Milestone Banner */}
+                        {coinDeductionInfo?.nudgeMessage && (
+                          <div className="text-[11px] text-[#0B392B] font-bold bg-amber-50/80 border border-amber-200/70 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                            <span>✨</span>
+                            <span>{coinDeductionInfo.nudgeMessage}</span>
+                          </div>
+                        )}
 
                         {coinFeedback && (
                           <div
@@ -1008,15 +1055,15 @@ export default function CartPage() {
                 <span className="font-extrabold text-[#0B392B] underline">
                   {coinDeductionInfo.deductedCoins} Homely Coins
                 </span>{" "}
-                (50% of your coin balance) for an instant discount of{" "}
+                for an instant discount of{" "}
                 <span className="font-extrabold text-emerald-700">
                   ₹{coinDeductionInfo.deductedCoins}
                 </span>{" "}
-                on this cart order?
+                on this order?
               </p>
               <div className="pt-2 border-t border-gray-200/60 flex items-center justify-between text-[11px] text-gray-500 font-bold">
                 <span>Remaining Coin Balance:</span>
-                <span className="text-gray-800">
+                <span className="text-gray-800 font-extrabold">
                   {coinDeductionInfo.userBalance - coinDeductionInfo.deductedCoins} Coins
                 </span>
               </div>

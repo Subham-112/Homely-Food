@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Save, Loader2, Store, MapPin, Phone, Mail, Clock, ShieldCheck, Plus, X, Truck } from "lucide-react";
+import { Save, Loader2, Store, MapPin, Phone, Mail, Clock, ShieldCheck, Plus, X, Truck, Percent } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import Input from "@/components/Input";
@@ -34,6 +34,8 @@ export default function AdminProfilePage() {
   const [minimumOrderAmount, setMinimumOrderAmount] = useState<number>(0);
   const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(0);
+  const [discountMode, setDiscountMode] = useState<"global" | "item_only" | "hybrid" | "none">("hybrid");
+  const [globalDiscountPercent, setGlobalDiscountPercent] = useState<number>(0);
   const [fssaiLicenseNumber, setFssaiLicenseNumber] = useState("");
   const [gstNumber, setGstNumber] = useState("");
 
@@ -64,6 +66,8 @@ export default function AdminProfilePage() {
         setMinimumOrderAmount(details.minimumOrderAmount || 0);
         setDeliveryCharge(details.deliveryCharge || 0);
         setFreeDeliveryThreshold(details.freeDeliveryThreshold || 0);
+        setDiscountMode(details.discountMode || "hybrid");
+        setGlobalDiscountPercent(details.globalDiscountPercent || 0);
         setFssaiLicenseNumber(details.fssaiLicenseNumber || "");
         setGstNumber(details.gstNumber || "");
       } catch (err: any) {
@@ -155,6 +159,8 @@ export default function AdminProfilePage() {
       minimumOrderAmount: Number(minimumOrderAmount),
       deliveryCharge: Number(deliveryCharge),
       freeDeliveryThreshold: Number(freeDeliveryThreshold),
+      discountMode,
+      globalDiscountPercent: Number(globalDiscountPercent),
       fssaiLicenseNumber,
       gstNumber,
     };
@@ -492,7 +498,119 @@ export default function AdminProfilePage() {
               </p>
             </div>
 
-            {/* 6. Regulatory & Licenses */}
+            {/* 6. Discount Strategy & Global Discounts */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E1D3] shadow-2xs flex flex-col gap-4">
+              <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                <Percent className="w-5 h-5 text-[#0B392B]" />
+                <div>
+                  <h2 className="text-base sm:text-lg font-extrabold text-[#0B251C]">
+                    Discount Configuration
+                  </h2>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Choose how discounts are applied across the store and set store-wide percentage discounts.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Selectable Strategy Cards */}
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-gray-700">Discount Application Strategy</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Option 1: Global Discount Only */}
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode("global")}
+                    className={`p-3.5 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      discountMode === "global"
+                        ? "border-[#0B392B] bg-[#FAF6ED] ring-1 ring-[#0B392B]"
+                        : "border-gray-200 bg-gray-50/60 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg">🌐</span>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        discountMode === "global" ? "border-[#0B392B] bg-[#0B392B]" : "border-gray-300"
+                      }`}>
+                        {discountMode === "global" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </div>
+                    <span className="text-xs font-extrabold text-[#0B251C]">Global Discount Only</span>
+                    <p className="text-[10px] text-gray-500 leading-tight">
+                      Applies the global discount % to all items. Item-specific discounts are ignored.
+                    </p>
+                  </button>
+
+                  {/* Option 2: Item-Specific Discount Only */}
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode("item_only")}
+                    className={`p-3.5 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      discountMode === "item_only"
+                        ? "border-[#0B392B] bg-[#FAF6ED] ring-1 ring-[#0B392B]"
+                        : "border-gray-200 bg-gray-50/60 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg">🎯</span>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        discountMode === "item_only" ? "border-[#0B392B] bg-[#0B392B]" : "border-gray-300"
+                      }`}>
+                        {discountMode === "item_only" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </div>
+                    <span className="text-xs font-extrabold text-[#0B251C]">Item-Specific Only</span>
+                    <p className="text-[10px] text-gray-500 leading-tight">
+                      Only items with individual discounts get discounted. Global discount has no role.
+                    </p>
+                  </button>
+
+                  {/* Option 3: Hybrid / Mixed */}
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode("hybrid")}
+                    className={`p-3.5 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      discountMode === "hybrid"
+                        ? "border-[#0B392B] bg-[#FAF6ED] ring-1 ring-[#0B392B]"
+                        : "border-gray-200 bg-gray-50/60 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg">⚡</span>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        discountMode === "hybrid" ? "border-[#0B392B] bg-[#0B392B]" : "border-gray-300"
+                      }`}>
+                        {discountMode === "hybrid" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </div>
+                    <span className="text-xs font-extrabold text-[#0B251C]">Item Specific First, Global for Others</span>
+                    <p className="text-[10px] text-gray-500 leading-tight">
+                      Items with their own discount use that; other items receive the global discount.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Global Discount Percentage Input */}
+              <div className="pt-2">
+                <Input
+                  label="Global Store Discount (%)"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="0"
+                  value={globalDiscountPercent === 0 ? "0" : globalDiscountPercent || ""}
+                  onChange={(e) => setGlobalDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                  icon={Percent}
+                />
+                <p className="text-[11px] text-gray-500 font-medium mt-1">
+                  {discountMode === "item_only"
+                    ? "⚠️ Note: In 'Item-Specific Only' mode, this global discount percentage is not applied."
+                    : "* This global percentage discount applies according to your selected discount strategy above."}
+                </p>
+              </div>
+            </div>
+
+            {/* 7. Regulatory & Licenses */}
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-[#E8E1D3] shadow-2xs flex flex-col gap-4">
               <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
                 <ShieldCheck className="w-5 h-5 text-[#0B392B]" />

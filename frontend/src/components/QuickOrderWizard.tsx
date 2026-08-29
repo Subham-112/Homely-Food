@@ -187,10 +187,10 @@ export default function QuickOrderWizard({
 
   const cartEntries = Object.values(cart);
   const totalItemCount = cartEntries.reduce((sum, entry) => sum + entry.quantity, 0);
-  const subTotal = cartEntries.reduce(
-    (sum, entry) => sum + entry.item.price * entry.quantity,
-    0
-  );
+  const subTotal = cartEntries.reduce((sum, entry) => {
+    const itemPrice = entry.item.discountedPrice !== undefined ? entry.item.discountedPrice : entry.item.price;
+    return sum + itemPrice * entry.quantity;
+  }, 0);
 
   // Offer Discount Calculation
   const calculateDiscount = (): number => {
@@ -490,6 +490,8 @@ export default function QuickOrderWizard({
                         id: item._id,
                         name: item.name,
                         price: item.price,
+                        discountPercent: item.discountPercent,
+                        discountedPrice: item.discountedPrice,
                         image: item.image,
                       }}
                       quantity={quantity}
@@ -498,6 +500,8 @@ export default function QuickOrderWizard({
                           _id: cardItem.id,
                           name: cardItem.name,
                           price: cardItem.price,
+                          discountPercent: cardItem.discountPercent,
+                          discountedPrice: cardItem.discountedPrice,
                           image: cardItem.image || "",
                         })
                       }
@@ -537,24 +541,27 @@ export default function QuickOrderWizard({
                 Selected Order Items ({totalItemCount})
               </h4>
               <div className="flex flex-col gap-2 max-h-44 overflow-y-auto pr-1">
-                {cartEntries.map(({ item, quantity }) => (
-                  <div
-                    key={item._id}
-                    className="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs"
-                  >
-                    <span className="font-extrabold text-[#0B251C] truncate max-w-[200px]">
-                      {item.name}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-500 font-semibold">
-                        {quantity} x ₹{item.price}
+                {cartEntries.map(({ item, quantity }) => {
+                  const effectivePrice = item.discountedPrice !== undefined ? item.discountedPrice : item.price;
+                  return (
+                    <div
+                      key={item._id}
+                      className="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs"
+                    >
+                      <span className="font-extrabold text-[#0B251C] truncate max-w-[200px]">
+                        {item.name}
                       </span>
-                      <span className="font-extrabold text-[#0B392B]">
-                        ₹{quantity * item.price}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-500 font-semibold">
+                          {quantity} x ₹{effectivePrice}
+                        </span>
+                        <span className="font-extrabold text-[#0B392B]">
+                          ₹{quantity * effectivePrice}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="pt-2.5 border-t border-gray-100 flex flex-col gap-1 text-xs">

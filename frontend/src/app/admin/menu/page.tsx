@@ -95,6 +95,7 @@ export default function AdminMenuPage() {
     category: string;
     description: string;
     price: string;
+    discountPercent: string;
     preparationTime: string;
     priority: string;
     status: MenuItemStatus;
@@ -106,6 +107,7 @@ export default function AdminMenuPage() {
     category: "",
     description: "",
     price: "",
+    discountPercent: "0",
     preparationTime: "15",
     priority: "0",
     status: "available",
@@ -165,20 +167,20 @@ export default function AdminMenuPage() {
       setItems(result.items);
       setPagination(result.pagination);
     } catch (err: any) {
-      console.error("Failed to load menu data:", err);
-      setError(err?.message || "Failed to load menu data. Please try again.");
+      console.error("Failed to fetch admin menu items:", err);
+      setError(err?.message || "Failed to load menu items.");
     } finally {
       setLoading(false);
     }
   }, [selectedCategory, selectedStatus, debouncedSearch, page, limit]);
 
   useEffect(() => {
-    loadCategories();
-  }, []);
-
-  useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   const handleCategoryChange = (catId: string) => {
     setSelectedCategory(catId);
@@ -194,8 +196,7 @@ export default function AdminMenuPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        setFormError("Image file size exceeds the 2MB limit. Please select a smaller file.");
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        setFormError("Image size must be less than 2MB.");
         return;
       }
       setFormError(null);
@@ -215,6 +216,7 @@ export default function AdminMenuPage() {
       category: categories.length > 0 ? categories[0]._id : "",
       description: "",
       price: "",
+      discountPercent: "0",
       preparationTime: "15",
       priority: "0",
       status: "available",
@@ -252,6 +254,7 @@ export default function AdminMenuPage() {
           category: categoryId || (categories.length > 0 ? categories[0]._id : ""),
           description: fetchedItem.description || "",
           price: fetchedItem.price !== undefined ? fetchedItem.price.toString() : "",
+          discountPercent: fetchedItem.discountPercent !== undefined ? fetchedItem.discountPercent.toString() : "0",
           preparationTime: fetchedItem.preparationTime ? fetchedItem.preparationTime.toString() : "15",
           priority: fetchedItem.priority !== undefined ? fetchedItem.priority.toString() : "0",
           status: fetchedItem.status || "available",
@@ -413,6 +416,8 @@ export default function AdminMenuPage() {
       return;
     }
 
+    const discountPercentNum = Math.min(100, Math.max(0, parseFloat(formData.discountPercent) || 0));
+
     const validVariants = formVariants
       .filter((v) => v.label.trim())
       .map((v) => ({
@@ -425,6 +430,7 @@ export default function AdminMenuPage() {
       category: effectiveCategory,
       description: formData.description.trim(),
       price: priceNum,
+      discountPercent: discountPercentNum,
       preparationTime: parseInt(formData.preparationTime) || 15,
       priority: formData.priority !== undefined ? parseInt(formData.priority, 10) : 0,
       status: formData.status,
@@ -746,10 +752,22 @@ export default function AdminMenuPage() {
                       )}
                     </div>
 
-                    <div className="flex items-baseline justify-between">
-                      <span className="font-extrabold text-base text-[#0B251C]">
-                        ₹{item.price}
-                      </span>
+                    <div className="flex items-baseline justify-between gap-1 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-base text-[#0B251C]">
+                          ₹{item.discountPercent && item.discountPercent > 0 && item.discountedPrice !== undefined ? item.discountedPrice : item.price}
+                        </span>
+                        {Boolean(item.discountPercent && item.discountPercent > 0) && (
+                          <>
+                            <span className="text-xs text-gray-400 line-through font-semibold">
+                              ₹{item.price}
+                            </span>
+                            <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
+                              {item.discountPercent}% OFF
+                            </span>
+                          </>
+                        )}
+                      </div>
                       {item.preparationTime && (
                         <span className="text-[10px] text-gray-400 font-medium">
                           {item.preparationTime} mins
@@ -883,7 +901,7 @@ export default function AdminMenuPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">
                     Category *
@@ -908,7 +926,7 @@ export default function AdminMenuPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">
-                    Price (₹) *
+                    Base Price (₹) *
                   </label>
                   <input
                     type="number"
@@ -918,6 +936,21 @@ export default function AdminMenuPage() {
                     placeholder="250"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Discount (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    placeholder="0"
+                    value={formData.discountPercent}
+                    onChange={(e) => setFormData({ ...formData, discountPercent: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-[#0B392B]"
                   />
                 </div>
@@ -1250,10 +1283,26 @@ export default function AdminMenuPage() {
             </div>
 
             {/* Price & Prep Time */}
-            <div className="flex items-center justify-between bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/60">
+            <div className="flex items-center justify-between bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/60 flex-wrap gap-2">
               <div>
-                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider block">Base Price</span>
-                <span className="text-lg font-extrabold text-[#0B392B]">₹{selectedViewItem.price}</span>
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider block">Price</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-lg font-extrabold text-[#0B392B]">
+                    ₹{selectedViewItem.discountPercent && selectedViewItem.discountPercent > 0 && selectedViewItem.discountedPrice !== undefined
+                      ? selectedViewItem.discountedPrice
+                      : selectedViewItem.price}
+                  </span>
+                  {Boolean(selectedViewItem.discountPercent && selectedViewItem.discountPercent > 0) && (
+                    <>
+                      <span className="text-xs text-gray-400 line-through font-semibold">
+                        ₹{selectedViewItem.price}
+                      </span>
+                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                        {selectedViewItem.discountPercent}% OFF
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
               {selectedViewItem.preparationTime && (
                 <div className="text-right flex items-center gap-1.5 text-xs text-gray-600 font-bold">

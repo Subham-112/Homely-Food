@@ -31,6 +31,8 @@ export interface MenuItem {
   description?: string;
   status: MenuItemStatus;
   price: number;
+  discountPercent?: number;
+  discountedPrice?: number;
   preparationTime?: number;
   priority?: number;
   tags?: string[];
@@ -48,6 +50,7 @@ export interface CreateMenuItemPayload {
   description?: string;
   status?: MenuItemStatus;
   price: number;
+  discountPercent?: number;
   preparationTime?: number;
   priority?: number;
   tags?: string[];
@@ -187,6 +190,7 @@ const buildFormDataFromPayload = (payload: CreateMenuItemPayload | UpdateMenuIte
   if (payload.category) formData.append("category", payload.category);
   if (payload.description !== undefined) formData.append("description", payload.description);
   if (payload.price !== undefined) formData.append("price", String(payload.price));
+  if (payload.discountPercent !== undefined) formData.append("discountPercent", String(payload.discountPercent));
   if (payload.preparationTime !== undefined) formData.append("preparationTime", String(payload.preparationTime));
   if (payload.priority !== undefined) formData.append("priority", String(payload.priority));
   if (payload.status) formData.append("status", payload.status);
