@@ -23,6 +23,7 @@ const createMenuItemSchema = z.object({
   description: z.string().optional(),
   status: z.nativeEnum(MenuItemStatus, { errorMap: () => ({ message: "Status must be either available or unavailable" }) }).optional(),
   price: z.preprocess((val) => (typeof val === "string" ? parseFloat(val) : val), z.number({ required_error: "Price is required" }).min(0, "Price cannot be negative")),
+  discountPercent: z.preprocess((val) => (typeof val === "string" ? parseFloat(val) : val), z.number().min(0, "Discount percentage cannot be negative").max(100, "Discount percentage cannot exceed 100").optional()),
   preparationTime: z.preprocess((val) => (typeof val === "string" ? parseInt(val, 10) : val), z.number().optional()),
   priority: z.preprocess((val) => (typeof val === "string" ? parseInt(val, 10) : val), z.number().min(0).optional()),
   tags: z.preprocess((val) => {

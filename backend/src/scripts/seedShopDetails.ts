@@ -10,10 +10,10 @@ const seedShopDetails = async () => {
     if (existingDetails) {
       console.log("⚠️ Shop details already exist in database.");
       console.log(`📌 Shop Name: ${existingDetails.shopName}`);
-      console.log(`📌 Owner Name: ${existingDetails.ownerName}`);
-      console.log(`📌 Emails: ${existingDetails.emails.join(", ")}`);
-      console.log(`📌 Phones: ${existingDetails.phones.join(", ")}`);
-      console.log(`📌 Serviceable Pincodes: ${existingDetails.serviceablePincodes.join(", ")}`);
+      console.log(`📌 Owner Name: ${existingDetails.ownerName || ""}`);
+      console.log(`📌 Emails: ${existingDetails.emails?.join(", ") || ""}`);
+      console.log(`📌 Phones: ${existingDetails.phones?.join(", ") || ""}`);
+      console.log(`📌 Serviceable Pincodes: ${existingDetails.serviceablePincodes?.join(", ") || ""}`);
     } else {
       const created = await ShopDetails.create({
         shopName: "Homely Food",
@@ -39,10 +39,10 @@ const seedShopDetails = async () => {
 
       console.log("✅ Shop details seeded successfully!");
       console.log(`📌 Shop Name: ${created.shopName}`);
-      console.log(`📌 Owner Name: ${created.ownerName}`);
-      console.log(`📌 Emails: ${created.emails.join(", ")}`);
-      console.log(`📌 Phones: ${created.phones.join(", ")}`);
-      console.log(`📌 Serviceable Pincodes: ${created.serviceablePincodes.join(", ")}`);
+      console.log(`📌 Owner Name: ${created.ownerName || ""}`);
+      console.log(`📌 Emails: ${created.emails?.join(", ") || ""}`);
+      console.log(`📌 Phones: ${created.phones?.join(", ") || ""}`);
+      console.log(`📌 Serviceable Pincodes: ${created.serviceablePincodes?.join(", ") || ""}`);
     }
   } catch (error) {
     console.error("❌ Error seeding shop details:", error);

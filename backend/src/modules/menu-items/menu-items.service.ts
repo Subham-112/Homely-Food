@@ -2,9 +2,11 @@ import mongoose from "mongoose";
 import MenuItem from "../../models/menuItem.model";
 import Category from "../../models/category.model";
 import MenuItemVariant from "../../models/menuItemVariant.model";
+import ShopDetails from "../../models/shopDetails.model";
 import ApiError from "../../utils/ApiError";
 import { MenuItemStatus, VariantStatus, CategoryStatus } from "../../common/enum";
 import { IImage } from "../../common/image.schema";
+import { calculateItemPricing } from "../../utils/pricing";
 
 export interface IVariantInput {
   label: string;
@@ -18,6 +20,7 @@ export interface IMenuItemPayload {
   description?: string;
   status?: MenuItemStatus;
   price: number;
+  discountPercent?: number;
   preparationTime?: number;
   priority?: number;
   tags?: string[];
@@ -47,6 +50,7 @@ export class MenuItemService {
       description: payload.description,
       status: payload.status || MenuItemStatus.AVAILABLE,
       price: payload.price,
+      discountPercent: typeof payload.discountPercent === "number" ? payload.discountPercent : 0,
       preparationTime: payload.preparationTime || 15,
       priority: payload.priority !== undefined ? payload.priority : 0,
       tags: payload.tags || [],
@@ -69,8 +73,14 @@ export class MenuItemService {
       );
     }
 
+    const shopDetails = await ShopDetails.findOne();
+    const pricing = calculateItemPricing(menuItem.price, menuItem.discountPercent, shopDetails);
+
     return {
       ...menuItem.toObject(),
+      price: pricing.price,
+      discountPercent: pricing.discountPercent,
+      discountedPrice: pricing.discountedPrice,
       variants: createdVariants,
     };
   }
@@ -100,22 +110,28 @@ export class MenuItemService {
       filter.name = { $regex: query.search.trim(), $options: "i" };
     }
 
-    const [itemsDocs, total] = await Promise.all([
+    const [itemsDocs, total, shopDetails] = await Promise.all([
       MenuItem.find(filter)
-        .select("_id name image price priority")
+        .select("_id name image price discountPercent priority")
         .sort({ priority: 1, name: 1 })
         .skip(skip)
         .limit(limit),
       MenuItem.countDocuments(filter),
+      ShopDetails.findOne(),
     ]);
 
-    const formattedItems = itemsDocs.map((item) => ({
-      _id: item._id,
-      name: item.name,
-      image: typeof item.image === "object" ? item.image?.url || "" : item.image || "",
-      price: item.price,
-      priority: (item as any).priority ?? 0,
-    }));
+    const formattedItems = itemsDocs.map((item) => {
+      const pricing = calculateItemPricing(item.price, (item as any).discountPercent, shopDetails);
+      return {
+        _id: item._id,
+        name: item.name,
+        image: typeof item.image === "object" ? item.image?.url || "" : item.image || "",
+        price: pricing.price,
+        discountPercent: pricing.discountPercent,
+        discountedPrice: pricing.discountedPrice,
+        priority: (item as any).priority ?? 0,
+      };
+    });
 
     const totalPages = Math.ceil(total / limit) || 1;
 
@@ -193,17 +209,30 @@ export class MenuItemService {
     const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
-    const total = await MenuItem.countDocuments(filter);
-    const items = await MenuItem.find(filter)
-      .populate("category", "name slug status")
-      .sort({ priority: 1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const [total, itemsDocs, shopDetails] = await Promise.all([
+      MenuItem.countDocuments(filter),
+      MenuItem.find(filter)
+        .populate("category", "name slug status")
+        .sort({ priority: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      ShopDetails.findOne(),
+    ]);
+
+    const formattedItems = itemsDocs.map((item) => {
+      const pricing = calculateItemPricing(item.price, (item as any).discountPercent, shopDetails);
+      return {
+        ...item.toObject(),
+        price: pricing.price,
+        discountPercent: pricing.discountPercent,
+        discountedPrice: pricing.discountedPrice,
+      };
+    });
 
     const totalPages = Math.ceil(total / limit) || 1;
 
     return {
-      items,
+      items: formattedItems,
       pagination: {
         total,
         page,
@@ -230,10 +259,18 @@ export class MenuItemService {
       throw new ApiError(404, "Menu item is currently unavailable (Category is inactive)");
     }
 
-    const variants = await MenuItemVariant.find({ menuItem: id, status: "active" }).select("_id label price");
+    const [variants, shopDetails] = await Promise.all([
+      MenuItemVariant.find({ menuItem: id, status: "active" }).select("_id label price"),
+      ShopDetails.findOne(),
+    ]);
+
+    const pricing = calculateItemPricing(menuItem.price, (menuItem as any).discountPercent, shopDetails);
 
     return {
       ...menuItem.toObject(),
+      price: pricing.price,
+      discountPercent: pricing.discountPercent,
+      discountedPrice: pricing.discountedPrice,
       variants,
     };
   }
@@ -256,6 +293,7 @@ export class MenuItemService {
     if (payload.description !== undefined) menuItem.description = payload.description;
     if (payload.status !== undefined) menuItem.status = payload.status;
     if (payload.price !== undefined) menuItem.price = payload.price;
+    if (payload.discountPercent !== undefined) menuItem.discountPercent = payload.discountPercent;
     if (payload.preparationTime !== undefined) menuItem.preparationTime = payload.preparationTime;
     if (payload.priority !== undefined) menuItem.priority = payload.priority;
     if (payload.tags !== undefined) menuItem.tags = payload.tags;
@@ -267,7 +305,16 @@ export class MenuItemService {
     if (payload.isTodaySpecial !== undefined) menuItem.isTodaySpecial = payload.isTodaySpecial;
 
     await menuItem.save();
-    return menuItem;
+
+    const shopDetails = await ShopDetails.findOne();
+    const pricing = calculateItemPricing(menuItem.price, (menuItem as any).discountPercent, shopDetails);
+
+    return {
+      ...menuItem.toObject(),
+      price: pricing.price,
+      discountPercent: pricing.discountPercent,
+      discountedPrice: pricing.discountedPrice,
+    };
   }
 
   static async reorderPriority(orderedItemIds: string[]) {

@@ -3,12 +3,13 @@ import MenuItem from "../../models/menuItem.model";
 import MenuItemVariant from "../../models/menuItemVariant.model";
 import Offer from "../../models/offer.model";
 import Order from "../../models/order.model";
-import { Customer } from "../../models/customer.model";
 import User from "../../models/user.model";
 import ApiError from "../../utils/ApiError";
 import { CartStatus, MenuItemStatus, OfferType, OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus, VariantStatus } from "../../common/enum";
-import { emitNewOrder } from "../../socket/socketService";
 import { OrderService } from "../order/order.service";
+
+import ShopDetails from "../../models/shopDetails.model";
+import { calculateItemPricing } from "../../utils/pricing";
 
 export interface ISyncCartItemInput {
   menuItem: string;
@@ -51,21 +52,32 @@ export class CartService {
     }
 
     let subTotal = 0;
+    const shopDetails = await ShopDetails.findOne();
 
-    // Calculate subTotal using live menu item & variant prices
+    // Calculate subTotal using live menu item & variant prices with discounts applied
     for (const item of cart.items) {
-      const menuItemDoc = await MenuItem.findById(item.menuItem);
+      const menuItemId =
+        typeof item.menuItem === "object" && (item.menuItem as any)?._id
+          ? (item.menuItem as any)._id
+          : item.menuItem;
+      const menuItemDoc = await MenuItem.findById(menuItemId);
       if (!menuItemDoc) continue;
 
-      let itemUnitPrice = menuItemDoc.price;
-      if (item.variant) {
-        const variantDoc = await MenuItemVariant.findById(item.variant);
+      let basePrice = menuItemDoc.price;
+      const variantId =
+        typeof item.variant === "object" && (item.variant as any)?._id
+          ? (item.variant as any)._id
+          : item.variant;
+
+      if (variantId) {
+        const variantDoc = await MenuItemVariant.findById(variantId);
         if (variantDoc && variantDoc.price) {
-          itemUnitPrice = variantDoc.price;
+          basePrice = variantDoc.price;
         }
       }
 
-      subTotal += itemUnitPrice * item.quantity;
+      const pricing = calculateItemPricing(basePrice, menuItemDoc.discountPercent, shopDetails);
+      subTotal += pricing.discountedPrice * item.quantity;
     }
 
     let discount = 0;
@@ -115,7 +127,8 @@ export class CartService {
             if (buyCartItem && buyCartItem.quantity >= (appliedOfferDoc.buyQuantity || 1) && freeCartItem) {
               const freeDoc = await MenuItem.findById(appliedOfferDoc.freeItem);
               if (freeDoc) {
-                discount = freeDoc.price * (appliedOfferDoc.freeQuantity || 1);
+                const freePricing = calculateItemPricing(freeDoc.price, freeDoc.discountPercent, shopDetails);
+                discount = freePricing.discountedPrice * (appliedOfferDoc.freeQuantity || 1);
               }
             }
           }
@@ -142,10 +155,19 @@ export class CartService {
   }
 
   static async getCart(userId: string) {
-    let cart = await Cart.findOne({ user: userId, status: "active" })
+    let cart = await Cart.findOne({ user: userId, status: "active" });
+    if (!cart) {
+      return null;
+    }
+
+    // Ensure totals are freshly recalculated on load
+    await this.recalculateCartTotals(cart);
+    await cart.save();
+
+    cart = await Cart.findOne({ user: userId, status: "active" })
       .populate({
         path: "items.menuItem",
-        select: "_id name price image status category",
+        select: "_id name price discountPercent image status category",
       })
       .populate({
         path: "items.variant",
@@ -160,7 +182,27 @@ export class CartService {
       return null;
     }
 
-    return cart;
+    const shopDetails = await ShopDetails.findOne();
+    const cartObj: any = cart.toObject();
+
+    if (cartObj.items && Array.isArray(cartObj.items)) {
+      cartObj.items = cartObj.items.map((cartItem: any) => {
+        if (cartItem.menuItem && typeof cartItem.menuItem === "object") {
+          const itemBasePrice = cartItem.variant?.price || cartItem.menuItem.price;
+          const pricing = calculateItemPricing(
+            itemBasePrice,
+            cartItem.menuItem.discountPercent,
+            shopDetails
+          );
+          cartItem.menuItem.price = pricing.price;
+          cartItem.menuItem.discountPercent = pricing.discountPercent;
+          cartItem.menuItem.discountedPrice = pricing.discountedPrice;
+        }
+        return cartItem;
+      });
+    }
+
+    return cartObj;
   }
 
   static async syncCart(userId: string, items: ISyncCartItemInput[]) {
@@ -286,44 +328,150 @@ export class CartService {
     await CoinRedemptionRuleService.seedDefaultRules();
 
     const wallet = await CoinService.getOrCreateWallet(userId);
+    const userBalance = wallet?.balance || 0;
 
     const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
     const cart = await Cart.findOne(query);
 
     if (!cart || !cart.items || cart.items.length === 0) {
       return {
-        userBalance: wallet.balance,
+        userBalance,
+        isEligible: false,
         maxDeductible: 0,
         deductedCoins: 0,
         discountAmount: 0,
+        minOrderRequired: 0,
+        currentTier: null,
+        nextTier: null,
+        eligibleMessage: null,
+        nudgeMessage: null,
+        status: "empty_cart",
       };
     }
 
     await this.recalculateCartTotals(cart);
+    const cartTotalAmount = cart.total?.subTotal || 0;
 
-    const cartTotalAmount = cart.total.subTotal || 0;
-    const matchingRule = await CoinRedemptionRuleService.resolveRedemptionRule(cartTotalAmount);
+    const allRules = await CoinRedemptionRuleService.getAllRules(false);
 
-    if (!matchingRule) {
-      const minThreshold = await CoinRedemptionRuleService.getMinThreshold();
+    if (!allRules || allRules.length === 0) {
       return {
-        userBalance: wallet.balance,
+        userBalance,
+        isEligible: false,
         maxDeductible: 0,
         deductedCoins: 0,
         discountAmount: 0,
-        minOrderRequired: minThreshold || 0,
+        minOrderRequired: 0,
+        currentTier: null,
+        nextTier: null,
+        eligibleMessage: null,
+        nudgeMessage: null,
+        status: "no_rules",
       };
     }
 
-    const maxAllowedCoins = matchingRule.maxCoinsDeductible;
-    const deductedCoins = Math.min(wallet.balance, maxAllowedCoins, cartTotalAmount);
+    // Sort rules ascending by minOrderAmount
+    const sortedRules = [...allRules].sort((a, b) => a.minOrderAmount - b.minOrderAmount);
+
+    // Find current matched rule (highest rule with minOrderAmount <= cartTotalAmount)
+    const qualifyingRules = sortedRules.filter((r) => cartTotalAmount >= r.minOrderAmount);
+    const currentRule = qualifyingRules.length > 0 ? qualifyingRules[qualifyingRules.length - 1] : null;
+
+    // Find next tier rule (lowest rule with minOrderAmount > cartTotalAmount)
+    const nextRule = sortedRules.find((r) => r.minOrderAmount > cartTotalAmount) || null;
+
+    if (userBalance <= 0) {
+      const nextTierInfo = nextRule
+        ? {
+            minOrderAmount: nextRule.minOrderAmount,
+            maxCoinsDeductible: nextRule.maxCoinsDeductible,
+            shortfall: Math.max(0, nextRule.minOrderAmount - cartTotalAmount),
+          }
+        : null;
+
+      return {
+        userBalance: 0,
+        isEligible: false,
+        maxDeductible: currentRule?.maxCoinsDeductible || 0,
+        deductedCoins: 0,
+        discountAmount: 0,
+        minOrderRequired: sortedRules[0]?.minOrderAmount || 0,
+        currentTier: currentRule
+          ? {
+              minOrderAmount: currentRule.minOrderAmount,
+              maxCoinsDeductible: currentRule.maxCoinsDeductible,
+              label: currentRule.label,
+            }
+          : null,
+        nextTier: nextTierInfo,
+        eligibleMessage: null,
+        nudgeMessage: null,
+        status: "no_coins",
+      };
+    }
+
+    if (!currentRule) {
+      const lowestRule = sortedRules[0];
+      const shortfall = Math.max(0, lowestRule.minOrderAmount - cartTotalAmount);
+      const nudgeMessage = `Add ₹${shortfall} more to unlock ₹${lowestRule.maxCoinsDeductible} coin discount!`;
+
+      return {
+        userBalance,
+        isEligible: false,
+        maxDeductible: 0,
+        deductedCoins: 0,
+        discountAmount: 0,
+        minOrderRequired: lowestRule.minOrderAmount,
+        currentTier: null,
+        nextTier: {
+          minOrderAmount: lowestRule.minOrderAmount,
+          maxCoinsDeductible: lowestRule.maxCoinsDeductible,
+          shortfall,
+        },
+        eligibleMessage: null,
+        nudgeMessage,
+        status: "below_minimum",
+      };
+    }
+
+    const maxAllowedCoins = currentRule.maxCoinsDeductible;
+    const deductedCoins = Math.min(userBalance, maxAllowedCoins, cartTotalAmount);
+    const isEligible = deductedCoins > 0;
+
+    const currentTier = {
+      minOrderAmount: currentRule.minOrderAmount,
+      maxCoinsDeductible: currentRule.maxCoinsDeductible,
+      label: currentRule.label,
+    };
+
+    let nextTier: { minOrderAmount: number; maxCoinsDeductible: number; shortfall: number } | null = null;
+    let nudgeMessage: string | null = null;
+
+    if (nextRule) {
+      const shortfall = Math.max(0, nextRule.minOrderAmount - cartTotalAmount);
+      nextTier = {
+        minOrderAmount: nextRule.minOrderAmount,
+        maxCoinsDeductible: nextRule.maxCoinsDeductible,
+        shortfall,
+      };
+      // Show milestone upgrade nudge whenever a higher tier exists
+      nudgeMessage = `Add ₹${shortfall} more to unlock ₹${nextRule.maxCoinsDeductible} coin discount!`;
+    }
+
+    const eligibleMessage = `You're eligible to save up to ₹${deductedCoins} using ${deductedCoins} Homely Coins on this order!`;
 
     return {
-      userBalance: wallet.balance,
+      userBalance,
+      isEligible,
       maxDeductible: maxAllowedCoins,
       deductedCoins,
       discountAmount: deductedCoins,
-      minOrderRequired: matchingRule.minOrderAmount,
+      minOrderRequired: currentRule.minOrderAmount,
+      currentTier,
+      nextTier,
+      eligibleMessage,
+      nudgeMessage,
+      status: isEligible ? "eligible" : "no_coins",
     };
   }
 
@@ -365,7 +513,7 @@ export class CartService {
           `Minimum cart value of ₹${minThreshold} is required to redeem Homely Coins.`
         );
       }
-      throw new ApiError(400, "No active coin redemption tier applies to this order amount.");
+      throw new ApiError(400, "No active coin reward tier applies to this order amount.");
     }
 
     const maxAllowedCoins = matchingRule.maxCoinsDeductible;

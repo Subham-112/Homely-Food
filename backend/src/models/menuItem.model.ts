@@ -11,6 +11,7 @@ export interface IMenuItem extends ISoftDeleteDocument {
   description?: string;
   status: MenuItemStatus;
   price: number;
+  discountPercent?: number;
   preparationTime?: number;
   tags: string[];
   allergens: string[];
@@ -43,6 +44,12 @@ const MenuItemSchema: Schema<IMenuItem> = new Schema(
     price: {
       type: Number,
     },
+    discountPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
     preparationTime: {
       type: Number,
       default: 15,
@@ -72,6 +79,12 @@ const MenuItemSchema: Schema<IMenuItem> = new Schema(
     timestamps: true,
   }
 );
+
+MenuItemSchema.pre("init", function (doc: any) {
+  if (doc && typeof doc.image === "string" && doc.image.trim()) {
+    doc.image = { url: doc.image.trim() };
+  }
+});
 
 MenuItemSchema.plugin(mongooseDelete, { overrideMethods: "all", deletedAt: true, deletedBy: true });
 

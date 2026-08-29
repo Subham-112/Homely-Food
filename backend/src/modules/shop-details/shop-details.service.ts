@@ -8,24 +8,9 @@ export class ShopDetailsService {
     if (!details) {
       details = await ShopDetails.create({
         shopName: "Homely Food",
-        ownerName: "Homely Food Admin",
-        emails: ["support@homelyfood.com"],
-        phones: ["9876543210"],
-        address: {
-          street: "123 Food Court",
-          area: "Vesu",
-          city: "Surat",
-          state: "Gujarat",
-          pincode: "395007",
-          landmark: "Near Central Mall",
-        },
-        serviceablePincodes: ["395007", "395001", "395002", "395003", "395004", "395005", "395006"],
-        openingTime: "08:00 AM",
-        closingTime: "10:00 PM",
         isStoreOpen: true,
-        minimumOrderAmount: 100,
-        deliveryCharge: 30,
-        freeDeliveryThreshold: 500,
+        discountMode: "hybrid",
+        globalDiscountPercent: 0,
       });
     }
     return details;
@@ -55,7 +40,9 @@ export class ShopDetailsService {
   static async checkPincodeServiceable(pincode: string): Promise<{ pincode: string; isServiceable: boolean }> {
     const details = await this.getShopDetails();
     const cleanPincode = pincode.trim();
-    const isServiceable = details.serviceablePincodes.includes(cleanPincode);
+    const isServiceable = Array.isArray(details.serviceablePincodes)
+      ? details.serviceablePincodes.includes(cleanPincode)
+      : false;
     return {
       pincode: cleanPincode,
       isServiceable,

@@ -7,6 +7,7 @@ import ApiError from "../../utils/ApiError";
 import { OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from "../../common/enum";
 import { emitNewOrder, emitOrderStatusUpdate } from "../../socket/socketService";
 import { CoinService } from "../coin/coin.service";
+import { calculateItemPricing } from "../../utils/pricing";
 import mongoose, { Types } from "mongoose";
 
 export interface ICreateOrderItemInput {
@@ -56,6 +57,8 @@ export class OrderService {
     }
 
     let subTotal = 0;
+    const shopDetails = await ShopDetails.findOne();
+
     const processedItems = await Promise.all(
       payload.items.map(async (itemInput) => {
         const menuItemDoc = await MenuItem.findById(itemInput.menuItem);
@@ -64,10 +67,10 @@ export class OrderService {
         }
 
         const itemName = itemInput.name || menuItemDoc.name;
-        const itemPrice =
-          itemInput.price !== undefined
-            ? itemInput.price
-            : itemInput.variant?.price || menuItemDoc.price;
+        const basePrice = itemInput.variant?.price || menuItemDoc.price;
+        const pricing = calculateItemPricing(basePrice, menuItemDoc.discountPercent, shopDetails);
+        const itemPrice = pricing.discountedPrice;
+
         const itemTotal = itemPrice * itemInput.quantity;
         subTotal += itemTotal;
 

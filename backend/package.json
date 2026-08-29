@@ -13,7 +13,8 @@
     "seed:prod-categories": "ts-node-dev --transpile-only src/scripts/seedProdCategories.ts",
     "seed:prod-items": "ts-node-dev --transpile-only src/scripts/seedProdItems.ts",
     "seed:shop-details": "ts-node-dev --transpile-only src/scripts/seedShopDetails.ts",
-    "clean:emails": "ts-node-dev --transpile-only src/scripts/cleanUserEmails.ts"
+    "clean:emails": "ts-node-dev --transpile-only src/scripts/cleanUserEmails.ts",
+    "migrate:images": "ts-node-dev --transpile-only src/scripts/migrateMenuItemImages.ts"
   },
   "keywords": [],
   "author": "",

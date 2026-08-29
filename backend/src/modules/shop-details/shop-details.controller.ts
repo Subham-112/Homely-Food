@@ -5,19 +5,19 @@ import { ShopDetailsService } from "./shop-details.service";
 const addressSchema = z.object({
   street: z.string().optional(),
   area: z.string().optional(),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  pincode: z.string().min(1, "Pincode is required"),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  pincode: z.string().optional(),
   landmark: z.string().optional(),
 });
 
 export const updateShopDetailsSchema = z.object({
   shopName: z.string().min(1, "Shop name is required").optional(),
-  ownerName: z.string().min(1, "Owner name is required").optional(),
-  emails: z.array(z.string().email("Invalid email address")).min(1, "At least one email is required").optional(),
-  phones: z.array(z.string().min(1, "Invalid phone number")).min(1, "At least one phone is required").optional(),
+  ownerName: z.string().optional(),
+  emails: z.array(z.string()).optional(),
+  phones: z.array(z.string()).optional(),
   address: addressSchema.optional(),
-  serviceablePincodes: z.array(z.string().min(1, "Invalid pincode")).optional(),
+  serviceablePincodes: z.array(z.string()).optional(),
   logo: z.string().optional(),
   bannerImage: z.string().optional(),
   openingTime: z.string().optional(),
@@ -26,6 +26,8 @@ export const updateShopDetailsSchema = z.object({
   minimumOrderAmount: z.number().min(0).optional(),
   deliveryCharge: z.number().min(0).optional(),
   freeDeliveryThreshold: z.number().min(0).optional(),
+  discountMode: z.enum(["global", "item_only", "hybrid", "none"]).optional(),
+  globalDiscountPercent: z.number().min(0).max(100).optional(),
   fssaiLicenseNumber: z.string().optional(),
   gstNumber: z.string().optional(),
 });
