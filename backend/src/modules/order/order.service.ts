@@ -50,6 +50,37 @@ export interface ICreateOrderPayload {
   createdBy?: string;
 }
 
+function formatOrderResponse(orderDoc: any, shopDetails: any) {
+  if (!orderDoc) return orderDoc;
+  const orderObj = typeof orderDoc.toObject === "function" ? orderDoc.toObject() : { ...orderDoc };
+
+  if (Array.isArray(orderObj.items)) {
+    orderObj.items = orderObj.items.map((item: any) => {
+      const itemObj = { ...item };
+      if (itemObj.menuItem) {
+        const mDoc = typeof itemObj.menuItem.toObject === "function" ? itemObj.menuItem.toObject() : { ...itemObj.menuItem };
+        const basePrice = itemObj.variant?.price || mDoc.price;
+        const pricing = calculateItemPricing(basePrice, mDoc.discountPercent, shopDetails);
+
+        itemObj.menuItem = {
+          ...mDoc,
+          price: pricing.discountedPrice,
+          originalPrice: pricing.price,
+          discountPercent: pricing.discountPercent,
+          discountedPrice: pricing.discountedPrice,
+        };
+
+        if (itemObj.price === undefined || itemObj.price === null || itemObj.price === pricing.price) {
+          itemObj.price = pricing.discountedPrice;
+        }
+      }
+      return itemObj;
+    });
+  }
+
+  return orderObj;
+}
+
 export class OrderService {
   static async validateOrderPayload(payload: ICreateOrderPayload) {
     if (!payload.items || !Array.isArray(payload.items) || payload.items.length === 0) {
@@ -386,14 +417,14 @@ export class OrderService {
       filter.$and = andConditions;
     }
 
-    const [orders, total] = await Promise.all([
+    const [ordersDocs, total, shopDetails] = await Promise.all([
       Order.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate({
           path: "items.menuItem",
-          select: "_id name price image",
+          select: "_id name price discountPercent image",
         })
         .populate({
           path: "items.variant.variantId",
@@ -404,12 +435,14 @@ export class OrderService {
           select: "_id title code offerType discountPercentage flatDiscountAmount",
         }),
       Order.countDocuments(filter),
+      ShopDetails.findOne(),
     ]);
 
+    const formattedOrders = ordersDocs.map((o) => formatOrderResponse(o, shopDetails));
     const totalPages = Math.ceil(total / limit) || 1;
 
     return {
-      orders,
+      orders: formattedOrders,
       pagination: {
         total,
         page,
@@ -421,7 +454,11 @@ export class OrderService {
     };
   }
 
-  static async getMyOrders(userId: string, status?: string) {
+  static async getMyOrders(
+    userId: string,
+    status?: string,
+    paginationOptions?: { page?: number; limit?: number }
+  ) {
     const user = await User.findById(userId);
     const filter: any = { deleted: { $ne: true } };
 
@@ -444,45 +481,72 @@ export class OrderService {
       }
     }
 
-    const orders = await Order.find(filter)
-      .sort({ createdAt: -1 })
-      .populate({
-        path: "items.menuItem",
-        select: "_id name price image",
-      })
-      .populate({
-        path: "items.variant.variantId",
-        select: "_id label price",
-      })
-      .populate({
-        path: "offer",
-        select: "_id title code offerType discountPercentage flatDiscountAmount",
-      });
-    return orders;
+    const page = Math.max(1, paginationOptions?.page || 1);
+    const limit = Math.max(1, Math.min(100, paginationOptions?.limit || 20));
+    const skip = (page - 1) * limit;
+
+    const [ordersDocs, total, shopDetails] = await Promise.all([
+      Order.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: "items.menuItem",
+          select: "_id name price discountPercent image",
+        })
+        .populate({
+          path: "items.variant.variantId",
+          select: "_id label price",
+        })
+        .populate({
+          path: "offer",
+          select: "_id title code offerType discountPercentage flatDiscountAmount",
+        }),
+      Order.countDocuments(filter),
+      ShopDetails.findOne(),
+    ]);
+
+    const formattedOrders = ordersDocs.map((o) => formatOrderResponse(o, shopDetails));
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      orders: formattedOrders,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
   }
 
   static async getById(id: string) {
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
     const filter = isObjectId ? { $or: [{ _id: id }, { orderNumber: id }] } : { orderNumber: id };
-    const order = await Order.findOne(filter)
-      .populate("user", "name phone email")
-      .populate({
-        path: "items.menuItem",
-        select: "_id name price image",
-      })
-      .populate({
-        path: "items.variant.variantId",
-        select: "_id label price",
-      })
-      .populate({
-        path: "offer",
-        select: "_id title code offerType discountPercentage flatDiscountAmount",
-      });
+    const [order, shopDetails] = await Promise.all([
+      Order.findOne(filter)
+        .populate("user", "name phone email")
+        .populate({
+          path: "items.menuItem",
+          select: "_id name price discountPercent image",
+        })
+        .populate({
+          path: "items.variant.variantId",
+          select: "_id label price",
+        })
+        .populate({
+          path: "offer",
+          select: "_id title code offerType discountPercentage flatDiscountAmount",
+        }),
+      ShopDetails.findOne(),
+    ]);
 
     if (!order) {
       throw new ApiError(404, "Order not found");
     }
-    return order;
+    return formatOrderResponse(order, shopDetails);
   }
 
   static async updateStatus(
@@ -491,20 +555,23 @@ export class OrderService {
     paymentMethod?: PaymentMethod,
     isPaid?: boolean
   ) {
-    const order = await Order.findById(id)
-      .populate("user", "name phone email")
-      .populate({
-        path: "items.menuItem",
-        select: "_id name price image",
-      })
-      .populate({
-        path: "items.variant.variantId",
-        select: "_id label price",
-      })
-      .populate({
-        path: "offer",
-        select: "_id title code offerType discountPercentage flatDiscountAmount",
-      });
+    const [order, shopDetails] = await Promise.all([
+      Order.findById(id)
+        .populate("user", "name phone email")
+        .populate({
+          path: "items.menuItem",
+          select: "_id name price discountPercent image",
+        })
+        .populate({
+          path: "items.variant.variantId",
+          select: "_id label price",
+        })
+        .populate({
+          path: "offer",
+          select: "_id title code offerType discountPercentage flatDiscountAmount",
+        }),
+      ShopDetails.findOne(),
+    ]);
       
     if (!order) {
       throw new ApiError(404, "Order not found");

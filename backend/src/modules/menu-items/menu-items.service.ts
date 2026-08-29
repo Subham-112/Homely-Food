@@ -219,13 +219,58 @@ export class MenuItemService {
       ShopDetails.findOne(),
     ]);
 
+    const itemIds = itemsDocs.map((i) => i._id);
+    const activeVariants = await MenuItemVariant.find({
+      menuItem: { $in: itemIds },
+      status: VariantStatus.ACTIVE,
+      deleted: { $ne: true },
+    }).lean();
+
+    const variantsByItem: Record<string, any[]> = {};
+    for (const v of activeVariants) {
+      if (v.menuItem) {
+        const mId = v.menuItem.toString();
+        if (!variantsByItem[mId]) variantsByItem[mId] = [];
+        variantsByItem[mId].push(v);
+      }
+    }
+
     const formattedItems = itemsDocs.map((item) => {
-      const pricing = calculateItemPricing(item.price, (item as any).discountPercent, shopDetails);
+      const itemVariants = variantsByItem[item._id.toString()] || [];
+      const itemPricing = calculateItemPricing(item.price, (item as any).discountPercent, shopDetails);
+
+      const formattedVariants = itemVariants.map((v) => {
+        const vPricing = calculateItemPricing(v.price, (item as any).discountPercent, shopDetails);
+        return {
+          _id: v._id,
+          label: v.label,
+          price: vPricing.price,
+          discountPercent: vPricing.discountPercent,
+          discountedPrice: vPricing.discountedPrice,
+          status: v.status,
+        };
+      });
+
+      let finalPrice = itemPricing.price;
+      let finalDiscountPercent = itemPricing.discountPercent;
+      let finalDiscountedPrice = itemPricing.discountedPrice;
+      let variantsOutput: any = null;
+
+      if (formattedVariants.length === 1) {
+        finalPrice = formattedVariants[0].price;
+        finalDiscountPercent = formattedVariants[0].discountPercent;
+        finalDiscountedPrice = formattedVariants[0].discountedPrice;
+        variantsOutput = formattedVariants;
+      } else if (formattedVariants.length > 1) {
+        variantsOutput = formattedVariants;
+      }
+
       return {
         ...item.toObject(),
-        price: pricing.price,
-        discountPercent: pricing.discountPercent,
-        discountedPrice: pricing.discountedPrice,
+        price: finalPrice,
+        discountPercent: finalDiscountPercent,
+        discountedPrice: finalDiscountedPrice,
+        variants: variantsOutput,
       };
     });
 
@@ -259,19 +304,45 @@ export class MenuItemService {
       throw new ApiError(404, "Menu item is currently unavailable (Category is inactive)");
     }
 
-    const [variants, shopDetails] = await Promise.all([
-      MenuItemVariant.find({ menuItem: id, status: "active" }).select("_id label price"),
+    const [variantsDocs, shopDetails] = await Promise.all([
+      MenuItemVariant.find({ menuItem: id, status: VariantStatus.ACTIVE, deleted: { $ne: true } }).lean(),
       ShopDetails.findOne(),
     ]);
 
-    const pricing = calculateItemPricing(menuItem.price, (menuItem as any).discountPercent, shopDetails);
+    const itemPricing = calculateItemPricing(menuItem.price, (menuItem as any).discountPercent, shopDetails);
+
+    const formattedVariants = variantsDocs.map((v) => {
+      const vPricing = calculateItemPricing(v.price, (menuItem as any).discountPercent, shopDetails);
+      return {
+        _id: v._id,
+        label: v.label,
+        price: vPricing.price,
+        discountPercent: vPricing.discountPercent,
+        discountedPrice: vPricing.discountedPrice,
+        status: v.status,
+      };
+    });
+
+    let finalPrice = itemPricing.price;
+    let finalDiscountPercent = itemPricing.discountPercent;
+    let finalDiscountedPrice = itemPricing.discountedPrice;
+    let variantsOutput: any = null;
+
+    if (formattedVariants.length === 1) {
+      finalPrice = formattedVariants[0].price;
+      finalDiscountPercent = formattedVariants[0].discountPercent;
+      finalDiscountedPrice = formattedVariants[0].discountedPrice;
+      variantsOutput = formattedVariants;
+    } else if (formattedVariants.length > 1) {
+      variantsOutput = formattedVariants;
+    }
 
     return {
       ...menuItem.toObject(),
-      price: pricing.price,
-      discountPercent: pricing.discountPercent,
-      discountedPrice: pricing.discountedPrice,
-      variants,
+      price: finalPrice,
+      discountPercent: finalDiscountPercent,
+      discountedPrice: finalDiscountedPrice,
+      variants: variantsOutput,
     };
   }
 
@@ -304,16 +375,64 @@ export class MenuItemService {
     }
     if (payload.isTodaySpecial !== undefined) menuItem.isTodaySpecial = payload.isTodaySpecial;
 
+    if (payload.variants !== undefined) {
+      await MenuItemVariant.deleteMany({ menuItem: menuItem._id });
+
+      if (Array.isArray(payload.variants) && payload.variants.length > 0) {
+        await Promise.all(
+          payload.variants.map((v) =>
+            MenuItemVariant.create({
+              menuItem: menuItem._id,
+              label: v.label,
+              price: v.price,
+              status: v.status || VariantStatus.ACTIVE,
+            })
+          )
+        );
+      }
+    }
+
     await menuItem.save();
 
-    const shopDetails = await ShopDetails.findOne();
-    const pricing = calculateItemPricing(menuItem.price, (menuItem as any).discountPercent, shopDetails);
+    const [variantsDocs, shopDetails] = await Promise.all([
+      MenuItemVariant.find({ menuItem: id, status: VariantStatus.ACTIVE, deleted: { $ne: true } }).lean(),
+      ShopDetails.findOne(),
+    ]);
+
+    const itemPricing = calculateItemPricing(menuItem.price, (menuItem as any).discountPercent, shopDetails);
+
+    const formattedVariants = variantsDocs.map((v) => {
+      const vPricing = calculateItemPricing(v.price, (menuItem as any).discountPercent, shopDetails);
+      return {
+        _id: v._id,
+        label: v.label,
+        price: vPricing.price,
+        discountPercent: vPricing.discountPercent,
+        discountedPrice: vPricing.discountedPrice,
+        status: v.status,
+      };
+    });
+
+    let finalPrice = itemPricing.price;
+    let finalDiscountPercent = itemPricing.discountPercent;
+    let finalDiscountedPrice = itemPricing.discountedPrice;
+    let variantsOutput: any = null;
+
+    if (formattedVariants.length === 1) {
+      finalPrice = formattedVariants[0].price;
+      finalDiscountPercent = formattedVariants[0].discountPercent;
+      finalDiscountedPrice = formattedVariants[0].discountedPrice;
+      variantsOutput = formattedVariants;
+    } else if (formattedVariants.length > 1) {
+      variantsOutput = formattedVariants;
+    }
 
     return {
       ...menuItem.toObject(),
-      price: pricing.price,
-      discountPercent: pricing.discountPercent,
-      discountedPrice: pricing.discountedPrice,
+      price: finalPrice,
+      discountPercent: finalDiscountPercent,
+      discountedPrice: finalDiscountedPrice,
+      variants: variantsOutput,
     };
   }
 

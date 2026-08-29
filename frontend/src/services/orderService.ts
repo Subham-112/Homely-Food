@@ -213,16 +213,67 @@ export const getOrders = async (params?: {
   return response.data;
 };
 
-export const getMyOrders = async (status?: string): Promise<Order[]> => {
+export interface MyOrdersResponse {
+  orders: Order[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+export const getMyOrders = async (params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+} | string): Promise<MyOrdersResponse> => {
   const query = new URLSearchParams();
-  if (status && status.trim() && status.toLowerCase() !== "all") {
-    query.append("status", status.trim().toLowerCase());
+  if (typeof params === "string") {
+    if (params.trim() && params.toLowerCase() !== "all") {
+      query.append("status", params.trim().toLowerCase());
+    }
+  } else if (params) {
+    if (params.status && params.status.trim() && params.status.toLowerCase() !== "all") {
+      query.append("status", params.status.trim().toLowerCase());
+    }
+    if (params.page) query.append("page", params.page.toString());
+    if (params.limit) query.append("limit", params.limit.toString());
   }
+
   const queryString = query.toString();
   const url = queryString ? `/api/order/my-orders?${queryString}` : "/api/order/my-orders";
 
-  const response = await Fetch<ApiResponse<Order[]>>(url);
-  return response.data || [];
+  const response = await Fetch<ApiResponse<MyOrdersResponse | Order[]>>(url);
+  if (Array.isArray(response.data)) {
+    return {
+      orders: response.data,
+      pagination: {
+        total: response.data.length,
+        page: 1,
+        limit: response.data.length || 20,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    };
+  }
+
+  return (
+    response.data || {
+      orders: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    }
+  );
 };
 
 export const getOrderById = async (id: string): Promise<Order> => {

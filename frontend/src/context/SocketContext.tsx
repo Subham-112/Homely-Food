@@ -43,14 +43,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const socketUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
     const socketInstance = io(socketUrl, {
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
       auth: {
         token: activeToken,
       },
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 20,
+      reconnectionDelay: 1500,
+      timeout: 10000,
     });
 
     socketInstance.on("connect", () => {

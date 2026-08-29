@@ -23,7 +23,14 @@ export default function OrdersPage() {
   const { socket } = useSocket();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<FilterType>("All");
+
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
 
   // Selected Order for Details Modal
   const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
@@ -35,13 +42,14 @@ export default function OrdersPage() {
     const handleStatusUpdate = (updatedOrder: any) => {
       console.log("📢 Real-Time Socket Event in User Orders List:", updatedOrder);
       const targetId = updatedOrder._id || updatedOrder.orderNumber;
-      setOrders((prev) =>
-        prev.map((o) =>
+      setOrders((prev) => {
+        if (!Array.isArray(prev)) return [];
+        return prev.map((o) =>
           o._id === targetId || o.orderNumber === targetId || o._id === updatedOrder._id
             ? { ...o, ...updatedOrder }
             : o
-        )
-      );
+        );
+      });
 
       // If modal is currently open for this order, update modal state too
       setSelectedOrderModal((prevModal) => {
@@ -66,27 +74,108 @@ export default function OrdersPage() {
 
   const fetchUserOrders = useCallback(async (currentFilter: FilterType) => {
     setLoading(true);
+    setPage(1);
     try {
       if (token) {
         const queryStatus = currentFilter === "All" ? undefined : currentFilter.toLowerCase();
-        const resOrders = await getMyOrders(queryStatus);
-        setOrders(resOrders || []);
+        const resOrders = await getMyOrders({ status: queryStatus, page: 1, limit: 20 });
+        const orderList = Array.isArray(resOrders)
+          ? resOrders
+          : Array.isArray(resOrders?.orders)
+          ? resOrders.orders
+          : [];
+        setOrders(orderList);
+        setHasMore(resOrders?.pagination ? resOrders.pagination.page < resOrders.pagination.totalPages : false);
+        setTotalCount(resOrders?.pagination?.total ?? orderList.length);
       } else {
         setOrders([]);
+        setHasMore(false);
+        setTotalCount(0);
       }
     } catch (err) {
       console.error("Failed to fetch user orders via getMyOrders:", err);
+      setOrders([]);
+      setHasMore(false);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   }, [token]);
 
+  // Load next page on scroll
+  const loadNextPage = useCallback(async () => {
+    if (loadingMore || !hasMore || loading || !token) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const queryStatus = filter === "All" ? undefined : filter.toLowerCase();
+      const resOrders = await getMyOrders({ status: queryStatus, page: nextPage, limit: 20 });
+      const newOrders = Array.isArray(resOrders)
+        ? resOrders
+        : Array.isArray(resOrders?.orders)
+        ? resOrders.orders
+        : [];
+
+      setOrders((prev) => {
+        const existingIds = new Set(prev.map((o) => o._id || o.orderNumber));
+        const uniqueNewOrders = newOrders.filter((o) => !existingIds.has(o._id || o.orderNumber));
+        return [...prev, ...uniqueNewOrders];
+      });
+
+      setPage(nextPage);
+      setHasMore(resOrders?.pagination ? resOrders.pagination.page < resOrders.pagination.totalPages : false);
+      setTotalCount(resOrders?.pagination?.total ?? totalCount);
+    } catch (err) {
+      console.error("Failed to load next page of orders:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [page, hasMore, loadingMore, loading, token, filter, totalCount]);
+
   useEffect(() => {
     fetchUserOrders(filter);
   }, [filter, fetchUserOrders]);
 
-  const filteredOrders = orders.filter((order) => {
-    const statusLower = (order.status || "").toLowerCase();
+  // Sentinel IntersectionObserver for smooth infinite scrolling
+  useEffect(() => {
+    if (!hasMore || loadingMore || loading) return;
+
+    const sentinel = sentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          loadNextPage();
+        }
+      },
+      {
+        root,
+        rootMargin: "250px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadNextPage]);
+
+  // Fallback onScroll handler
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 250) {
+      if (hasMore && !loadingMore && !loading) {
+        loadNextPage();
+      }
+    }
+  };
+
+  const orderList = Array.isArray(orders) ? orders : [];
+  const filteredOrders = orderList.filter((order) => {
+    const statusLower = (order?.status || "").toLowerCase();
 
     if (filter === "Preparing") {
       return (
@@ -114,13 +203,17 @@ export default function OrdersPage() {
       <Header />
 
       {/* Middle Scrollable Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-4xl w-full mx-auto flex flex-col gap-4 pb-24">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-4xl w-full mx-auto flex flex-col gap-4 pb-24"
+      >
         <div className="flex items-center justify-between px-0.5">
           <h1 className="text-xl sm:text-2xl font-extrabold text-[#0B251C] font-poppins">
             My Orders
           </h1>
           <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#0B392B]/10 text-[#0B392B]">
-            {orders.length} {orders.length === 1 ? "Order" : "Orders"}
+            {totalCount || filteredOrders.length} {totalCount === 1 || filteredOrders.length === 1 ? "Order" : "Orders"}
           </span>
         </div>
 
@@ -164,22 +257,35 @@ export default function OrdersPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-            {filteredOrders.map((order) => (
-              <GlobalOrderCard
-                key={order._id}
-                order={order}
-                variant="user"
-                onCardClick={(ord) => setSelectedOrderModal(ord)}
-                onTrackOrder={(ord) =>
-                  router.push(`/order-tracking?orderId=${ord.orderNumber || ord._id}`)
-                }
-                onReorder={async (ord) => {
-                  await reorderCart(ord._id);
-                  router.push("/cart");
-                }}
-              />
-            ))}
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+              {filteredOrders.map((order) => (
+                <GlobalOrderCard
+                  key={order._id}
+                  order={order}
+                  variant="user"
+                  onCardClick={(ord) => setSelectedOrderModal(ord)}
+                  onTrackOrder={(ord) =>
+                    router.push(`/order-tracking?orderId=${ord.orderNumber || ord._id}`)
+                  }
+                  onReorder={async (ord) => {
+                    await reorderCart(ord._id);
+                    router.push("/cart");
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Sentinel element to trigger infinite scroll as user nears end of list */}
+            <div ref={sentinelRef} className="h-2 w-full -mt-1 pointer-events-none" />
+
+            {/* Loading More Indicator */}
+            {loadingMore && (
+              <div className="py-3 flex items-center justify-center gap-2 text-gray-400">
+                <Loader2 className="w-5 h-5 animate-spin text-[#0B392B]" />
+                <span className="text-xs font-semibold">Loading more orders...</span>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -21,6 +21,8 @@ export interface MenuItemVariantItem {
   _id?: string;
   label: string;
   price: number;
+  discountPercent?: number;
+  discountedPrice?: number;
   status?: "active" | "inactive";
 }
 
@@ -39,7 +41,7 @@ export interface MenuItem {
   allergens?: string[];
   image?: ImageObject | string;
   isTodaySpecial?: boolean;
-  variants?: MenuItemVariantItem[];
+  variants?: MenuItemVariantItem[] | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -202,8 +204,8 @@ const buildFormDataFromPayload = (payload: CreateMenuItemPayload | UpdateMenuIte
   if (payload.allergens && Array.isArray(payload.allergens)) {
     formData.append("allergens", JSON.stringify(payload.allergens));
   }
-  if (payload.variants && Array.isArray(payload.variants) && payload.variants.length > 0) {
-    formData.append("variants", JSON.stringify(payload.variants));
+  if (payload.variants !== undefined) {
+    formData.append("variants", JSON.stringify(payload.variants || []));
   }
 
   // Handle image File vs existing image string/object

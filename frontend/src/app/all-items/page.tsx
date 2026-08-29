@@ -50,6 +50,7 @@ export default function AllItemsPage() {
       status: i.status,
       tags: i.tags,
       allergens: i.allergens,
+      variants: i.variants || null,
     };
   };
 

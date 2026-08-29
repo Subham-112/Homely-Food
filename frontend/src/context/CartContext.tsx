@@ -30,6 +30,14 @@ export interface MenuItem {
   tags?: string[];
   allergens?: string[];
   status?: string;
+  variants?: Array<{
+    _id?: string;
+    id?: string;
+    label: string;
+    price: number;
+    discountPercent?: number;
+    discountedPrice?: number;
+  }> | null;
 }
 
 export interface CartItem {
@@ -83,6 +91,7 @@ interface CartContextType {
   removeCoupon: () => Promise<void>;
   coinDeductionInfo: CoinDeductionResponse | null;
   isLoadingDeduction: boolean;
+  refreshCoinDeduction: () => Promise<void>;
   applyCoins: () => Promise<{ success: boolean; message: string }>;
   removeCoins: () => Promise<void>;
   reorderCart: (orderId: string) => Promise<void>;
@@ -450,6 +459,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const confirmedItems = formatBackendCartItems(resCart);
         setCart(confirmedItems);
         lastConfirmedCartRef.current = confirmedItems;
+        fetchCoinDeduction(resCart._id);
       }
     } catch (err) {
       console.error("Failed to remove offer:", err);
@@ -494,6 +504,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const confirmedItems = formatBackendCartItems(resCart);
         setCart(confirmedItems);
         lastConfirmedCartRef.current = confirmedItems;
+        fetchCoinDeduction(resCart._id);
       }
     } catch (err) {
       console.error("Failed to remove coins:", err);
@@ -512,6 +523,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const confirmedItems = formatBackendCartItems(resCart);
       setCart(confirmedItems);
       lastConfirmedCartRef.current = confirmedItems;
+      latestTargetCartRef.current = confirmedItems;
+      await fetchCoinDeduction(resCart._id);
     }
   };
 
@@ -629,6 +642,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         removeCoupon,
         coinDeductionInfo,
         isLoadingDeduction,
+        refreshCoinDeduction: () => fetchCoinDeduction(cartId || undefined),
         applyCoins,
         removeCoins,
         reorderCart,

@@ -298,7 +298,7 @@ function OrderTrackingContent() {
             TOTAL AMOUNT
           </span>
           <span className="text-lg sm:text-xl font-extrabold text-[#0B251C]">
-            ₹{displayOrder.totalAmount}
+            ₹{displayOrder.payment.totalAmount}
           </span>
         </div>
       </div>
@@ -412,19 +412,29 @@ function OrderTrackingContent() {
               Order Summary
             </h2>
             <div className="flex flex-col gap-3">
-              {(displayOrder.items || []).map((item: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-gray-800">
-                    <VegBadge size={16} />
-                    <span className="font-medium">
-                      {item.menuItem.name} x {item.quantity}
+              {(displayOrder.items || []).map((item: any, idx: number) => {
+                const unitPrice = item.price ?? item.menuItem?.discountedPrice ?? item.menuItem?.price ?? 0;
+                return (
+                  <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 last:border-b-0">
+                    <div className="flex items-center gap-2 text-gray-800 min-w-0 pr-2">
+                      <VegBadge size={16} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-medium truncate">
+                          {item.menuItem?.name || item.name || "Dish"} x {item.quantity}
+                        </span>
+                        {item.variant?.label && (
+                          <span className="text-[10px] text-gray-500 font-semibold">
+                            Variant: {item.variant.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="font-bold text-[#0B251C] shrink-0">
+                      ₹{unitPrice * item.quantity}
                     </span>
                   </div>
-                  <span className="font-bold text-[#0B251C]">
-                    ₹{item.price * item.quantity}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

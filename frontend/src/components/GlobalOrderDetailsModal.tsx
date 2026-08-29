@@ -203,32 +203,55 @@ export default function GlobalOrderDetailsModal({
               Ordered Items ({order.items?.length || 0})
             </span>
             <div className="flex flex-col gap-1.5 bg-white rounded-2xl border border-gray-200/70 p-2.5">
-              {order.items?.map((item: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between text-xs py-1 border-b border-gray-100 last:border-b-0"
-                >
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-2">
-                    <VegBadge size={12} />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-extrabold text-[#0B251C] truncate text-[11px]">
-                        {item.menuItem?.name || item.name || "Item"}
-                      </span>
-                      {item.variant && (
-                        <span className="text-[10px] text-gray-400 font-semibold">
-                          Variant: {item.variant.label}
+              {order.items?.map((item: any, idx: number) => {
+                const unitPrice = item.price ?? item.menuItem?.discountedPrice ?? item.menuItem?.price ?? 0;
+                const originalPrice = item.menuItem?.originalPrice || (item.variant?.price || item.menuItem?.price);
+                const hasDiscount = Boolean(
+                  item.menuItem?.discountPercent && item.menuItem.discountPercent > 0 && originalPrice && originalPrice > unitPrice
+                );
+
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between text-xs py-1.5 border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-2">
+                      <VegBadge size={12} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-extrabold text-[#0B251C] truncate text-[11px]">
+                          {item.menuItem?.name || item.name || "Item"}
                         </span>
-                      )}
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {item.variant && (
+                            <span className="text-[9px] text-[#0B392B] font-bold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                              {item.variant.label}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-bold text-[#0B392B]">
+                            ₹{unitPrice}
+                          </span>
+                          {hasDiscount && (
+                            <>
+                              <span className="text-[9px] text-gray-400 line-through">
+                                ₹{originalPrice}
+                              </span>
+                              <span className="text-[8px] font-black text-emerald-700 bg-emerald-100/80 px-1 py-0.2 rounded">
+                                {item.menuItem.discountPercent}% OFF
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-gray-400 font-bold text-[10px] ml-auto pr-2 shrink-0">
+                        x{item.quantity}
+                      </span>
                     </div>
-                    <span className="text-gray-400 font-bold text-[10px] ml-auto pr-2">
-                      x{item.quantity}
+                    <span className="font-extrabold text-[#0B251C] shrink-0 text-[11px]">
+                      ₹{unitPrice * item.quantity}
                     </span>
                   </div>
-                  <span className="font-extrabold text-[#0B251C] shrink-0 text-[11px]">
-                    ₹{(item.price || item.menuItem?.price || 0) * item.quantity}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -56,6 +56,7 @@ export default function CartPage() {
     isLoadingDeduction,
     applyCoins,
     removeCoins,
+    refreshCoinDeduction,
     placeOrder,
     refreshCart,
   } = useCart();
@@ -82,10 +83,11 @@ export default function CartPage() {
   // Rewards & Offers Tab State: "coins" | "offers"
   const [activeOfferTab, setActiveOfferTab] = useState<"coins" | "offers">("coins");
   const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [couponFeedback, setCouponFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [availableOffers, setAvailableOffers] = useState<Offer[]>([]);
 
-  // Coin Confirmation Modal State
+  // Modals State
   const [showCoinConfirmModal, setShowCoinConfirmModal] = useState(false);
   const [isApplyingCoins, setIsApplyingCoins] = useState(false);
   const [coinFeedback, setCoinFeedback] = useState<{ success: boolean; message: string } | null>(null);
@@ -108,7 +110,12 @@ export default function CartPage() {
   const [selectedCheckoutScope, setSelectedCheckoutScope] = useState<"all" | "cart_only" | "reorder_only">("all");
   const [keepRemainingItems, setKeepRemainingItems] = useState(true);
 
-  // Coin deduction calculation is triggered automatically inside CartContext after backend sync succeeds
+  // Ensure coin deduction is refreshed when entering cart page with items
+  useEffect(() => {
+    if (cart && cart.length > 0 && !coinDeductionInfo && !isLoadingDeduction) {
+      refreshCoinDeduction();
+    }
+  }, [cart.length, coinDeductionInfo, isLoadingDeduction, refreshCoinDeduction]);
 
   // Active Offers Fetching: Fetch ONCE when user opens cart page and cart has items
   const offersFetchedRef = React.useRef(false);
@@ -367,9 +374,16 @@ export default function CartPage() {
                       >
                         {/* Left: Item Name & Price Info */}
                         <div className="flex flex-col flex-1 min-w-0 pr-3">
-                          <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
-                            {item.name}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
+                              {item.name}
+                            </span>
+                            {variant?.label && (
+                              <span className="text-[10px] font-bold text-[#0B392B] bg-emerald-100/90 border border-emerald-200/80 px-1.5 py-0.2 rounded">
+                                {variant.label}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-xs font-extrabold text-[#0B392B]">
                               ₹{unitPrice}
@@ -433,9 +447,16 @@ export default function CartPage() {
                       >
                         {/* Left: Item Name & Price Info */}
                         <div className="flex flex-col flex-1 min-w-0 pr-3">
-                          <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
-                            {item.name}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-sm sm:text-base text-[#0B251C] font-poppins truncate">
+                              {item.name}
+                            </span>
+                            {variant?.label && (
+                              <span className="text-[10px] font-bold text-[#0B392B] bg-emerald-100/90 border border-emerald-200/80 px-1.5 py-0.2 rounded">
+                                {variant.label}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-xs font-extrabold text-[#0B392B]">
                               ₹{unitPrice}

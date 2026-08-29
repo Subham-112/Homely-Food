@@ -439,7 +439,7 @@ export default function AdminMenuPage() {
       allergens: formData.allergens ? formData.allergens.split(",").map((a) => a.trim()).filter(Boolean) : [],
       imageFile,
       image: !imageFile && imagePreview ? imagePreview : undefined,
-      variants: validVariants.length > 0 ? validVariants : undefined,
+      variants: validVariants,
     };
 
     try {

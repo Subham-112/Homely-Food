@@ -100,6 +100,7 @@ export default function HomePage() {
             status: i.status,
             tags: i.tags,
             allergens: i.allergens,
+            variants: i.variants || null,
           };
         });
         setSpecialItems(specials);
@@ -123,6 +124,7 @@ export default function HomePage() {
             status: i.status,
             tags: i.tags,
             allergens: i.allergens,
+            variants: i.variants || null,
           };
         });
 
@@ -171,6 +173,7 @@ export default function HomePage() {
           status: i.status,
           tags: i.tags,
           allergens: i.allergens,
+          variants: i.variants || null,
         };
       });
 
@@ -221,6 +224,7 @@ export default function HomePage() {
             status: i.status,
             tags: i.tags,
             allergens: i.allergens,
+            variants: i.variants || null,
           };
         });
 
