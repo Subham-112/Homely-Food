@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import { PaymentGateway, PaymentMethod, PaymentStatus } from "../common/enum";
+import { validatePaymentTransition } from "../utils/paymentStateMachine";
 
 export interface IRefundItem {
   refundId: string;
@@ -61,6 +62,7 @@ export interface IPayment extends Document {
   expiresAt?: Date;
   details?: IPaymentDetails;
   meta?: Record<string, any>;
+  transitionTo(newStatus: PaymentStatus): void;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -194,6 +196,26 @@ const PaymentSchema: Schema<IPayment> = new Schema(
     timestamps: true,
   }
 );
+
+PaymentSchema.methods.transitionTo = function (this: IPayment, newStatus: PaymentStatus) {
+  validatePaymentTransition(this.status, newStatus, String(this._id || this.gatewayOrderId));
+  this.status = newStatus;
+};
+
+PaymentSchema.pre("save", function (next) {
+  if (!this.isNew && this.isModified("status")) {
+    const originalStatus = (this as any)._originalStatus || this.get("status", null, { getters: false });
+    // If the status has changed from its initial loaded state, validate the transition
+    if ((this as any)._initStatus && (this as any)._initStatus !== this.status) {
+      validatePaymentTransition((this as any)._initStatus, this.status, String(this._id || this.gatewayOrderId));
+    }
+  }
+  next();
+});
+
+PaymentSchema.post("init", function (doc: any) {
+  doc._initStatus = doc.status;
+});
 
 PaymentSchema.index({ status: 1, capturedAt: -1 });
 PaymentSchema.index({ user: 1, createdAt: -1 });

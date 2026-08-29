@@ -5,7 +5,7 @@ import { config } from "./config/config";
 import { logger } from "./config/logger";
 import { initSocket } from "./socket/socketService";
 
-import { expirePendingPaymentsJob } from "./jobs/expirePendingPayments.job";
+import { initPaymentReconciliationJob } from "./jobs/reconcilePayments.job";
 import { initCoinExpiryJob } from "./jobs/coinExpiry.job";
 import { CoinRuleService } from "./modules/coin/coinRule.service";
 
@@ -17,8 +17,8 @@ const startServer = async () => {
     const server = http.createServer(app);
     initSocket(server);
 
-    // Run expire pending payments sweeper every 5 minutes
-    setInterval(expirePendingPaymentsJob, 5 * 60 * 1000);
+    // Initialize automated payment reconciliation cron worker (every 15 min)
+    initPaymentReconciliationJob();
 
     // Initialize daily coin expiry cron job
     initCoinExpiryJob();

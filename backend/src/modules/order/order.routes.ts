@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { OrderController } from "./order.controller";
 import { userAccess, adminAccess } from "../../middlewares/authMiddleware";
+import { idempotencyMiddleware } from "../../middlewares/idempotencyMiddleware";
 
 const router = Router();
 
-// Order creation endpoint (Token required)
-router.post("/", ...userAccess, OrderController.create);
+// Order creation endpoint (Token required, with Idempotency support)
+router.post("/", ...userAccess, idempotencyMiddleware(), OrderController.create);
 
 // Admin-only management & dashboard stats
 router.get("/", ...adminAccess, OrderController.getAll);

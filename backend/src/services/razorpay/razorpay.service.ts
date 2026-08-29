@@ -70,6 +70,30 @@ export class RazorpayService {
     }
   }
 
+  public async fetchOrder(orderId: string): Promise<any> {
+    try {
+      const razorpay = getRazorpayInstance();
+      return await razorpay.orders.fetch(orderId);
+    } catch (error: any) {
+      throw new ApiError(
+        error.statusCode || 500,
+        `Razorpay fetch order failed: ${error.description || error.message}`
+      );
+    }
+  }
+
+  public async fetchOrderPayments(orderId: string): Promise<any> {
+    try {
+      const razorpay = getRazorpayInstance();
+      return await razorpay.orders.fetchPayments(orderId);
+    } catch (error: any) {
+      throw new ApiError(
+        error.statusCode || 500,
+        `Razorpay fetch order payments failed: ${error.description || error.message}`
+      );
+    }
+  }
+
   public async createRefund(input: IRazorpayRefundInput): Promise<IRazorpayRefundOutput> {
     try {
       const razorpay = getRazorpayInstance();
