@@ -8,6 +8,14 @@ export interface ICartItem {
   isReorder?: boolean;
 }
 
+export interface ICoinRemovalNotice {
+  removed: boolean;
+  reason: string;
+  previousCoins: number;
+  maxEligibleCoins: number;
+  currentSubTotal: number;
+}
+
 export interface ICartTotal {
   subTotal: number;
   discount: number;
@@ -18,6 +26,7 @@ export interface ICartTotal {
   discountType?: "offer" | "coins";
   coinsUsed?: number;
   coinStatus?: "none" | "applied" | "converted" | "cancelled";
+  coinRemovalNotice?: ICoinRemovalNotice;
 }
 
 export interface ICart extends Document {
@@ -95,6 +104,13 @@ const CartTotalSchema = new Schema<ICartTotal>(
       type: String,
       enum: ["none", "applied", "converted", "cancelled"],
       default: "none",
+    },
+    coinRemovalNotice: {
+      removed: { type: Boolean, default: false },
+      reason: { type: String },
+      previousCoins: { type: Number, default: 0 },
+      maxEligibleCoins: { type: Number, default: 0 },
+      currentSubTotal: { type: Number, default: 0 },
     },
   },
   { _id: false }

@@ -19,6 +19,7 @@ import {
   CreditCard,
   Coins,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -57,6 +58,8 @@ export default function CartPage() {
     applyCoins,
     removeCoins,
     refreshCoinDeduction,
+    coinRemovalNotice,
+    clearCoinRemovalNotice,
     placeOrder,
     refreshCart,
   } = useCart();
@@ -91,6 +94,34 @@ export default function CartPage() {
   const [showCoinConfirmModal, setShowCoinConfirmModal] = useState(false);
   const [isApplyingCoins, setIsApplyingCoins] = useState(false);
   const [coinFeedback, setCoinFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const shownToastKeyRef = React.useRef<string | null>(null);
+
+  // Trigger floating toast when coinRemovalNotice is received (ONLY ONCE per unique notice)
+  useEffect(() => {
+    if (coinRemovalNotice && coinRemovalNotice.removed) {
+      const noticeKey = `${coinRemovalNotice.previousCoins}_${coinRemovalNotice.currentSubTotal}_${coinRemovalNotice.maxEligibleCoins}`;
+      if (shownToastKeyRef.current === noticeKey) {
+        return;
+      }
+      shownToastKeyRef.current = noticeKey;
+      setToastNotice(coinRemovalNotice.reason);
+      setCoinFeedback(null);
+      const timer = setTimeout(() => {
+        setToastNotice(null);
+      }, 7000);
+      return () => clearTimeout(timer);
+    } else {
+      shownToastKeyRef.current = null;
+    }
+  }, [coinRemovalNotice]);
+
+  // Automatically clear stale coin application feedback if coins are no longer applied
+  useEffect(() => {
+    if (discountType !== "coins" || coinsUsed === 0) {
+      setCoinFeedback(null);
+    }
+  }, [discountType, coinsUsed]);
 
   // Pre-fill user details if logged in
   useEffect(() => {
@@ -99,6 +130,13 @@ export default function CartPage() {
       if (user.phone && !guestPhone) setGuestPhone(user.phone);
     }
   }, [user]);
+
+  // Clear ephemeral removal notice when unmounting / navigating away from cart
+  useEffect(() => {
+    return () => {
+      clearCoinRemovalNotice();
+    };
+  }, []);
 
   // Derive regular cart items vs re-ordered items
   const regularCartItems = cart.filter((c) => !c.isReorder);
@@ -968,6 +1006,50 @@ export default function CartPage() {
                   </div>
                 )}
               </div>
+
+              {/* Crossable Coins Removal Notice Banner (After Total Container) */}
+              {coinRemovalNotice && coinRemovalNotice.removed && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/80 rounded-2xl p-4 shadow-xs flex flex-col gap-2.5 relative animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs sm:text-sm">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-700" />
+                      </div>
+                      <span>Coins Discount Removed</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearCoinRemovalNotice}
+                      className="text-amber-500 hover:text-amber-800 p-1 rounded-full hover:bg-amber-100/60 transition-colors cursor-pointer"
+                      title="Dismiss notice"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-amber-800/90 font-medium leading-relaxed">
+                    {coinRemovalNotice.reason}
+                  </p>
+
+                  {coinRemovalNotice.maxEligibleCoins > 0 && (
+                    <div className="flex items-center justify-between pt-2 border-t border-amber-200/60">
+                      <span className="text-[11px] font-bold text-amber-900">
+                        You can now apply up to {coinRemovalNotice.maxEligibleCoins} coins (₹{coinRemovalNotice.maxEligibleCoins})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearCoinRemovalNotice();
+                          setShowCoinConfirmModal(true);
+                        }}
+                        className="text-xs font-bold text-[#0B392B] bg-white border border-[#0B392B]/20 hover:border-[#0B392B] px-3 py-1.5 rounded-lg shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                      >
+                        Redeem Coins
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1274,6 +1356,29 @@ export default function CartPage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification for Coin Removal / Alert (Right-to-Left Slide In) */}
+      {toastNotice && (
+        <div className="fixed top-4 right-3 sm:right-6 z-50 max-w-sm w-[calc(100%-1.5rem)] sm:w-auto animate-slide-in-right pointer-events-auto">
+          <div className="bg-[#0B251C] text-white rounded-2xl p-3.5 shadow-2xl border border-white/10 flex items-start gap-3 backdrop-blur-md">
+            <div className="w-7 h-7 rounded-full bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-amber-300">Coins Discount Removed</p>
+              <p className="text-[11px] text-gray-300 mt-0.5 leading-snug">{toastNotice}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastNotice(null)}
+              className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+              title="Close toast"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import Cart, { ICart } from "../../models/cart.model";
+import Cart, { ICart, ICoinRemovalNotice } from "../../models/cart.model";
 import MenuItem from "../../models/menuItem.model";
 import MenuItemVariant from "../../models/menuItemVariant.model";
 import Offer from "../../models/offer.model";
@@ -7,6 +7,7 @@ import User from "../../models/user.model";
 import ApiError from "../../utils/ApiError";
 import { CartStatus, MenuItemStatus, OfferType, OrderFor, OrderStatus, OrderType, PaymentMethod, PaymentStatus, VariantStatus } from "../../common/enum";
 import { OrderService } from "../order/order.service";
+import { CoinRedemptionRuleService } from "../coin/coinRedemptionRule.service";
 
 import ShopDetails from "../../models/shopDetails.model";
 import { calculateItemPricing } from "../../utils/pricing";
@@ -47,30 +48,68 @@ export class CartService {
         totalAmount: 0,
         offer: undefined,
         offerCode: undefined,
+        discountType: undefined,
+        coinsUsed: 0,
+        coinStatus: "none",
+        coinRemovalNotice: undefined,
       };
       return cart;
     }
 
-    let subTotal = 0;
-    const shopDetails = await ShopDetails.findOne();
+    // Extract all unique menuItemIds and variantIds for batch retrieval (optimized O(1) DB roundtrips)
+    const menuItemIds: string[] = [];
+    const variantIds: string[] = [];
 
-    // Calculate subTotal using live menu item & variant prices with discounts applied
     for (const item of cart.items) {
-      const menuItemId =
+      const mId =
         typeof item.menuItem === "object" && (item.menuItem as any)?._id
-          ? (item.menuItem as any)._id
-          : item.menuItem;
-      const menuItemDoc = await MenuItem.findById(menuItemId);
+          ? (item.menuItem as any)._id.toString()
+          : item.menuItem?.toString();
+      if (mId && !menuItemIds.includes(mId)) {
+        menuItemIds.push(mId);
+      }
+
+      const vId =
+        typeof item.variant === "object" && (item.variant as any)?._id
+          ? (item.variant as any)._id.toString()
+          : item.variant?.toString();
+      if (vId && !variantIds.includes(vId)) {
+        variantIds.push(vId);
+      }
+    }
+
+    const [shopDetails, menuItemsDocs, variantsDocs, allRules] = await Promise.all([
+      ShopDetails.findOne(),
+      MenuItem.find({ _id: { $in: menuItemIds } }),
+      variantIds.length > 0 ? MenuItemVariant.find({ _id: { $in: variantIds } }) : [],
+      CoinRedemptionRuleService.getAllRules(false),
+    ]);
+
+    const menuItemMap = new Map<string, any>();
+    menuItemsDocs.forEach((doc) => menuItemMap.set(doc._id.toString(), doc));
+
+    const variantMap = new Map<string, any>();
+    variantsDocs.forEach((doc) => variantMap.set(doc._id.toString(), doc));
+
+    let subTotal = 0;
+
+    // Calculate subTotal in-memory
+    for (const item of cart.items) {
+      const mId =
+        typeof item.menuItem === "object" && (item.menuItem as any)?._id
+          ? (item.menuItem as any)._id.toString()
+          : item.menuItem?.toString();
+      const menuItemDoc = mId ? menuItemMap.get(mId) : null;
       if (!menuItemDoc) continue;
 
       let basePrice = menuItemDoc.price;
-      const variantId =
+      const vId =
         typeof item.variant === "object" && (item.variant as any)?._id
-          ? (item.variant as any)._id
-          : item.variant;
+          ? (item.variant as any)._id.toString()
+          : item.variant?.toString();
 
-      if (variantId) {
-        const variantDoc = await MenuItemVariant.findById(variantId);
+      if (vId) {
+        const variantDoc = variantMap.get(vId);
         if (variantDoc && variantDoc.price) {
           basePrice = variantDoc.price;
         }
@@ -82,11 +121,47 @@ export class CartService {
 
     let discount = 0;
     let appliedOfferDoc: any = null;
+    let coinRemovalNotice: ICoinRemovalNotice | undefined = undefined;
 
-    // Check if coins are applied vs offer coupon
-    if (cart.total?.discountType === "coins" && cart.total?.coinsUsed) {
-      discount = cart.total.coinsUsed;
+    // 1. Re-validate Coin Discount if coins were previously applied
+    if (cart.total?.discountType === "coins" && cart.total?.coinsUsed && cart.total.coinsUsed > 0) {
+      const previouslyAppliedCoins = cart.total.coinsUsed;
+      const sortedRules = [...(allRules || [])].sort((a, b) => a.minOrderAmount - b.minOrderAmount);
+      const qualifyingRules = sortedRules.filter((r) => subTotal >= r.minOrderAmount);
+      const currentRule = qualifyingRules.length > 0 ? qualifyingRules[qualifyingRules.length - 1] : null;
+
+      const maxAllowedCoins = currentRule ? currentRule.maxCoinsDeductible : 0;
+
+      // Invalidate coins if: no tier matches (below min threshold) OR coinsUsed > max allowed for this tier OR coinsUsed > subTotal
+      if (!currentRule || previouslyAppliedCoins > maxAllowedCoins || previouslyAppliedCoins > subTotal) {
+        discount = 0;
+        cart.total.discountType = undefined;
+        cart.total.coinsUsed = 0;
+        cart.total.coinStatus = "none";
+
+        const minRequiredRule = sortedRules.find((r) => r.maxCoinsDeductible >= previouslyAppliedCoins);
+        const minOrderAmountReq = minRequiredRule ? minRequiredRule.minOrderAmount : (currentRule?.minOrderAmount || 0);
+
+        const reason = maxAllowedCoins > 0
+          ? `Homely Coins discount (${previouslyAppliedCoins} coins) was removed because cart value dropped below ₹${minOrderAmountReq}. You can now use up to ${maxAllowedCoins} coins for ₹${subTotal} order value.`
+          : `Homely Coins discount (${previouslyAppliedCoins} coins) was removed because cart value of ₹${subTotal} is below the minimum required ₹${sortedRules[0]?.minOrderAmount || 100}.`;
+
+        coinRemovalNotice = {
+          removed: true,
+          reason,
+          previousCoins: previouslyAppliedCoins,
+          maxEligibleCoins: maxAllowedCoins,
+          currentSubTotal: subTotal,
+        };
+      } else {
+        // Coins remain valid
+        discount = previouslyAppliedCoins;
+        cart.total.discountType = "coins";
+        cart.total.coinsUsed = previouslyAppliedCoins;
+        cart.total.coinStatus = "applied";
+      }
     } else if (cart.total?.offerCode || cart.total?.offer) {
+      // 2. Re-validate Coupon Offer
       const query: any = cart.total.offerCode
         ? { code: cart.total.offerCode.trim().toUpperCase() }
         : { _id: cart.total.offer };
@@ -102,11 +177,9 @@ export class CartService {
         subTotal >= (appliedOfferDoc.minCartValue || 0);
 
       if (!isValid) {
-        // Offer is no longer valid for this cart total
         appliedOfferDoc = null;
         discount = 0;
       } else {
-        // Compute discount based on offerType
         if (appliedOfferDoc.offerType === OfferType.PERCENTAGE) {
           discount = Math.round((subTotal * (appliedOfferDoc.discountPercentage || 0)) / 100);
           if (appliedOfferDoc.maxDiscountAmount && discount > appliedOfferDoc.maxDiscountAmount) {
@@ -115,7 +188,6 @@ export class CartService {
         } else if (appliedOfferDoc.offerType === OfferType.FLAT) {
           discount = appliedOfferDoc.flatDiscountAmount || 0;
         } else if (appliedOfferDoc.offerType === OfferType.BOGO) {
-          // BOGO calculation: check if buyItem and freeItem match
           if (appliedOfferDoc.buyItem && appliedOfferDoc.freeItem) {
             const buyCartItem = cart.items.find(
               (i) => i.menuItem.toString() === appliedOfferDoc.buyItem.toString()
@@ -125,7 +197,7 @@ export class CartService {
             );
 
             if (buyCartItem && buyCartItem.quantity >= (appliedOfferDoc.buyQuantity || 1) && freeCartItem) {
-              const freeDoc = await MenuItem.findById(appliedOfferDoc.freeItem);
+              const freeDoc = menuItemMap.get(appliedOfferDoc.freeItem.toString()) || (await MenuItem.findById(appliedOfferDoc.freeItem));
               if (freeDoc) {
                 const freePricing = calculateItemPricing(freeDoc.price, freeDoc.discountPercent, shopDetails);
                 discount = freePricing.discountedPrice * (appliedOfferDoc.freeQuantity || 1);
@@ -149,20 +221,22 @@ export class CartService {
       discountType: cart.total?.discountType === "coins" ? "coins" : appliedOfferDoc ? "offer" : undefined,
       coinsUsed: cart.total?.discountType === "coins" ? discount : 0,
       coinStatus: cart.total?.discountType === "coins" ? (cart.total.coinStatus || "applied") : "none",
+      coinRemovalNotice: coinRemovalNotice || undefined,
     };
 
     return cart;
   }
 
-  static async getCart(userId: string) {
+  static async getCart(userId: string, skipRecalculate = false) {
     let cart = await Cart.findOne({ user: userId, status: "active" });
     if (!cart) {
       return null;
     }
 
-    // Ensure totals are freshly recalculated on load
-    await this.recalculateCartTotals(cart);
-    await cart.save();
+    if (!skipRecalculate) {
+      await this.recalculateCartTotals(cart);
+      await cart.save();
+    }
 
     cart = await Cart.findOne({ user: userId, status: "active" })
       .populate({
@@ -184,6 +258,13 @@ export class CartService {
 
     const shopDetails = await ShopDetails.findOne();
     const cartObj: any = cart.toObject();
+
+    // Consume/Clear one-time coinRemovalNotice from database after reading it once
+    if (cart.total?.coinRemovalNotice) {
+      Cart.updateOne({ _id: cart._id }, { $unset: { "total.coinRemovalNotice": 1 } })
+        .exec()
+        .catch(() => {});
+    }
 
     if (cartObj.items && Array.isArray(cartObj.items)) {
       cartObj.items = cartObj.items.map((cartItem: any) => {
@@ -257,7 +338,7 @@ export class CartService {
     await this.recalculateCartTotals(cart);
     await cart.save();
 
-    return this.getCart(userId);
+    return this.getCart(userId, true);
   }
 
   static async applyOffer(userId: string, offerCode: string) {
@@ -303,7 +384,7 @@ export class CartService {
     }
 
     await cart.save();
-    return this.getCart(userId);
+    return this.getCart(userId, true);
   }
 
   static async removeOffer(userId: string) {
@@ -316,7 +397,7 @@ export class CartService {
       await this.recalculateCartTotals(cart);
       await cart.save();
     }
-    return this.getCart(userId);
+    return this.getCart(userId, true);
   }
 
   /**
@@ -532,9 +613,10 @@ export class CartService {
     cart.total.coinStatus = "applied";
     cart.total.discount = coinsToDeduct;
     cart.total.totalAmount = Math.max(0, cartTotalAmount - coinsToDeduct);
+    cart.total.coinRemovalNotice = undefined;
 
     await cart.save();
-    return this.getCart(userId);
+    return this.getCart(userId, true);
   }
 
   /**
@@ -549,10 +631,11 @@ export class CartService {
       cart.total.coinsUsed = 0;
       cart.total.coinStatus = "none";
       cart.total.discount = 0;
+      cart.total.coinRemovalNotice = undefined;
       await this.recalculateCartTotals(cart);
       await cart.save();
     }
-    return this.getCart(userId);
+    return this.getCart(userId, true);
   }
 
   static async clearCart(userId: string) {

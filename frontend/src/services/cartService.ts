@@ -28,6 +28,14 @@ export interface PopulatedCartItem {
   isReorder?: boolean;
 }
 
+export interface CoinRemovalNotice {
+  removed: boolean;
+  reason: string;
+  previousCoins: number;
+  maxEligibleCoins: number;
+  currentSubTotal: number;
+}
+
 export interface CartTotal {
   subTotal: number;
   discount: number;
@@ -45,6 +53,7 @@ export interface CartTotal {
   discountType?: "offer" | "coins";
   coinsUsed?: number;
   coinStatus?: "none" | "applied" | "converted" | "cancelled";
+  coinRemovalNotice?: CoinRemovalNotice;
 }
 
 export interface CoinDeductionResponse {

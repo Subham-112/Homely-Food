@@ -11,6 +11,7 @@ import {
   checkoutCart,
   CartTotal,
   CoinDeductionResponse,
+  CoinRemovalNotice,
 } from "@/services/cartService";
 
 const PUBLIC_CART_KEY = "homely_public_cart";
@@ -55,17 +56,36 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  menuItem?: MenuItem;
+  variant?: {
+    id?: string;
+    label?: string;
+    price?: number;
+  };
 }
 
 export interface Order {
   id: string;
+  _id?: string;
+  orderNumber?: string;
   date: string;
   time: string;
   status: string;
   items: OrderItem[];
   totalAmount: number;
+  subTotal?: number;
+  discount?: number;
+  discountType?: "offer" | "coins";
+  coinsUsed?: number;
+  offerCode?: string;
+  deliveryCharge?: number;
   paymentMethod: string;
+  payment?: {
+    status: string;
+    method?: string;
+  };
   orderType: string;
+  createdAt?: string;
   deliveryAddress?: string;
   pickupTiming?: string;
 }
@@ -95,6 +115,8 @@ interface CartContextType {
   applyCoins: () => Promise<{ success: boolean; message: string }>;
   removeCoins: () => Promise<void>;
   reorderCart: (orderId: string) => Promise<void>;
+  coinRemovalNotice: CoinRemovalNotice | null;
+  clearCoinRemovalNotice: () => void;
   currentOrder: Order | null;
   setCurrentOrder: (order: Order | null) => void;
   placeOrder: (
@@ -131,6 +153,52 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Coin Deduction calculation state
   const [coinDeductionInfo, setCoinDeductionInfo] = useState<CoinDeductionResponse | null>(null);
   const [isLoadingDeduction, setIsLoadingDeduction] = useState<boolean>(false);
+  const [coinRemovalNotice, setCoinRemovalNotice] = useState<CoinRemovalNotice | null>(null);
+  const dismissedNoticesRef = useRef<Set<string>>(new Set());
+
+  const getNoticeKey = (notice: CoinRemovalNotice) => {
+    return `${notice.previousCoins}_${notice.currentSubTotal}_${notice.maxEligibleCoins}`;
+  };
+
+  const isNoticeDismissed = (key: string): boolean => {
+    if (dismissedNoticesRef.current.has(key)) return true;
+    if (typeof window !== "undefined") {
+      try {
+        return sessionStorage.getItem(`homely_notice_${key}`) === "1";
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const markNoticeDismissed = (key: string) => {
+    dismissedNoticesRef.current.add(key);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(`homely_notice_${key}`, "1");
+      } catch {}
+    }
+  };
+
+  const handleSetCoinRemovalNotice = (notice?: CoinRemovalNotice) => {
+    if (!notice || !notice.removed) {
+      setCoinRemovalNotice(null);
+      return;
+    }
+    const key = getNoticeKey(notice);
+    if (isNoticeDismissed(key)) {
+      return;
+    }
+    setCoinRemovalNotice(notice);
+  };
+
+  const clearCoinRemovalNotice = () => {
+    if (coinRemovalNotice) {
+      markNoticeDismissed(getNoticeKey(coinRemovalNotice));
+    }
+    setCoinRemovalNotice(null);
+  };
 
   const fetchCoinDeduction = async (currentCartId?: string) => {
     if (!token) {
@@ -151,65 +219,83 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastConfirmedCartRef = useRef<CartItem[]>([]);
   const syncSeqRef = useRef<number>(0);
+  const lastConfirmedCartRef = useRef<CartItem[]>([]);
   const latestTargetCartRef = useRef<CartItem[]>([]);
 
-  // Helper to format raw backend cart object to CartItem[] array
+  // Format backend cart items to CartItem format
   const formatBackendCartItems = (backendCart: any): CartItem[] => {
     if (!backendCart || !backendCart.items) return [];
-    return (backendCart.items || [])
-      .filter((item: any) => item.menuItem)
-      .map((item: any) => ({
-        item: {
-          id: item.menuItem._id,
-          name: item.menuItem.name,
-          price: item.menuItem.price,
-          discountPercent: item.menuItem.discountPercent,
-          discountedPrice: item.menuItem.discountedPrice !== undefined ? item.menuItem.discountedPrice : item.menuItem.price,
-          description: "",
-          image: typeof item.menuItem.image === "object" ? item.menuItem.image.url : item.menuItem.image || "",
-          category: typeof item.menuItem.category === "object" ? (item.menuItem.category as any)?.name : item.menuItem.category || "",
-        },
-        quantity: item.quantity,
-        variant: item.variant
-          ? {
-              id: item.variant._id,
-              label: item.variant.label,
-              price: item.variant.price,
-            }
-          : undefined,
-        isReorder: Boolean(item.isReorder),
-      }));
+    return backendCart.items
+      .map((item: any) => {
+        if (!item.menuItem) return null;
+        return {
+          item: {
+            id: item.menuItem._id,
+            name: item.menuItem.name,
+            price: item.menuItem.price,
+            discountPercent: item.menuItem.discountPercent,
+            discountedPrice: item.menuItem.discountedPrice,
+            description: item.menuItem.description,
+            image: item.menuItem.image?.url || item.menuItem.image || "",
+            isSpecial: item.menuItem.isTodaySpecial || item.menuItem.isSpecial,
+            tag: item.menuItem.tags?.[0] || "",
+            category: typeof item.menuItem.category === "object" ? item.menuItem.category?.name || "General" : item.menuItem.category || "General",
+            preparationTime: item.menuItem.preparationTime,
+            tags: item.menuItem.tags,
+            allergens: item.menuItem.allergens,
+            status: item.menuItem.status,
+          },
+          quantity: item.quantity,
+          variant: item.variant
+            ? {
+                id: item.variant._id || item.variant.id,
+                label: item.variant.label,
+                price: item.variant.price,
+              }
+            : undefined,
+          isReorder: Boolean(item.isReorder),
+        };
+      })
+      .filter(Boolean) as CartItem[];
   };
 
+  // Helper: Fetch Cart
   const fetchCart = async () => {
-    if (!token) {
-      setCart([]);
-      setCartId(null);
-      setCartTotal({ subTotal: 0, discount: 0, totalAmount: 0 });
-      lastConfirmedCartRef.current = [];
-      latestTargetCartRef.current = [];
-      setIsCartLoading(false);
-      return;
-    }
     setIsCartLoading(true);
     try {
-      // Check for pending public cart items to merge
+      if (!token) {
+        // Public non-authenticated guest cart
+        const savedPublicCart = localStorage.getItem(PUBLIC_CART_KEY);
+        if (savedPublicCart) {
+          try {
+            const parsed = JSON.parse(savedPublicCart);
+            setCart(parsed);
+            lastConfirmedCartRef.current = parsed;
+            latestTargetCartRef.current = parsed;
+          } catch {
+            setCart([]);
+          }
+        } else {
+          setCart([]);
+        }
+        setIsCartLoading(false);
+        return;
+      }
+
+      // Check if there is any guest cart stored locally to sync after login
       let publicCartItems: { menuItem: string; quantity: number; variant?: string }[] = [];
       try {
-        const stored = localStorage.getItem(PUBLIC_CART_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored) as Array<{
-            id: string;
-            quantity: number;
-            variant?: { id: string; label: string; price: number };
-          }>;
-          publicCartItems = parsed.map((c) => ({
-            menuItem: c.id,
-            quantity: c.quantity,
-            variant: c.variant?.id,
-          }));
+        const rawPublicCart = localStorage.getItem(PUBLIC_CART_KEY);
+        if (rawPublicCart) {
+          const parsed = JSON.parse(rawPublicCart);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            publicCartItems = parsed.map((c: any) => ({
+              menuItem: c.item.id,
+              quantity: c.quantity,
+              variant: c.variant?.id,
+            }));
+          }
         }
       } catch {
         publicCartItems = [];
@@ -321,6 +407,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (resCart) {
           setCartId(resCart._id);
           setCartTotal(resCart.total || { subTotal: 0, discount: 0, totalAmount: 0 });
+          handleSetCoinRemovalNotice(resCart.total?.coinRemovalNotice);
           const confirmedItems = formatBackendCartItems(resCart);
           setCart(confirmedItems);
           lastConfirmedCartRef.current = confirmedItems;
@@ -475,6 +562,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const resCart = await applyCoinsToCart(cartId || undefined);
       if (resCart) {
         setCartTotal(resCart.total);
+        dismissedNoticesRef.current.clear();
+        if (typeof window !== "undefined") {
+          try {
+            Object.keys(sessionStorage).forEach((k) => {
+              if (k.startsWith("homely_notice_")) sessionStorage.removeItem(k);
+            });
+          } catch {}
+        }
+        setCoinRemovalNotice(null);
         const confirmedItems = formatBackendCartItems(resCart);
         setCart(confirmedItems);
         lastConfirmedCartRef.current = confirmedItems;
@@ -501,6 +597,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const resCart = await removeCoinsFromCart(cartId || undefined);
       if (resCart) {
         setCartTotal(resCart.total);
+        setCoinRemovalNotice(null);
         const confirmedItems = formatBackendCartItems(resCart);
         setCart(confirmedItems);
         lastConfirmedCartRef.current = confirmedItems;
@@ -646,6 +743,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         applyCoins,
         removeCoins,
         reorderCart,
+        coinRemovalNotice,
+        clearCoinRemovalNotice,
         refreshCart: fetchCart,
         currentOrder,
         setCurrentOrder,
