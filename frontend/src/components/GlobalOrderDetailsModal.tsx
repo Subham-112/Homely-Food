@@ -263,7 +263,7 @@ export default function GlobalOrderDetailsModal({
             <div className="flex items-center justify-between">
               <span className="text-[11px]">Subtotal</span>
               <span className="font-bold text-gray-800 text-[11px]">
-                ₹{order.payment?.subTotal ?? order.subTotal ?? order.totalAmount ?? 0}
+                ₹{order.payment?.subTotal ?? order.subTotal ?? 0}
               </span>
             </div>
             {Boolean(order.payment?.discount || order.discount) && (
@@ -304,7 +304,7 @@ export default function GlobalOrderDetailsModal({
             </div>
             <div className="flex items-center justify-between text-sm font-extrabold text-[#0B251C] pt-2 border-t border-gray-300/70 mt-1">
               <span>Total Amount</span>
-              <span className="text-[#0B392B] text-base">₹{order.payment.totalAmount}</span>
+              <span className="text-[#0B392B] text-base">₹{order.payment.totalAmount ?? order.totalAmount}</span>
             </div>
           </div>
 

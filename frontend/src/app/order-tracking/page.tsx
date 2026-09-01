@@ -298,7 +298,7 @@ function OrderTrackingContent() {
             TOTAL AMOUNT
           </span>
           <span className="text-lg sm:text-xl font-extrabold text-[#0B251C]">
-            ₹{displayOrder.payment.totalAmount}
+            ₹{displayOrder.payment.totalAmount ?? displayOrder.totalAmount}
           </span>
         </div>
       </div>

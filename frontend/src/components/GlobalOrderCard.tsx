@@ -307,7 +307,7 @@ export default function GlobalOrderCard({
         className={`rounded-2xl p-4 border flex flex-col justify-between gap-3 transition-all cursor-pointer ${
           isPaidAndCompleted
             ? "bg-gray-50 border-gray-200 opacity-70 saturate-50 shadow-none hover:shadow-xs"
-            : "bg-white border-[#E1ECEE] shadow-2xs hover:shadow-xs hover:border-[#0B392B]/40"
+            : "bg-gray-100/70 border-[#E1ECEE] shadow-2xs hover:shadow-xs hover:border-[#0B392B]/40"
         }`}
       >
         {/* Card Header: Order Number & Status */}
