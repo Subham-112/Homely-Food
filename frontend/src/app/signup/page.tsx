@@ -49,13 +49,15 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Call backend API viaNext.js proxy route /api/user/register
+      // Call backend API via Next.js proxy route /api/user/register
       const res = await Post<RegisterApiResponse>(
         "/api/user/register",
         {
           name: fullName,
           phone: mobileNumber,
           password: password,
+          agreedPrivacyPolicy: true,
+          agreedTermsAndConditions: true,
         }
       );
 
@@ -155,9 +157,22 @@ export default function SignupPage() {
             />
             <label htmlFor="terms" className="text-xs text-gray-600 leading-normal cursor-pointer">
               I agree to the{" "}
-              <span className="font-bold text-[#0B251C]">Terms & Conditions</span>{" "}
+              <Link
+                href="/terms-and-conditions"
+                target="_blank"
+                className="font-bold text-[#0B251C] hover:underline hover:text-[#0B392B]"
+              >
+                Terms & Conditions
+              </Link>{" "}
               and{" "}
-              <span className="font-bold text-[#0B251C]">Privacy Policy</span>.
+              <Link
+                href="/privacy-policy"
+                target="_blank"
+                className="font-bold text-[#0B251C] hover:underline hover:text-[#0B392B]"
+              >
+                Privacy Policy
+              </Link>
+              .
             </label>
           </div>
 

@@ -11,6 +11,8 @@ export interface UserProfile {
   email?: string;
   status?: string;
   welcomeRewardClaimed?: boolean;
+  agreedPrivacyPolicy?: boolean;
+  agreedTermsAndConditions?: boolean;
 }
 
 export interface AdminProfile {
@@ -111,10 +113,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const isAdminLoginRoute = pathname === "/admin/login" || pathname === "/admin/forgot-password";
     const isAdminRoute = pathname.startsWith("/admin");
     const isPublicRoute = pathname.startsWith("/public");
+    const isLegalPolicyRoute = pathname === "/privacy-policy" || pathname === "/terms-and-conditions";
 
     // Strict Routing Guards
     if (hasAdminAccess) {
-      if (!isAdminRoute || isAdminLoginRoute) {
+      if ((!isAdminRoute || isAdminLoginRoute) && !isLegalPolicyRoute) {
         router.replace("/admin");
       }
     } else if (hasUserAccess) {
@@ -124,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       if (isAdminRoute && !isAdminLoginRoute) {
         router.replace("/admin/login");
-      } else if (!isUserLoginSignup && !isAdminLoginRoute && !isPublicRoute) {
+      } else if (!isUserLoginSignup && !isAdminLoginRoute && !isPublicRoute && !isLegalPolicyRoute) {
         router.replace("/login");
       }
     }

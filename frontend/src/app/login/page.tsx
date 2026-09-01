@@ -157,6 +157,19 @@ export default function LoginPage() {
                 Create an Account
               </Link>
             </p>
+
+            {/* Legal Notice */}
+            <p className="text-[11px] text-gray-400 text-center mt-3">
+              By continuing, you agree to our{" "}
+              <Link href="/terms-and-conditions" className="text-gray-600 hover:text-[#0B392B] underline">
+                Terms & Conditions
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy-policy" className="text-gray-600 hover:text-[#0B392B] underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </div>
 
           {/* Discreet Admin Access Link */}

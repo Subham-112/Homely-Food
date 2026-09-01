@@ -94,7 +94,7 @@ export default function CartPage() {
   const [showCoinConfirmModal, setShowCoinConfirmModal] = useState(false);
   const [isApplyingCoins, setIsApplyingCoins] = useState(false);
   const [coinFeedback, setCoinFeedback] = useState<{ success: boolean; message: string } | null>(null);
-  const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const [toastNotice, setToastNotice] = useState<{ title: string; message: string } | null>(null);
   const shownToastKeyRef = React.useRef<string | null>(null);
 
   // Trigger floating toast when coinRemovalNotice is received (ONLY ONCE per unique notice)
@@ -105,7 +105,10 @@ export default function CartPage() {
         return;
       }
       shownToastKeyRef.current = noticeKey;
-      setToastNotice(coinRemovalNotice.reason);
+      setToastNotice({
+        title: "Coins Discount Removed",
+        message: coinRemovalNotice.reason,
+      });
       setCoinFeedback(null);
       const timer = setTimeout(() => {
         setToastNotice(null);
@@ -213,6 +216,7 @@ export default function CartPage() {
   const [serviceablePincodes, setServiceablePincodes] = useState<string[]>([]);
   const [shopDeliveryCharge, setShopDeliveryCharge] = useState<number>(30);
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(500);
+  const [isDeliveryEnabled, setIsDeliveryEnabled] = useState<boolean>(true);
 
   // Fetch Store Details & Delivery Configuration from ShopDetails API
   useEffect(() => {
@@ -229,6 +233,12 @@ export default function CartPage() {
           if (typeof details.freeDeliveryThreshold === "number") {
             setFreeDeliveryThreshold(details.freeDeliveryThreshold);
           }
+          if (details.isDeliveryEnabled !== undefined) {
+            setIsDeliveryEnabled(details.isDeliveryEnabled);
+            if (!details.isDeliveryEnabled) {
+              setOrderType((prev) => (prev === "delivery" ? "dine-in" : prev));
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to load store details for cart:", err);
@@ -236,6 +246,20 @@ export default function CartPage() {
     };
     fetchStoreDetails();
   }, []);
+
+  const handleSelectOrderType = (type: "dine-in" | "delivery" | "pickup") => {
+    if (type === "delivery" && !isDeliveryEnabled) {
+      setToastNotice({
+        title: "Delivery Unavailable",
+        message: "Delivery is currently unavailable. Please choose Dine-in or Pickup.",
+      });
+      const timer = setTimeout(() => {
+        setToastNotice(null);
+      }, 5000);
+      return;
+    }
+    setOrderType(type);
+  };
 
   // Effective Delivery Charge & Total Amount
   const isDelivery = orderType === "delivery";
@@ -255,6 +279,14 @@ export default function CartPage() {
       return;
     }
     if (orderType === "delivery") {
+      if (!isDeliveryEnabled) {
+        setFormError("Delivery service is currently unavailable. Please select Dine-in or Pickup.");
+        setToastNotice({
+          title: "Delivery Unavailable",
+          message: "Delivery is currently unavailable. Please choose Dine-in or Pickup.",
+        });
+        return;
+      }
       if (!deliveryPincode) {
         setFormError("Delivery pincode is required. Please select your pincode.");
         return;
@@ -788,12 +820,6 @@ export default function CartPage() {
                   </p>
                 </div>
 
-                {formError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-xl font-semibold">
-                    {formError}
-                  </div>
-                )}
-
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-bold text-gray-700">Order Type *</span>
                   <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-xl text-xs font-bold">
@@ -801,14 +827,19 @@ export default function CartPage() {
                       <button
                         key={type}
                         type="button"
-                        onClick={() => setOrderType(type)}
-                        className={`py-1.5 rounded-lg text-center cursor-pointer transition-all capitalize ${
+                        onClick={() => handleSelectOrderType(type)}
+                        className={`py-1.5 rounded-lg text-center cursor-pointer transition-all capitalize flex items-center justify-center gap-1 ${
                           orderType === type
                             ? "bg-[#0B392B] text-white shadow-xs"
+                            : type === "delivery" && !isDeliveryEnabled
+                            ? "text-gray-400 opacity-60 hover:text-gray-500"
                             : "text-gray-500 hover:text-gray-700"
                         }`}
                       >
-                        {type}
+                        <span>{type}</span>
+                        {type === "delivery" && !isDeliveryEnabled && (
+                          <span className="text-[9px] font-bold text-red-500 lowercase">(off)</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -963,6 +994,14 @@ export default function CartPage() {
                       : "Note: Offline payment at counter / on delivery."}
                   </span>
                 </div>
+
+                {/* Form Validation Error Banner (Before Pay Button) */}
+                {formError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3.5 rounded-xl font-semibold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-1">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{formError}</span>
+                  </div>
+                )}
 
                 {/* Action Payment Button */}
                 {cart.length > 0 && (
@@ -1368,8 +1407,8 @@ export default function CartPage() {
               <AlertCircle className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-amber-300">Coins Discount Removed</p>
-              <p className="text-[11px] text-gray-300 mt-0.5 leading-snug">{toastNotice}</p>
+              <p className="text-xs font-bold text-amber-300">{toastNotice.title}</p>
+              <p className="text-[11px] text-gray-300 mt-0.5 leading-snug">{toastNotice.message}</p>
             </div>
             <button
               type="button"

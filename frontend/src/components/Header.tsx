@@ -2,14 +2,25 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins, ArrowLeft } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCoins } from "@/context/CoinContext";
 
-export const Header: React.FC = () => {
+export interface HeaderProps {
+  showMenu?: boolean;
+  showBack?: boolean;
+  backHref?: string;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  showMenu = true,
+  showBack = false,
+  backHref,
+}) => {
   const pathname = usePathname();
+  const router = useRouter();
   const { totalItems } = useCart();
   const { user, isAuthenticated, isAdminAuthenticated, logout, adminLogout } = useAuth();
   const { wallet, floatingAnimation } = useCoins();
@@ -21,15 +32,27 @@ export const Header: React.FC = () => {
     <>
       <header className="sticky top-0 z-40 bg-[#F4F9FA] border-b border-[#E3EEF0] shadow-xs">
         <div className="max-w-7xl w-full mx-auto px-3 sm:px-5 flex items-center justify-between relative min-h-[56px]">
-          {/* Left Side: Mobile Menu Button */}
+          {/* Left Side: Mobile Menu / Back Button */}
           <div className="flex items-center gap-3 z-10">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="p-1.5 text-[#0B392B] hover:bg-[#E3EEF0] rounded-xl transition-colors cursor-pointer"
-              aria-label="Open menu"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
+            {showMenu ? (
+              <button
+                onClick={() => setDrawerOpen(true)}
+                className="p-1.5 text-[#0B392B] hover:bg-[#E3EEF0] rounded-xl transition-colors cursor-pointer"
+                aria-label="Open menu"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
+            ) : showBack ? (
+              <button
+                onClick={() => (backHref ? router.push(backHref) : router.back())}
+                className="p-1.5 text-[#0B392B] hover:bg-[#E3EEF0] rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            ) : (
+              <div className="w-8" />
+            )}
           </div>
 
           {/* Middle Side: Centered Logo Image */}

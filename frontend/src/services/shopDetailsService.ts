@@ -22,6 +22,7 @@ export interface ShopDetails {
   openingTime?: string;
   closingTime?: string;
   isStoreOpen: boolean;
+  isDeliveryEnabled?: boolean;
   minimumOrderAmount?: number;
   deliveryCharge?: number;
   freeDeliveryThreshold?: number;
@@ -60,6 +61,12 @@ export const updateShopDetails = async (payload: Partial<ShopDetails>): Promise<
 // PATCH /api/shop-details/toggle-status (Admin)
 export const toggleStoreStatus = async (): Promise<{ isStoreOpen: boolean }> => {
   const response = await Patch<ApiResponse<{ isStoreOpen: boolean }>>("/api/shop-details/toggle-status", {});
+  return response.data;
+};
+
+// PATCH /api/shop-details/toggle-delivery-status (Admin)
+export const toggleDeliveryStatus = async (): Promise<{ isDeliveryEnabled: boolean }> => {
+  const response = await Patch<ApiResponse<{ isDeliveryEnabled: boolean }>>("/api/shop-details/toggle-delivery-status", {});
   return response.data;
 };
 

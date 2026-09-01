@@ -120,9 +120,10 @@ api.interceptors.response.use(
         TokenStorage.clearAll();
         if (typeof window !== "undefined") {
           const currentPath = window.location.pathname;
+          const isLegalPolicy = currentPath === "/privacy-policy" || currentPath === "/terms-and-conditions";
           if (currentPath.startsWith("/admin") && !currentPath.startsWith("/admin/login")) {
             window.location.href = "/admin/login";
-          } else if (!currentPath.startsWith("/login") && !currentPath.startsWith("/signup")) {
+          } else if (!currentPath.startsWith("/login") && !currentPath.startsWith("/signup") && !isLegalPolicy) {
             window.location.href = "/login";
           }
         }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { Phone, Mail, MapPin, ShieldCheck, FileCheck, Clock, Store } from "lucide-react";
 import { getShopDetails, ShopDetails } from "@/services/shopDetailsService";
 
@@ -166,8 +167,25 @@ export default function Footer() {
           )}
         </div>
 
+        {/* Legal Links (Privacy Policy & Terms and Conditions) */}
+        <div className="pt-4 border-t border-emerald-900/50 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-bold tracking-wide">
+          <Link
+            href="/privacy-policy"
+            className="text-emerald-200/90 hover:text-white uppercase transition-colors underline-offset-4 hover:underline flex items-center gap-1.5"
+          >
+            <span>Privacy Policy</span>
+          </Link>
+          <span className="text-emerald-700 select-none">•</span>
+          <Link
+            href="/terms-and-conditions"
+            className="text-emerald-200/90 hover:text-white uppercase transition-colors underline-offset-4 hover:underline flex items-center gap-1.5"
+          >
+            <span>Terms and Conditions</span>
+          </Link>
+        </div>
+
         {/* Bottom Copyright */}
-        <div className="pt-4 border-t border-emerald-900/50 text-center text-[11px] text-emerald-400/70 font-medium">
+        <div className="text-center text-[11px] text-emerald-400/70 font-medium -mt-2">
           © {new Date().getFullYear()} {shop.shopName || "Homely Food"}. All rights reserved.
         </div>
       </div>

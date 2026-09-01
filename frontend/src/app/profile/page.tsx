@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, Phone, Mail, Edit3, ShoppingBag, Clock, LogOut, ShieldCheck, ChevronRight } from "lucide-react";
+import { User, Phone, Mail, Edit3, ShoppingBag, Clock, LogOut, ShieldCheck, ChevronRight, Scale, FileText } from "lucide-react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Button from "@/components/Button";
@@ -28,23 +28,58 @@ export default function ProfilePage() {
         </div>
 
         {!isAuthenticated || !user ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-[#E8E1D3] flex flex-col items-center justify-center gap-4 shadow-xs my-4">
-            <div className="w-16 h-16 rounded-full bg-[#FAF6ED] flex items-center justify-center text-[#0B392B]">
-              <User className="w-8 h-8" />
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-3xl p-10 text-center border border-[#E8E1D3] flex flex-col items-center justify-center gap-4 shadow-xs">
+              <div className="w-16 h-16 rounded-full bg-[#FAF6ED] flex items-center justify-center text-[#0B392B]">
+                <User className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-[#0B251C]">Please Log In</h2>
+                <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
+                  Log in to your Homely Foods account to view your profile details and track your orders.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                fullWidth={false}
+                onClick={() => router.push("/login")}
+              >
+                Go to Login
+              </Button>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-[#0B251C]">Please Log In</h2>
-              <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
-                Log in to your Homely Foods account to view your profile details and track your orders.
-              </p>
+
+            {/* Legal & Policies for Guests */}
+            <div className="bg-white rounded-3xl p-3 border border-[#E8E1D3] shadow-xs flex flex-col gap-1">
+              <div className="px-3.5 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-gray-400">
+                Legal & Policies
+              </div>
+
+              <Link
+                href="/privacy-policy"
+                className="flex items-center justify-between p-3.5 hover:bg-gray-50 rounded-2xl transition-colors text-xs sm:text-sm font-bold text-[#0B251C]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <span>Privacy Policy</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </Link>
+
+              <Link
+                href="/terms-and-conditions"
+                className="flex items-center justify-between p-3.5 hover:bg-gray-50 rounded-2xl transition-colors text-xs sm:text-sm font-bold text-[#0B251C]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                    <Scale className="w-4 h-4" />
+                  </div>
+                  <span>Terms & Conditions</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </Link>
             </div>
-            <Button
-              variant="primary"
-              fullWidth={false}
-              onClick={() => router.push("/login")}
-            >
-              Go to Login
-            </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -139,6 +174,39 @@ export default function ProfilePage() {
                     <Edit3 className="w-4 h-4" />
                   </div>
                   <span>Edit Profile Details</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </Link>
+            </div>
+
+            {/* Legal & Policies Card */}
+            <div className="bg-white rounded-3xl p-3 border border-[#E8E1D3] shadow-xs flex flex-col gap-1">
+              <div className="px-3.5 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-gray-400">
+                Legal & Policies
+              </div>
+
+              <Link
+                href="/privacy-policy"
+                className="flex items-center justify-between p-3.5 hover:bg-gray-50 rounded-2xl transition-colors text-xs sm:text-sm font-bold text-[#0B251C]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <span>Privacy Policy</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+              </Link>
+
+              <Link
+                href="/terms-and-conditions"
+                className="flex items-center justify-between p-3.5 hover:bg-gray-50 rounded-2xl transition-colors text-xs sm:text-sm font-bold text-[#0B251C]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                    <Scale className="w-4 h-4" />
+                  </div>
+                  <span>Terms & Conditions</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               </Link>
