@@ -1,4 +1,4 @@
-import Order, { IOrder } from "../../models/order.model";
+import Order from "../../models/order.model";
 import User from "../../models/user.model";
 import MenuItem from "../../models/menuItem.model";
 import { Customer } from "../../models/customer.model";

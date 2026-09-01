@@ -225,7 +225,7 @@ export default function AdminCustomersPage() {
       {/* Customer Orders Popup Modal */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl flex flex-col gap-4 max-h-[80vh] border border-[#E8E1D3] relative animate-in fade-in zoom-in-95 duration-200">
+          <div className="-mt-10 bg-white rounded-2xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl flex flex-col gap-4 max-h-[75vh] border border-[#E8E1D3] relative animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 shrink-0">
               <div className="flex items-center gap-3">

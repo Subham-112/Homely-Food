@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 
 export class CustomerService {
   static async getAll() {
-    const customers = await Customer.find().sort({ createdAt: -1 });
+    const customers = await Customer.find().sort({ createdAt: -1 }).select("-deleted -createdAt -updatedAt -__v");
 
     const updatedCustomers = await Promise.all(
       customers.map(async (custDoc) => {
@@ -45,9 +45,19 @@ export class CustomerService {
         const count = await Order.countDocuments(orderFilter);
         
         // Sum totalExpenses accurately from all orders matching the customer's phone
+        // Support both $payment.totalAmount (new structure) and $totalAmount (legacy structure)
         const totalAmountAggregation = await Order.aggregate([
           { $match: orderFilter },
-          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+          {
+            $group: {
+              _id: null,
+              total: {
+                $sum: {
+                  $ifNull: ["$payment.totalAmount", { $ifNull: ["$totalAmount", 0] }],
+                },
+              },
+            },
+          },
         ]);
         const totalExpenses = totalAmountAggregation.length > 0 ? totalAmountAggregation[0].total : cust.totalExpenses;
 
