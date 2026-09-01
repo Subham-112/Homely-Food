@@ -15,6 +15,8 @@ const registerSchema = z.object({
     .min(6, "Password must be at least 6 characters long")
     .regex(/\d/, "Password must contain at least one number")
     .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character"),
+  agreedPrivacyPolicy: z.boolean().optional(),
+  agreedTermsAndConditions: z.boolean().optional(),
 });
 
 const loginSchema = z.object({

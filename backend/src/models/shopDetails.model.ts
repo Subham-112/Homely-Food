@@ -22,6 +22,7 @@ export interface IShopDetails extends Document {
   openingTime?: string;
   closingTime?: string;
   isStoreOpen: boolean;
+  isDeliveryEnabled: boolean;
   minimumOrderAmount?: number;
   deliveryCharge?: number;
   freeDeliveryThreshold?: number;
@@ -87,6 +88,10 @@ const ShopDetailsSchema = new Schema<IShopDetails>(
       type: String,
     },
     isStoreOpen: {
+      type: Boolean,
+      default: true,
+    },
+    isDeliveryEnabled: {
       type: Boolean,
       default: true,
     },

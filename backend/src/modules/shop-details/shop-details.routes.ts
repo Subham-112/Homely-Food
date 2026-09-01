@@ -11,5 +11,6 @@ router.get("/check-pincode/:pincode", ShopDetailsController.checkPincode);
 // Admin-Protected Endpoints
 router.put("/", authenticateToken, authorize("admin"), ShopDetailsController.updateDetails);
 router.patch("/toggle-status", authenticateToken, authorize("admin"), ShopDetailsController.toggleStatus);
+router.patch("/toggle-delivery-status", authenticateToken, authorize("admin"), ShopDetailsController.toggleDeliveryStatus);
 
 export default router;

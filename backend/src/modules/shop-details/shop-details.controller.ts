@@ -23,6 +23,7 @@ export const updateShopDetailsSchema = z.object({
   openingTime: z.string().optional(),
   closingTime: z.string().optional(),
   isStoreOpen: z.boolean().optional(),
+  isDeliveryEnabled: z.boolean().optional(),
   minimumOrderAmount: z.number().min(0).optional(),
   deliveryCharge: z.number().min(0).optional(),
   freeDeliveryThreshold: z.number().min(0).optional(),
@@ -74,6 +75,23 @@ export class ShopDetailsController {
         message: `Store status toggled to ${updated.isStoreOpen ? "OPEN" : "CLOSED"}`,
         data: {
           isStoreOpen: updated.isStoreOpen,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // PATCH /api/shop-details/toggle-delivery-status
+  static async toggleDeliveryStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const updated = await ShopDetailsService.toggleDeliveryStatus();
+      res.status(200).json({
+        statusCode: 200,
+        success: true,
+        message: `Delivery status toggled to ${updated.isDeliveryEnabled ? "ENABLED" : "DISABLED"}`,
+        data: {
+          isDeliveryEnabled: updated.isDeliveryEnabled,
         },
       });
     } catch (error) {

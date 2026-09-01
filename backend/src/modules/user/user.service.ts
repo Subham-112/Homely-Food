@@ -7,7 +7,14 @@ import ApiResponse from "../../utils/ApiResponse";
 import { CoinService } from "../coin/coin.service";
 
 export class UserService {
-  static async register(payload: { name: string; phone: string; email?: string; password?: string }) {
+  static async register(payload: {
+    name: string;
+    phone: string;
+    email?: string;
+    password?: string;
+    agreedPrivacyPolicy?: boolean;
+    agreedTermsAndConditions?: boolean;
+  }) {
     const existingUser = await User.findOne({ phone: payload.phone });
     if (existingUser) {
       throw new ApiError(400, `An account with the phone number "${payload.phone}" already exists.`);
@@ -29,6 +36,8 @@ export class UserService {
       password: hashedPassword,
       role: "user",
       status: "active",
+      agreedPrivacyPolicy: payload.agreedPrivacyPolicy ?? true,
+      agreedTermsAndConditions: payload.agreedTermsAndConditions ?? true,
     });
 
     const accessToken = generateAccessToken({ _id: user._id.toString(), phone: user.phone, email: user.email, role: "user" });

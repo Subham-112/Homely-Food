@@ -32,6 +32,7 @@ const seedShopDetails = async () => {
         openingTime: "08:00 AM",
         closingTime: "10:00 PM",
         isStoreOpen: true,
+        isDeliveryEnabled: true,
         minimumOrderAmount: 100,
         deliveryCharge: 30,
         freeDeliveryThreshold: 500,

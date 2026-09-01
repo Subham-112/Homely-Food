@@ -14,6 +14,8 @@ export interface IUser extends ISoftDeleteDocument {
   avatar?: string;
   refreshToken?: string;
   welcomeRewardClaimed?: boolean;
+  agreedPrivacyPolicy?: boolean;
+  agreedTermsAndConditions?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,6 +58,14 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
     },
     welcomeRewardClaimed: {
+      type: Boolean,
+      default: false,
+    },
+    agreedPrivacyPolicy: {
+      type: Boolean,
+      default: false,
+    },
+    agreedTermsAndConditions: {
       type: Boolean,
       default: false,
     },

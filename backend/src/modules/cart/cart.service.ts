@@ -675,6 +675,16 @@ export class CartService {
       throw new ApiError(400, "No items match the selected checkout scope.");
     }
 
+    const orderType = payload.orderType || OrderType.DINE_IN;
+    const isDeliveryOrder = orderType === OrderType.DELIVERY || String(orderType).toLowerCase() === "delivery";
+
+    if (isDeliveryOrder) {
+      const shopDetails = await ShopDetails.findOne().select("isDeliveryEnabled");
+      if (shopDetails && shopDetails.isDeliveryEnabled === false) {
+        throw new ApiError(400, "Delivery service is currently unavailable. Please choose Dine-in or Pickup.");
+      }
+    }
+
     // Create a temporary cart object to recalculate order totals for selected scope
     const rawTotal = cart.total && typeof (cart.total as any).toObject === "function"
       ? (cart.total as any).toObject()

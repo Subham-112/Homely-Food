@@ -36,6 +36,14 @@ export class ShopDetailsService {
     return details;
   }
 
+  // Toggle delivery orders enabled/disabled
+  static async toggleDeliveryStatus(): Promise<IShopDetails> {
+    const details = await this.getShopDetails();
+    details.isDeliveryEnabled = details.isDeliveryEnabled !== undefined ? !details.isDeliveryEnabled : false;
+    await details.save();
+    return details;
+  }
+
   // Check if a pincode is deliverable / serviceable
   static async checkPincodeServiceable(pincode: string): Promise<{ pincode: string; isServiceable: boolean }> {
     const details = await this.getShopDetails();

@@ -131,7 +131,10 @@ export class OrderService {
       String(payload.orderType).toLowerCase() === "delivery";
 
     if (isDelivery) {
-      const shopDetails = await ShopDetails.findOne();
+      const shopDetails = await ShopDetails.findOne().select("isDeliveryEnabled");
+      if (shopDetails && shopDetails.isDeliveryEnabled === false) {
+        throw new ApiError(400, "Delivery service is currently unavailable. Please choose Dine-in or Pickup.");
+      }
       const shopDeliveryCharge =
         typeof shopDetails?.deliveryCharge === "number" ? shopDetails.deliveryCharge : 30;
       const freeDeliveryThreshold =
