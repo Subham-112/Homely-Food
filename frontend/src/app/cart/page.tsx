@@ -217,6 +217,7 @@ export default function CartPage() {
   const [shopDeliveryCharge, setShopDeliveryCharge] = useState<number>(30);
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(500);
   const [isDeliveryEnabled, setIsDeliveryEnabled] = useState<boolean>(true);
+  const [isStoreOpen, setIsStoreOpen] = useState<boolean>(true);
 
   // Fetch Store Details & Delivery Configuration from ShopDetails API
   useEffect(() => {
@@ -224,6 +225,9 @@ export default function CartPage() {
       try {
         const details = await getShopDetails();
         if (details) {
+          if (details.isStoreOpen !== undefined) {
+            setIsStoreOpen(details.isStoreOpen);
+          }
           if (details.serviceablePincodes) {
             setServiceablePincodes(details.serviceablePincodes);
           }
@@ -270,6 +274,14 @@ export default function CartPage() {
 
   const handlePlaceOrder = async (forceShowModal: boolean = false) => {
     setFormError(null);
+    if (!isStoreOpen) {
+      setFormError("The store is currently closed. We are not accepting new orders at this time.");
+      setToastNotice({
+        title: "Store Closed",
+        message: "We are currently not accepting new orders. Please check back later.",
+      });
+      return;
+    }
     if (!guestPhone.trim()) {
       setFormError("Mobile number is required.");
       return;
@@ -1003,6 +1015,23 @@ export default function CartPage() {
                   </div>
                 )}
 
+                {/* Store Closed Banner */}
+                {!isStoreOpen && (
+                  <div className="bg-red-50/90 border border-red-300 text-red-800 text-xs p-3.5 rounded-2xl font-semibold flex items-center gap-3 shadow-2xs">
+                    <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 font-bold">
+                      <AlertCircle className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <span className="block font-extrabold text-xs sm:text-sm text-red-900">
+                        Store is Currently Closed
+                      </span>
+                      <span className="text-[11px] text-red-700 leading-tight">
+                        We are currently not taking orders. Please try again when the store re-opens.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Payment Button */}
                 {cart.length > 0 && (
                   <div className="mt-1">
@@ -1025,15 +1054,21 @@ export default function CartPage() {
                     ) : (
                       <button
                         type="button"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !isStoreOpen}
                         onClick={() => handlePlaceOrder(true)}
-                        className="w-full bg-[#C51E1E] hover:bg-[#A31818] text-white font-extrabold text-sm py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                        className={`w-full text-white font-extrabold text-sm py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 ${
+                          !isStoreOpen
+                            ? "bg-gray-400 cursor-not-allowed opacity-80"
+                            : "bg-[#C51E1E] hover:bg-[#A31818] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                        }`}
                       >
                         {isSubmitting ? (
                           <>
                             <Loader2 className="w-4.5 h-4.5 animate-spin text-white shrink-0" />
                             <span>{paymentPreference === "ONLINE" ? "PROCESSING PAYMENT..." : "PLACING ORDER..."}</span>
                           </>
+                        ) : !isStoreOpen ? (
+                          <span>STORE CLOSED - NOT ACCEPTING ORDERS</span>
                         ) : (
                           <>
                             <span>{paymentPreference === "ONLINE" ? `PROCEED TO PAY ONLINE (₹${effectiveFinalAmount})` : `PLACE ORDER (₹${effectiveFinalAmount})`}</span>

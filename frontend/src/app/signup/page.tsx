@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Utensils, User, Smartphone, Lock } from "lucide-react";
+import { Utensils, User, Smartphone, Lock, Check } from "lucide-react";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -37,9 +37,28 @@ export default function SignupPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const hasMinLength = password.length >= 6;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecialChar = /[^a-zA-Z0-9]/.test(password);
+  const isPasswordValid = hasMinLength && hasUppercase && hasNumber && hasSpecialChar;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
+
+    if (!isPasswordValid) {
+      if (!hasMinLength) {
+        setErrorMsg("Password must be at least 6 characters long.");
+      } else if (!hasUppercase) {
+        setErrorMsg("Password must contain at least one uppercase letter (A-Z).");
+      } else if (!hasNumber) {
+        setErrorMsg("Password must contain at least one number (0-9).");
+      } else if (!hasSpecialChar) {
+        setErrorMsg("Password must contain at least one special character (e.g. @, #, $, !).");
+      }
+      return;
+    }
 
     if (!agreed) {
       setErrorMsg("Please agree to the Terms & Conditions and Privacy Policy.");
@@ -145,6 +164,31 @@ export default function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+
+          {/* Password Criteria Checklist */}
+          {password.length > 0 && (
+            <div className="bg-[#FAF6ED] p-3 rounded-2xl border border-[#E8E1D3] flex flex-col gap-1.5 -mt-2">
+              <span className="text-[11px] font-bold text-gray-700">Password requirements:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                <div className={`flex items-center gap-1.5 ${hasMinLength ? "text-emerald-700 font-bold" : "text-gray-500"}`}>
+                  {hasMinLength ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <div className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0 ml-1 mr-1" />}
+                  <span>At least 6 characters</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasUppercase ? "text-emerald-700 font-bold" : "text-gray-500"}`}>
+                  {hasUppercase ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <div className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0 ml-1 mr-1" />}
+                  <span>1 uppercase letter (A-Z)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-700 font-bold" : "text-gray-500"}`}>
+                  {hasNumber ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <div className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0 ml-1 mr-1" />}
+                  <span>1 number (0-9)</span>
+                </div>
+                <div className={`flex items-center gap-1.5 ${hasSpecialChar ? "text-emerald-700 font-bold" : "text-gray-500"}`}>
+                  {hasSpecialChar ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> : <div className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0 ml-1 mr-1" />}
+                  <span>1 special character (@#$...)</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Terms Checkbox */}
           <div className="flex items-start gap-3 mt-1">

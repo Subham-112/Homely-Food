@@ -15,6 +15,7 @@ import {
   Sparkles,
   Flame,
   PackageCheck,
+  Bike,
 } from "lucide-react";
 import VegBadge from "@/components/VegBadge";
 import Button from "@/components/Button";
@@ -39,46 +40,40 @@ function OrderTrackingContent() {
       joinOrderRoom(orderIdParam);
     }
 
-    if (!socket) return;
+    if (socket) {
+      const handleStatusUpdate = (updatedOrder: any) => {
+        if (
+          (orderIdParam && (updatedOrder._id === orderIdParam || updatedOrder.orderNumber === orderIdParam)) ||
+          (!orderIdParam && currentOrder && (updatedOrder._id === currentOrder._id || updatedOrder.orderNumber === currentOrder.orderNumber))
+        ) {
+          setLiveOrder(updatedOrder);
+        }
+      };
 
-    const handleStatusUpdate = (updatedOrder: any) => {
-      console.log("📢 Socket Event in User Order Tracking:", updatedOrder);
-      if (
-        updatedOrder.orderNumber === orderIdParam ||
-        updatedOrder._id === orderIdParam ||
-        updatedOrder.id === orderIdParam
-      ) {
-        setLiveOrder((prev: any) => ({
-          ...(prev || {}),
-          ...updatedOrder,
-        }));
-      }
-    };
+      socket.on("orderStatusUpdate", handleStatusUpdate);
+      return () => {
+        socket.off("orderStatusUpdate", handleStatusUpdate);
+        if (orderIdParam) {
+          leaveOrderRoom(orderIdParam);
+        }
+      };
+    }
+  }, [socket, orderIdParam, currentOrder, joinOrderRoom, leaveOrderRoom]);
 
-    socket.on("order:status_updated", handleStatusUpdate);
-
-    return () => {
-      if (orderIdParam) {
-        leaveOrderRoom(orderIdParam);
-      }
-      socket.off("order:status_updated", handleStatusUpdate);
-    };
-  }, [socket, orderIdParam]);
-
+  // Initial Fetch if orderId is provided
   useEffect(() => {
     const fetchLiveOrder = async () => {
-      if (orderIdParam) {
+      if (!orderIdParam) return;
+      try {
         setLoading(true);
-        try {
-          const found = await getOrderById(orderIdParam);
-          if (found) {
-            setLiveOrder(found);
-          }
-        } catch (err) {
-          console.error("Failed to fetch order tracking details:", err);
-        } finally {
-          setLoading(false);
+        const data = await getOrderById(orderIdParam);
+        if (data) {
+          setLiveOrder(data);
         }
+      } catch (err) {
+        console.error("Failed to fetch live order details:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -111,41 +106,73 @@ function OrderTrackingContent() {
     );
   }
 
-  const statusLower = (displayOrder.status || "preparing").toLowerCase();
+  const statusLower = (displayOrder.status || "preparing").toLowerCase().trim();
+  const isDelivery = displayOrder.orderType === "delivery";
 
   // Airtight Step State Computation (completed vs current vs upcoming)
-  const getStepState = (stepKey: "accepted" | "preparing" | "ready" | "completed") => {
+  const getStepState = (stepKey: "accepted" | "preparing" | "ready" | "out_for_delivery" | "completed") => {
     const isAllCompleted = statusLower === "completed" || statusLower === "delivered";
 
     if (isAllCompleted) {
       return "completed"; // Every step is 100% DONE! Solid dark green checkmark ✔️
     }
 
-    const orderIndexMap: Record<string, number> = {
-      pending: 0,
-      accepted: 0,
-      preparing: 1,
-      ready: 2,
-      cancelled: -1,
-    };
+    if (isDelivery) {
+      const orderIndexMap: Record<string, number> = {
+        pending: 0,
+        accepted: 0,
+        preparing: 1,
+        ready: 2,
+        out_for_delivery: 3,
+        "out of delivery": 3,
+        cancelled: -1,
+      };
 
-    const stepIndexMap: Record<string, number> = {
-      accepted: 0,
-      preparing: 1,
-      ready: 2,
-      completed: 3,
-    };
+      const stepIndexMap: Record<string, number> = {
+        accepted: 0,
+        preparing: 1,
+        ready: 2,
+        out_for_delivery: 3,
+        completed: 4,
+      };
 
-    const currentOrderStep = orderIndexMap[statusLower] ?? 0;
-    const targetStepIndex = stepIndexMap[stepKey];
+      const currentOrderStep = orderIndexMap[statusLower] ?? 0;
+      const targetStepIndex = stepIndexMap[stepKey];
 
-    if (currentOrderStep > targetStepIndex) {
-      return "completed"; // Past step -> Show Checkmark ✔️
+      if (currentOrderStep > targetStepIndex) {
+        return "completed";
+      }
+      if (currentOrderStep === targetStepIndex) {
+        return "current";
+      }
+      return "upcoming";
+    } else {
+      const orderIndexMap: Record<string, number> = {
+        pending: 0,
+        accepted: 0,
+        preparing: 1,
+        ready: 2,
+        cancelled: -1,
+      };
+
+      const stepIndexMap: Record<string, number> = {
+        accepted: 0,
+        preparing: 1,
+        ready: 2,
+        completed: 3,
+      };
+
+      const currentOrderStep = orderIndexMap[statusLower] ?? 0;
+      const targetStepIndex = stepIndexMap[stepKey];
+
+      if (currentOrderStep > targetStepIndex) {
+        return "completed";
+      }
+      if (currentOrderStep === targetStepIndex) {
+        return "current";
+      }
+      return "upcoming";
     }
-    if (currentOrderStep === targetStepIndex) {
-      return "current"; // Active step running right now -> Highlighted & Animated 🔥
-    }
-    return "upcoming"; // Future step -> Muted ⏳
   };
 
   // Dynamic Banner Info & Distinct Background Colors per Status
@@ -172,12 +199,22 @@ function OrderTrackingContent() {
         };
       case "ready":
         return {
-          title: "Your Order is Prepared & Ready! 🍱",
-          subtitle: "Your food is hot & ready for pickup / serving!",
+          title: isDelivery ? "Order Packed & Ready for Pickup! 🍱" : "Your Order is Prepared & Ready! 🍱",
+          subtitle: isDelivery ? "Your food is packed and waiting for delivery pickup." : "Your food is hot & ready for pickup / serving!",
           icon: PackageCheck,
-          bgColor: "bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 border border-emerald-400/40 animate-pulse",
-          badgeText: "READY FOR PICKUP",
-          containerStyle: "bg-[#F0FAF5] border-[#C8EFE0]",
+          bgColor: "bg-gradient-to-r from-purple-700 via-indigo-800 to-purple-900 border border-purple-400/40 animate-pulse",
+          badgeText: "READY",
+          containerStyle: "bg-[#F5F0FF] border-[#E2D4FF]",
+        };
+      case "out_for_delivery":
+      case "out of delivery":
+        return {
+          title: "Out for Delivery! 🛵",
+          subtitle: "Your hot & fresh food is on its way to your delivery address!",
+          icon: Bike,
+          bgColor: "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border border-amber-300 animate-pulse",
+          badgeText: "OUT FOR DELIVERY",
+          containerStyle: "bg-[#FFFBEB] border-[#FDE68A]",
         };
       case "completed":
       case "delivered":
@@ -191,8 +228,10 @@ function OrderTrackingContent() {
         };
       case "cancelled":
         return {
-          title: "Order Cancelled ❌",
-          subtitle: "This order has been cancelled.",
+          title: "Order Cancelled / Rejected ❌",
+          subtitle: displayOrder.rejectionReason
+            ? `Reason: ${displayOrder.rejectionReason}`
+            : "This order has been cancelled by the restaurant.",
           icon: CheckCircle2,
           bgColor: "bg-gradient-to-r from-rose-800 to-red-900 border border-rose-400/40",
           badgeText: "CANCELLED",
@@ -238,16 +277,32 @@ function OrderTrackingContent() {
     },
     {
       key: "ready",
-      title: "Order Prepared & Ready",
+      title: isDelivery ? "Order Prepared & Packed" : "Order Prepared & Ready",
       state: getStepState("ready"),
       icon: ShoppingBag,
       description:
         statusLower === "ready"
-          ? "Your order is prepared and ready for serving / pickup!"
+          ? (isDelivery ? "Your food is packed and ready for delivery partner pickup!" : "Your order is prepared and ready for serving / pickup!")
           : getStepState("ready") === "completed"
           ? "Order prepared & packed."
           : "Ready for serving or dispatch",
     },
+    ...(isDelivery
+      ? [
+          {
+            key: "out_for_delivery",
+            title: "Out for Delivery",
+            state: getStepState("out_for_delivery"),
+            icon: Bike,
+            description:
+              statusLower === "out_for_delivery" || statusLower === "out of delivery"
+                ? "Your order is on the way to your delivery location!"
+                : getStepState("out_for_delivery") === "completed"
+                ? "Order delivered to customer."
+                : "Delivery executive on the way",
+          },
+        ]
+      : []),
     {
       key: "completed",
       title: "Completed",

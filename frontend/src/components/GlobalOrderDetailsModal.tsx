@@ -73,11 +73,27 @@ export default function GlobalOrderDetailsModal({
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0B392B] text-white uppercase tracking-wider">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                (order.status || "").toLowerCase() === "cancelled"
+                  ? "bg-red-600 text-white"
+                  : "bg-[#0B392B] text-white"
+              }`}>
                 {order.status}
               </span>
             </div>
           </div>
+
+          {/* Rejection / Cancellation Reason Box */}
+          {(order.status || "").toLowerCase() === "cancelled" && order.rejectionReason && (
+            <div className="bg-red-50 p-3 rounded-2xl border border-red-200 flex flex-col gap-1 text-xs">
+              <span className="font-extrabold text-red-800 text-[10px] uppercase tracking-wider flex items-center gap-1">
+                ❌ Rejection / Cancellation Reason
+              </span>
+              <p className="font-medium text-red-700 text-[11px] leading-relaxed">
+                {order.rejectionReason}
+              </p>
+            </div>
+          )}
 
           {/* Customer Metadata (Admin Variant Only) */}
           {variant === "admin" && (
@@ -156,8 +172,8 @@ export default function GlobalOrderDetailsModal({
             )}
           </div>
 
-          {/* Status Timeline Container (Preparing, Ready, Completed in IST format) */}
-          {(order.preparingAt || order.readyAt || order.completedAt) && (
+          {/* Status Timeline Container (Preparing, Ready, Out For Delivery, Completed, Cancelled in IST format) */}
+          {(order.preparingAt || order.readyAt || order.outForDeliveryAt || order.completedAt || order.cancelledAt) && (
             <div className="flex flex-col gap-1.5 bg-[#FAF6ED] p-2.5 sm:p-3 rounded-2xl border border-[#E8E1D3] text-xs">
               <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
                 Status Timeline
@@ -176,10 +192,20 @@ export default function GlobalOrderDetailsModal({
                 {order.readyAt && (
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-bold text-purple-900 flex items-center gap-1.5">
-                      🛍️ Ready for Pickup:
+                      🛍️ Ready:
                     </span>
                     <span className="font-semibold text-gray-800 font-mono text-[11px]">
                       {formatUTCToIST(order.readyAt)}
+                    </span>
+                  </div>
+                )}
+                {order.outForDeliveryAt && (
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                      🛵 Out for Delivery:
+                    </span>
+                    <span className="font-semibold text-gray-800 font-mono text-[11px]">
+                      {formatUTCToIST(order.outForDeliveryAt)}
                     </span>
                   </div>
                 )}
@@ -190,6 +216,16 @@ export default function GlobalOrderDetailsModal({
                     </span>
                     <span className="font-semibold text-gray-800 font-mono text-[11px]">
                       {formatUTCToIST(order.completedAt)}
+                    </span>
+                  </div>
+                )}
+                {order.cancelledAt && (
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-rose-900 flex items-center gap-1.5">
+                      ❌ Cancelled:
+                    </span>
+                    <span className="font-semibold text-gray-800 font-mono text-[11px]">
+                      {formatUTCToIST(order.cancelledAt)}
                     </span>
                   </div>
                 )}

@@ -69,8 +69,15 @@ export async function getUserCoinHistory(page: number = 1, limit: number = 10): 
   return res.data;
 }
 
-export async function getAdminWallets(page: number = 1, limit: number = 10, search: string = ""): Promise<{ wallets: CoinWalletRecord[]; pagination: any }> {
-  const res: any = await Fetch(`/api/coins/admin/wallets?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
+export async function getAdminWallets(page: number = 1, limit: number = 10, search?: string): Promise<{ wallets: CoinWalletRecord[]; pagination: any }> {
+  const query = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  if (search && search.trim()) {
+    query.append("search", search.trim());
+  }
+  const res: any = await Fetch(`/api/coins/admin/wallets?${query.toString()}`);
   return res.data;
 }
 

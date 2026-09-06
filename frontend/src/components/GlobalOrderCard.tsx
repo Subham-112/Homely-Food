@@ -30,13 +30,15 @@ const STATUS_STYLES: Record<string, string> = {
   accepted: "bg-[#F5EDD6] text-[#8C6B1B] border border-yellow-200",
   preparing: "bg-[#EBF5FC] text-[#1E40AF] border border-blue-200",
   ready: "bg-purple-50 text-purple-700 border border-purple-200",
+  out_for_delivery: "bg-amber-50 text-amber-800 border border-amber-300",
+  "out of delivery": "bg-amber-50 text-amber-800 border border-amber-300",
   delivered: "bg-[#EAF5EE] text-[#00875A] border border-green-200",
   completed: "bg-emerald-50 text-emerald-700 border border-emerald-200",
   cancelled: "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
 const getNextStatusAction = (order: Order): { label: string; value: string } | null => {
-  const status = order.status.toLowerCase();
+  const status = (order.status || "").toLowerCase().trim();
   const type = order.orderType;
 
   if (status === "pending") {
@@ -50,10 +52,13 @@ const getNextStatusAction = (order: Order): { label: string; value: string } | n
   }
   if (status === "ready") {
     if (type === "delivery") {
-      return { label: "Mark Delivered", value: "delivered" };
+      return { label: "Out for Delivery", value: "out_for_delivery" };
     } else {
       return { label: "Complete Order", value: "completed" };
     }
+  }
+  if (status === "out_for_delivery" || status === "out of delivery") {
+    return { label: "Complete Order", value: "completed" };
   }
   return null;
 };
@@ -100,28 +105,46 @@ export default function GlobalOrderCard({
 }: GlobalOrderCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState("");
   const [targetStatus, setTargetStatus] = useState<string>("");
   const [isPaidSelection, setIsPaidSelection] = useState<boolean>(true);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("");
 
-  const statusLower = (order.status || "").toLowerCase();
+  const statusLower = (order.status || "").toLowerCase().trim();
+  const isAccepted = statusLower === "accepted";
+  const isCancelled = statusLower === "cancelled";
   const isPaidAndCompleted =
     order.payment?.status?.toLowerCase() === "paid" && statusLower === "completed";
   const isActiveOrder =
     statusLower === "pending" ||
     statusLower === "accepted" ||
     statusLower === "preparing" ||
-    statusLower === "ready";
+    statusLower === "ready" ||
+    statusLower === "out_for_delivery" ||
+    statusLower === "out of delivery";
 
   const nextAction = getNextStatusAction(order);
 
   // User badge icon style
   const getUserBadgeStyle = (status: string) => {
-    const s = status.toLowerCase();
+    const s = (status || "").toLowerCase().trim();
+    if (s === "cancelled") {
+      return {
+        bg: "bg-red-50 text-red-700 border-red-200",
+        icon: <X className="w-3.5 h-3.5 text-red-600" />,
+      };
+    }
     if (s === "ready") {
       return {
         bg: "bg-purple-100 text-purple-900 border-purple-300",
         icon: <ShoppingBag className="w-3.5 h-3.5 text-purple-700 animate-bounce" />,
+      };
+    }
+    if (s === "out_for_delivery" || s === "out of delivery") {
+      return {
+        bg: "bg-amber-50 text-amber-900 border-amber-300",
+        icon: <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />,
       };
     }
     if (s === "pending" || s === "accepted" || s === "preparing") {
@@ -139,11 +162,12 @@ export default function GlobalOrderCard({
   const handleUpdateStatus = async (
     newStatus: string,
     paymentMethod?: string,
-    isPaidVal?: boolean
+    isPaidVal?: boolean,
+    rejectionReason?: string
   ) => {
     setIsUpdating(true);
     try {
-      const updatedOrder = await updateOrderStatus(order._id, newStatus, paymentMethod, isPaidVal);
+      const updatedOrder = await updateOrderStatus(order._id, newStatus, paymentMethod, isPaidVal, rejectionReason);
       if (onOrderUpdated) {
         onOrderUpdated(updatedOrder);
       }
@@ -159,6 +183,17 @@ export default function GlobalOrderCard({
     e.preventDefault();
     setShowPaymentModal(false);
     await handleUpdateStatus(targetStatus, selectedPaymentMethod, isPaidSelection);
+  };
+
+  const handleRejectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectionReasonInput.trim()) {
+      alert("Please provide a reason for rejecting this order.");
+      return;
+    }
+    setShowRejectModal(false);
+    await handleUpdateStatus("cancelled", undefined, undefined, rejectionReasonInput.trim());
+    setRejectionReasonInput("");
   };
 
   // ---------------- USER CARD VARIANT ----------------
@@ -219,6 +254,18 @@ export default function GlobalOrderCard({
           <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs text-gray-600 truncate">
             <span className="font-bold text-gray-700">Delivery: </span>
             {order.deliveryAddress}
+          </div>
+        )}
+
+        {/* Rejection Reason Banner for User */}
+        {isCancelled && order.rejectionReason && (
+          <div className="bg-red-50 p-2.5 rounded-xl border border-red-200 text-xs flex flex-col gap-0.5">
+            <span className="font-extrabold text-red-800 text-[10px] uppercase tracking-wider">
+              ❌ Order Cancelled / Rejected:
+            </span>
+            <p className="text-red-700 font-medium text-[11px] leading-snug">
+              {order.rejectionReason}
+            </p>
           </div>
         )}
 
@@ -382,35 +429,130 @@ export default function GlobalOrderCard({
           </div>
         ) : null}
 
-        {/* Footer: Action Button / Status */}
-        <div className="border-t border-gray-100/80 mt-0.5" onClick={(e) => e.stopPropagation()}>
+        {/* Rejection Reason Display if Cancelled / Rejected */}
+        {isCancelled && order.rejectionReason && (
+          <div className="bg-red-50 p-2.5 rounded-xl border border-red-200 text-xs flex flex-col gap-0.5">
+            <span className="font-extrabold text-red-800 text-[10px] uppercase tracking-wider">
+              ❌ Rejection Reason:
+            </span>
+            <p className="text-red-700 font-medium text-[11px] leading-snug">
+              {order.rejectionReason}
+            </p>
+          </div>
+        )}
+
+        {/* Footer: Action Button(s) / Status */}
+        <div className="border-t border-gray-100/80 pt-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {nextAction ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const targetVal = nextAction.value;
-                if ((targetVal === "completed" || targetVal === "delivered") && order.payment?.mode !== "ONLINE") {
-                  setTargetStatus(targetVal);
-                  setIsPaidSelection(true);
-                  setSelectedPaymentMethod("");
-                  setShowPaymentModal(true);
-                } else {
-                  handleUpdateStatus(targetVal);
-                }
-              }}
-              disabled={isUpdating}
-              className="w-full bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-[11px] py-2 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
-              {nextAction.label}
-            </button>
+            <>
+              {isAccepted && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRejectModal(true);
+                  }}
+                  disabled={isUpdating}
+                  className="px-2.5 py-2 text-[11px] font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 bg-gray-50 rounded-xl border border-gray-200 hover:border-red-200 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Reject Order"
+                >
+                  Reject
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const targetVal = nextAction.value;
+                  if ((targetVal === "completed" || targetVal === "delivered") && order.payment?.mode !== "ONLINE") {
+                    setTargetStatus(targetVal);
+                    setIsPaidSelection(true);
+                    setSelectedPaymentMethod("");
+                    setShowPaymentModal(true);
+                  } else {
+                    handleUpdateStatus(targetVal);
+                  }
+                }}
+                disabled={isUpdating}
+                className="flex-1 bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-[11px] py-2 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
+                {nextAction.label}
+              </button>
+            </>
           ) : (
-            <div className="w-full bg-gray-100 text-gray-500 font-extrabold text-[11px] py-2 rounded-xl text-center tracking-wide uppercase border border-gray-200/60">
-              Completed
+            <div className={`w-full font-extrabold text-[11px] py-2 rounded-xl text-center tracking-wide uppercase border ${
+              isCancelled
+                ? "bg-red-50 text-red-700 border-red-200"
+                : "bg-gray-100 text-gray-500 border-gray-200/60"
+            }`}>
+              {isCancelled ? "Rejected / Cancelled" : "Completed"}
             </div>
           )}
         </div>
       </div>
+
+      {/* Rejection Reason Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <form
+            onSubmit={handleRejectSubmit}
+            className="bg-white rounded-3xl max-w-md w-full p-4 sm:p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h2 className="text-base sm:text-lg font-extrabold text-red-700">
+                  Reject Order
+                </h2>
+                <p className="text-[11px] text-gray-400">
+                  Order #{order.orderNumber}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-gray-700">
+                Reason for Rejection <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectionReasonInput}
+                onChange={(e) => setRejectionReasonInput(e.target.value)}
+                placeholder="e.g. Items out of stock, Kitchen closed early, etc."
+                rows={3}
+                required
+                className="w-full text-xs p-3 rounded-xl border border-gray-200 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 resize-none"
+              />
+              <span className="text-[10px] text-gray-400">
+                This reason will be visible to the customer.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(false)}
+                className="px-4 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!rejectionReasonInput.trim() || isUpdating}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isUpdating && <Loader2 className="w-3 h-3 animate-spin" />}
+                Confirm Rejection
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Payment Confirmation Modal encapsulated inside admin card */}
       {showPaymentModal && (

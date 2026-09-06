@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Search,
@@ -10,37 +10,15 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Clock,
-  Phone,
-  User,
-  MapPin,
   Calendar,
-  CreditCard,
-  Tag,
-  Receipt,
 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import GlobalOrderCard from "@/components/GlobalOrderCard";
 import GlobalOrderDetailsModal from "@/components/GlobalOrderDetailsModal";
-import VegBadge from "@/components/VegBadge";
 import GoToOrderModal from "@/components/GoToOrderModal";
 import { getOrders, getOrderById, Order } from "@/services/orderService";
-import { formatUTCToIST } from "@/utils/datetime";
 import { useSocket } from "@/context/SocketContext";
-
-type FilterKey = "all" | "pending" | "accepted" | "preparing" | "ready" | "delivered" | "completed" | "cancelled";
-
-const FILTERS: { label: string; value: FilterKey }[] = [
-  { label: "All", value: "all" },
-  { label: "Pending", value: "pending" },
-  { label: "Accepted", value: "accepted" },
-  { label: "Preparing", value: "preparing" },
-  { label: "Ready", value: "ready" },
-  { label: "Delivered", value: "delivered" },
-  { label: "Completed", value: "completed" },
-  { label: "Cancelled", value: "cancelled" },
-];
 
 const getTodayDateString = (): string => {
   const now = new Date();
@@ -250,7 +228,7 @@ function AdminOrdersManagementContent() {
       <Header />
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 max-w-5xl w-full mx-auto flex flex-col gap-4 pb-36">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-5 pb-36 sm:pb-36 max-w-5xl w-full mx-auto flex flex-col gap-4">
         {/* Title & Real-Time Alert Banner */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">

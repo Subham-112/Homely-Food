@@ -160,12 +160,16 @@ export interface Order {
   discount?: number;
   totalAmount?: number;
   notes?: string;
+  rejectionReason?: string;
   createdBy?: "customer" | "admin";
   createdAt: string;
   updatedAt: string;
   preparingAt?: string;
   readyAt?: string;
+  outForDeliveryAt?: string;
   completedAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
 }
 
 export interface OrdersResponse {
@@ -285,11 +289,12 @@ export const updateOrderStatus = async (
   orderId: string,
   status: string,
   paymentMethod?: string,
-  isPaid?: boolean
+  isPaid?: boolean,
+  rejectionReason?: string
 ): Promise<Order> => {
   const response = await Patch<ApiResponse<Order>>(
     `/api/order/${orderId}/status`,
-    { status, paymentMethod, isPaid } as Record<string, unknown>
+    { status, paymentMethod, isPaid, rejectionReason } as Record<string, unknown>
   );
   return response.data;
 };

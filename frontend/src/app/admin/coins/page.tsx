@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Coins,
   RefreshCw,
@@ -18,6 +18,8 @@ import {
   UserCheck,
   X,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import AdminBottomNav from "@/components/AdminBottomNav";
 import {
@@ -53,6 +55,14 @@ export default function AdminCoinsPage() {
   const [configData, setConfigData] = useState<CoinConfigRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Wallets Directory Pagination & Search State
+  const [walletPage, setWalletPage] = useState<number>(1);
+  const [walletLimit] = useState<number>(10);
+  const [walletTotal, setWalletTotal] = useState<number>(0);
+  const [walletTotalPages, setWalletTotalPages] = useState<number>(1);
+  const [walletSearch, setWalletSearch] = useState<string>("");
+  const [walletsLoading, setWalletsLoading] = useState<boolean>(false);
+
   // Grant Modal state
   const [selectedUsers, setSelectedUsers] = useState<Array<{ id: string; name: string; phone: string }>>([]);
   const [phoneSearchQuery, setPhoneSearchQuery] = useState<string>("");
@@ -77,18 +87,24 @@ export default function AdminCoinsPage() {
   const [redemptionMinAmount, setRedemptionMinAmount] = useState<number>(100);
   const [redemptionMaxCoins, setRedemptionMaxCoins] = useState<number>(20);
 
-  const fetchOverviewData = async () => {
-    setLoading(true);
+  const fetchOverviewData = async (page = walletPage, search = walletSearch) => {
+    setWalletsLoading(true);
     try {
       const [analyticsRes, walletsRes] = await Promise.all([
         getAdminCoinAnalytics(),
-        getAdminWallets(1, 20),
+        getAdminWallets(page, walletLimit, search),
       ]);
       setAnalytics(analyticsRes);
       setWallets(walletsRes.wallets || []);
+      if (walletsRes.pagination) {
+        setWalletTotal(walletsRes.pagination.total ?? 0);
+        setWalletTotalPages(walletsRes.pagination.totalPages ?? 1);
+        setWalletPage(walletsRes.pagination.page ?? page);
+      }
     } catch (err) {
       console.error("Failed to fetch overview coin data:", err);
     } finally {
+      setWalletsLoading(false);
       setLoading(false);
     }
   };
@@ -388,18 +404,52 @@ export default function AdminCoinsPage() {
           </div>
 
           <div className="bg-white rounded-2xl border border-[#E8E1D3] shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-gray-100 font-extrabold text-sm text-[#0B251C] flex items-center justify-between">
-              <span>User Wallets Directory</span>
-              {loading && <Loader2 className="w-4 h-4 animate-spin text-[#0B392B]" />}
+            <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-[#0B251C]">User Wallets Directory</span>
+                <span className="text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 px-2 py-0.5 rounded-full">
+                  {walletTotal} Wallets
+                </span>
+                {walletsLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0B392B]" />}
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search name, phone, email..."
+                  value={walletSearch}
+                  onChange={(e) => {
+                    setWalletSearch(e.target.value);
+                    setWalletPage(1);
+                    fetchOverviewData(1, e.target.value);
+                  }}
+                  className="w-full bg-[#FAF6ED] border border-[#E8E1D3] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#0B251C] placeholder:text-gray-400 focus:outline-none focus:border-[#0B392B]"
+                />
+                {walletSearch && (
+                  <button
+                    onClick={() => {
+                      setWalletSearch("");
+                      setWalletPage(1);
+                      fetchOverviewData(1, "");
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
-            {loading ? (
+
+            {walletsLoading ? (
               <div className="py-16 flex flex-col items-center justify-center gap-2.5 text-gray-400">
                 <Loader2 className="w-6 h-6 animate-spin text-[#0B392B]" />
                 <span className="text-xs font-bold text-gray-500">Loading user wallets...</span>
               </div>
             ) : wallets.length === 0 ? (
               <div className="p-8 text-center text-xs text-gray-400 font-medium">
-                No user wallets found.
+                {walletSearch ? "No user wallets match your search query." : "No user wallets found."}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -440,6 +490,51 @@ export default function AdminCoinsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!walletsLoading && walletTotal > 0 && (
+              <div className="p-3.5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-[#FAF6ED]/40">
+                <div className="text-gray-500 font-medium">
+                  Showing <span className="font-bold text-[#0B251C]">{Math.min((walletPage - 1) * walletLimit + 1, walletTotal)}</span> to{" "}
+                  <span className="font-bold text-[#0B251C]">{Math.min(walletPage * walletLimit, walletTotal)}</span> of{" "}
+                  <span className="font-bold text-[#0B251C]">{walletTotal}</span> wallets
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    onClick={() => {
+                      if (walletPage > 1) {
+                        const newP = walletPage - 1;
+                        setWalletPage(newP);
+                        fetchOverviewData(newP, walletSearch);
+                      }
+                    }}
+                    disabled={walletPage <= 1 || walletsLoading}
+                    className="px-3 py-1.5 rounded-xl border border-gray-200 bg-white font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </button>
+
+                  <span className="px-3 py-1.5 rounded-xl bg-white text-[#0B392B] font-extrabold border border-[#E8E1D3] shadow-2xs">
+                    Page {walletPage} of {walletTotalPages}
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      if (walletPage < walletTotalPages) {
+                        const newP = walletPage + 1;
+                        setWalletPage(newP);
+                        fetchOverviewData(newP, walletSearch);
+                      }
+                    }}
+                    disabled={walletPage >= walletTotalPages || walletsLoading}
+                    className="px-3 py-1.5 rounded-xl border border-gray-200 bg-white font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
