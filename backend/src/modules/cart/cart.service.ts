@@ -678,8 +678,12 @@ export class CartService {
     const orderType = payload.orderType || OrderType.DINE_IN;
     const isDeliveryOrder = orderType === OrderType.DELIVERY || String(orderType).toLowerCase() === "delivery";
 
+    const shopDetails = await ShopDetails.findOne().select("isDeliveryEnabled isStoreOpen");
+    if (shopDetails && shopDetails.isStoreOpen === false) {
+      throw new ApiError(400, "The store is currently closed. We are not accepting new orders at this time.");
+    }
+
     if (isDeliveryOrder) {
-      const shopDetails = await ShopDetails.findOne().select("isDeliveryEnabled");
       if (shopDetails && shopDetails.isDeliveryEnabled === false) {
         throw new ApiError(400, "Delivery service is currently unavailable. Please choose Dine-in or Pickup.");
       }

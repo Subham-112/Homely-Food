@@ -73,9 +73,13 @@ const createOrderSchema = z.object({
 });
 
 const updateStatusSchema = z.object({
-  status: z.nativeEnum(OrderStatus, { errorMap: () => ({ message: "Invalid order status" }) }),
+  status: z.preprocess(
+    (val) => (typeof val === "string" ? val.trim().toLowerCase().replace(/\s+/g, "_") : val),
+    z.nativeEnum(OrderStatus, { errorMap: () => ({ message: "Invalid order status" }) })
+  ),
   paymentMethod: z.nativeEnum(PaymentMethod).optional(),
   isPaid: z.boolean().optional(),
+  rejectionReason: z.string().optional(),
 });
 
 export class OrderController {
@@ -180,7 +184,8 @@ export class OrderController {
         id,
         validatedData.status,
         validatedData.paymentMethod,
-        validatedData.isPaid
+        validatedData.isPaid,
+        validatedData.rejectionReason
       );
       res.status(200).json(new ApiResponse(200, order, "Order status updated successfully"));
     } catch (error) {

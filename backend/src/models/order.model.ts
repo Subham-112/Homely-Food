@@ -51,10 +51,14 @@ export interface IOrder extends ISoftDeleteDocument {
   offer?: mongoose.Types.ObjectId;
   offerCode?: string;
   notes?: string;
+  rejectionReason?: string;
   createdBy?: "customer" | "admin";
   preparingAt?: Date;
   readyAt?: Date;
+  outForDeliveryAt?: Date;
   completedAt?: Date;
+  deliveredAt?: Date;
+  cancelledAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -225,6 +229,10 @@ const OrderSchema: Schema<IOrder> = new Schema(
       type: String,
       trim: true,
     },
+    rejectionReason: {
+      type: String,
+      trim: true,
+    },
     createdBy: {
       type: String,
       enum: ["customer", "admin"],
@@ -236,7 +244,16 @@ const OrderSchema: Schema<IOrder> = new Schema(
     readyAt: {
       type: Date,
     },
+    outForDeliveryAt: {
+      type: Date,
+    },
     completedAt: {
+      type: Date,
+    },
+    deliveredAt: {
+      type: Date,
+    },
+    cancelledAt: {
       type: Date,
     },
   },

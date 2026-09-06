@@ -292,6 +292,19 @@ export class CoinService {
     const skip = (page - 1) * limit;
     const matchFilter: any = {};
 
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      const matchedUsers = await User.find({
+        $or: [
+          { name: searchRegex },
+          { phone: searchRegex },
+          { email: searchRegex },
+        ],
+      }).select("_id");
+      const matchedUserIds = matchedUsers.map((u) => u._id);
+      matchFilter.user = { $in: matchedUserIds };
+    }
+
     const [wallets, total] = await Promise.all([
       CoinWallet.find(matchFilter)
         .sort({ updatedAt: -1 })

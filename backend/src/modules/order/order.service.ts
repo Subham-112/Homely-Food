@@ -90,6 +90,10 @@ export class OrderService {
     let subTotal = 0;
     const shopDetails = await ShopDetails.findOne();
 
+    if (shopDetails && shopDetails.isStoreOpen === false) {
+      throw new ApiError(400, "The store is currently closed. We are not accepting new orders at this time.");
+    }
+
     const processedItems = await Promise.all(
       payload.items.map(async (itemInput) => {
         const menuItemDoc = await MenuItem.findById(itemInput.menuItem);
@@ -556,25 +560,23 @@ export class OrderService {
     id: string,
     status: OrderStatus,
     paymentMethod?: PaymentMethod,
-    isPaid?: boolean
+    isPaid?: boolean,
+    rejectionReason?: string
   ) {
-    const [order, shopDetails] = await Promise.all([
-      Order.findById(id)
-        .populate("user", "name phone email")
-        .populate({
-          path: "items.menuItem",
-          select: "_id name price discountPercent image",
-        })
-        .populate({
-          path: "items.variant.variantId",
-          select: "_id label price",
-        })
-        .populate({
-          path: "offer",
-          select: "_id title code offerType discountPercentage flatDiscountAmount",
-        }),
-      ShopDetails.findOne(),
-    ]);
+    const order = await Order.findById(id)
+      .populate("user", "name phone email")
+      .populate({
+        path: "items.menuItem",
+        select: "_id name price discountPercent image",
+      })
+      .populate({
+        path: "items.variant.variantId",
+        select: "_id label price",
+      })
+      .populate({
+        path: "offer",
+        select: "_id title code offerType discountPercentage flatDiscountAmount",
+      });
       
     if (!order) {
       throw new ApiError(404, "Order not found");
@@ -586,8 +588,22 @@ export class OrderService {
       order.preparingAt = now;
     } else if (status === OrderStatus.READY) {
       order.readyAt = now;
-    } else if (status === OrderStatus.COMPLETED || status === OrderStatus.DELIVERED) {
+    } else if (status === OrderStatus.OUT_FOR_DELIVERY) {
+      order.outForDeliveryAt = now;
+    } else if (status === OrderStatus.DELIVERED) {
+      order.deliveredAt = now;
       order.completedAt = now;
+    } else if (status === OrderStatus.COMPLETED) {
+      order.completedAt = now;
+    } else if (status === OrderStatus.CANCELLED) {
+      order.cancelledAt = now;
+      if (rejectionReason && rejectionReason.trim()) {
+        order.rejectionReason = rejectionReason.trim();
+      }
+    }
+
+    if (rejectionReason && rejectionReason.trim()) {
+      order.rejectionReason = rejectionReason.trim();
     }
 
     if (paymentMethod) {
