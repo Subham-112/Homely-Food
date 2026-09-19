@@ -36,6 +36,8 @@ export const config = {
     password: process.env.ADMIN_PASSWORD,
   },
 
+  internalApiSecret: process.env.INTERNAL_API_SECRET || "",
+
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
     apiKey: process.env.CLOUDINARY_API_KEY || "",
