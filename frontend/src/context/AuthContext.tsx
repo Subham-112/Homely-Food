@@ -104,6 +104,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 2. Client-Side Route Protection (Runs on navigation, WITHOUT calling profile API)
   useEffect(() => {
+    if (!isInitialized) return;
+
     const storedUserToken = TokenStorage.getToken();
     const storedAdminToken = TokenStorage.getAdminToken();
 
@@ -121,7 +123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         router.replace("/admin");
       }
     } else if (hasUserAccess) {
-      if (isAdminRoute || isUserLoginSignup || isPublicRoute) {
+      // Authenticated users should only be redirected away from admin or login/signup routes,
+      // NOT from public routes like /public/all-items or /public/cart
+      if (isAdminRoute || isUserLoginSignup) {
         router.replace("/");
       }
     } else {
@@ -131,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         router.replace("/login");
       }
     }
-  }, [pathname, router]);
+  }, [pathname, isInitialized, router]);
 
   const login = (newToken: string, userData?: UserProfile) => {
     // Clear stale admin session to maintain single active role

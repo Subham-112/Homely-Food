@@ -83,6 +83,7 @@ const api = axios.create({
     Accept: "application/json",
     "Content-Type": "application/json",
   },
+  withCredentials: true,
   timeout: 10000,
 });
 
@@ -106,25 +107,47 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor: Automatically catch 401 Unauthorized, clear tokens, and redirect if not on login endpoints
+let isRedirecting = false;
+
+// Interceptor: Capture silently refreshed token or handle 401 Unauthorized
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Check if backend silently refreshed the access token in response header
+    const authHeader = response?.headers?.["authorization"] || response?.headers?.["Authorization"];
+    if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+      const refreshedToken = authHeader.replace("Bearer ", "").trim();
+      if (refreshedToken) {
+        const currentAdminToken = TokenStorage.getAdminToken();
+        if (currentAdminToken) {
+          TokenStorage.setAdminToken(refreshedToken);
+        } else {
+          TokenStorage.setToken(refreshedToken);
+        }
+      }
+    }
+    return response;
+  },
   (error) => {
     if (error?.response?.status === 401) {
       const requestUrl = error?.config?.url || "";
       const isLoginRequest = requestUrl.includes("/login");
 
       // Don't auto-redirect on 401 if it's a login attempt (credentials error)
-      if (!isLoginRequest) {
+      if (!isLoginRequest && !isRedirecting) {
+        isRedirecting = true;
         console.warn("⚠️ 401 Unauthorized: Clearing tokens");
         TokenStorage.clearAll();
         if (typeof window !== "undefined") {
           const currentPath = window.location.pathname;
           const isLegalPolicy = currentPath === "/privacy-policy" || currentPath === "/terms-and-conditions";
+          const isPublicRoute = currentPath.startsWith("/public");
+
           if (currentPath.startsWith("/admin") && !currentPath.startsWith("/admin/login")) {
-            window.location.href = "/admin/login";
-          } else if (!currentPath.startsWith("/login") && !currentPath.startsWith("/signup") && !isLegalPolicy) {
-            window.location.href = "/login";
+            window.location.replace("/admin/login");
+          } else if (!currentPath.startsWith("/login") && !currentPath.startsWith("/signup") && !isPublicRoute && !isLegalPolicy) {
+            window.location.replace("/login");
+          } else {
+            isRedirecting = false;
           }
         }
       }
