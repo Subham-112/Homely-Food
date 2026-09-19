@@ -12,6 +12,7 @@ import paymentRoutes from "../modules/payment/payment.routes";
 import webhookRoutes from "../modules/webhook/webhook.routes";
 import coinRoutes from "../modules/coin/coin.routes";
 import shopDetailsRoutes from "../modules/shop-details/shop-details.routes";
+import internalOrderRoutes from "../modules/internal-orders/internalOrders.routes";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/payment", paymentRoutes);
 router.use("/webhook", webhookRoutes);
 router.use("/coins", coinRoutes);
 router.use("/shop-details", shopDetailsRoutes);
+router.use("/internal/orders", internalOrderRoutes);
 
 export default router;
