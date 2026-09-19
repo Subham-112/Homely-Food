@@ -270,9 +270,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (savedPublicCart) {
           try {
             const parsed = JSON.parse(savedPublicCart);
-            setCart(parsed);
-            lastConfirmedCartRef.current = parsed;
-            latestTargetCartRef.current = parsed;
+            if (Array.isArray(parsed)) {
+              // Normalize: handle both flat PublicCartItem and nested CartItem structures
+              const normalized: CartItem[] = parsed.map((c: any) => {
+                const itemObj: MenuItem = c.item || {
+                  id: c.id || c._id,
+                  name: c.name || "",
+                  price: c.price || 0,
+                  discountPercent: c.discountPercent,
+                  discountedPrice: c.discountedPrice,
+                  description: c.description || "",
+                  image: c.image || "/default-food.jpg",
+                  category: c.category || "General",
+                  preparationTime: c.preparationTime,
+                };
+                return {
+                  item: itemObj,
+                  quantity: Number(c.quantity) || 1,
+                  variant: c.variant,
+                  isReorder: Boolean(c.isReorder),
+                };
+              });
+              setCart(normalized);
+              lastConfirmedCartRef.current = normalized;
+              latestTargetCartRef.current = normalized;
+            } else {
+              setCart([]);
+            }
           } catch {
             setCart([]);
           }
@@ -290,11 +314,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (rawPublicCart) {
           const parsed = JSON.parse(rawPublicCart);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            publicCartItems = parsed.map((c: any) => ({
-              menuItem: c.item.id,
-              quantity: c.quantity,
-              variant: c.variant?.id,
-            }));
+            publicCartItems = parsed.map((c: any) => {
+              const itemId = c?.item?.id || c?.item?._id || c?.id || c?._id;
+              const variantId = c?.variant?.id || c?.variant?._id;
+              return {
+                menuItem: itemId,
+                quantity: Number(c.quantity) || 1,
+                variant: variantId,
+              };
+            }).filter((c) => Boolean(c.menuItem));
           }
         }
       } catch {
@@ -373,8 +401,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Instantly compute optimistic subtotal for immediate UI responsiveness
     const optimisticSubTotal = targetCart.reduce((sum, c) => {
-      const p = c.variant ? c.variant.price : (c.item.discountedPrice !== undefined ? c.item.discountedPrice : c.item.price);
-      return sum + p * c.quantity;
+      const item = c.item || (c as any);
+      const discounted = item?.discountedPrice;
+      const normalPrice = item?.price ?? 0;
+      const p = c.variant ? c.variant.price : (discounted !== undefined ? discounted : normalPrice);
+      return sum + p * (c.quantity || 1);
     }, 0);
     setCartTotal((prev) => ({
       ...prev,
@@ -449,10 +480,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 400);
   };
 
+  const getItemId = (c: any): string => {
+    return c?.item?.id || c?.item?._id || c?.id || c?._id || "";
+  };
+
   const addToCart = (item: MenuItem, variant?: { id: string; label: string; price: number }) => {
     setCart((prev) => {
+      const targetId = item.id || (item as any)._id;
       const existingIndex = prev.findIndex(
-        (c) => c.item.id === item.id && c.variant?.id === variant?.id
+        (c) => getItemId(c) === targetId && c.variant?.id === variant?.id
       );
       let updated: CartItem[] = [];
       if (existingIndex > -1) {
@@ -469,7 +505,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const removeFromCart = (itemId: string, variantId?: string) => {
     setCart((prev) => {
-      const updated = prev.filter((c) => !(c.item.id === itemId && c.variant?.id === variantId));
+      const updated = prev.filter((c) => !(getItemId(c) === itemId && c.variant?.id === variantId));
       triggerDebouncedSync(updated);
       return updated;
     });
@@ -479,7 +515,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart((prev) => {
       const updated = prev
         .map((c) => {
-          if (c.item.id === itemId && c.variant?.id === variantId) {
+          if (getItemId(c) === itemId && c.variant?.id === variantId) {
             const newQty = c.quantity + delta;
             return newQty > 0 ? { ...c, quantity: newQty } : null;
           }
@@ -625,10 +661,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
+  const totalItems = cart.reduce((sum, c) => sum + (c.quantity || 0), 0);
   const calculatedSubTotal = cart.reduce((sum, c) => {
-    const itemUnitPrice = c.variant?.price ?? (c.item.discountedPrice !== undefined ? c.item.discountedPrice : c.item.price);
-    return sum + itemUnitPrice * c.quantity;
+    const item = c.item || (c as any);
+    const discounted = item?.discountedPrice;
+    const normalPrice = item?.price ?? 0;
+    const itemUnitPrice = c.variant?.price ?? (discounted !== undefined ? discounted : normalPrice);
+    return sum + itemUnitPrice * (c.quantity || 1);
   }, 0);
   const subTotal = cartTotal.subTotal > 0 ? cartTotal.subTotal : calculatedSubTotal;
   const discountAmount = cartTotal.discount || 0;
