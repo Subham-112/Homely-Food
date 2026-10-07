@@ -205,7 +205,7 @@ export default function AdminOrderCard({ order, onOrderUpdated, onCardClick }: A
               key={idx}
               className="inline-block bg-emerald-50 text-[#0B392B] text-[10px] font-bold px-2 py-1 rounded-lg border border-emerald-100/60 whitespace-nowrap shrink-0"
             >
-              {item.quantity}x {item.menuItem.name}
+              {item.quantity}x {item.menuItem?.name || item.name || "Item"}
             </span>
           ))}
         </div>

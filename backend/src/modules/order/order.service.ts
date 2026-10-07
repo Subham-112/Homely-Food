@@ -295,8 +295,33 @@ export class OrderService {
       createdBy: payload.createdBy || "admin",
     });
 
+    const orderObj = order.toObject ? order.toObject() : { ...order };
+    if (Array.isArray(orderObj.items)) {
+      orderObj.items = orderObj.items.map((it: any, idx: number) => {
+        const validatedItem = validated.processedItems[idx];
+        const itemName = validatedItem?.name || it.name || "Item";
+        const itemPrice = validatedItem?.price ?? it.price;
+        const itemQuantity = validatedItem?.quantity ?? it.quantity;
+        const itemVariant = validatedItem?.variant || it.variant;
+        const menuItemId = validatedItem?.menuItem || it.menuItem;
+
+        return {
+          ...it,
+          name: itemName,
+          price: itemPrice,
+          quantity: itemQuantity,
+          variant: itemVariant,
+          menuItem: {
+            _id: menuItemId,
+            name: itemName,
+            price: itemPrice,
+          },
+        };
+      });
+    }
+
     try {
-      emitNewOrder(order);
+      emitNewOrder(orderObj);
     } catch (socketErr) {
       console.error("Failed to emit socket event for new order:", socketErr);
     }
@@ -632,9 +657,12 @@ export class OrderService {
       }
     }
 
+    const shopDetails = await ShopDetails.findOne();
+    const formatted = formatOrderResponse(order, shopDetails);
+
     // Real-Time Socket.io Event Emission for Order Status Changes (with coinReward data)
     try {
-      const orderObj = order.toObject ? order.toObject() : order;
+      const orderObj = typeof formatted.toObject === "function" ? formatted.toObject() : { ...formatted };
       if (coinReward) {
         (orderObj as any).coinReward = coinReward;
       }
@@ -643,7 +671,7 @@ export class OrderService {
       console.error("Failed to emit socket event for status update:", socketErr);
     }
 
-    return order;
+    return formatted;
   }
 
   static async getStats(dateRange?: { startDate: Date; endDate: Date }) {
