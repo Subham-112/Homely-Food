@@ -92,6 +92,15 @@ export default function AdminCategoriesPage() {
     fetchCategories();
   }, [fetchCategories]);
 
+  // Listen to header refresh button
+  useEffect(() => {
+    const onRefresh = () => {
+      fetchCategories();
+    };
+    window.addEventListener("admin:refresh-data", onRefresh);
+    return () => window.removeEventListener("admin:refresh-data", onRefresh);
+  }, [fetchCategories]);
+
   // Handle Form Modal Open for Create
   const handleOpenCreateModal = () => {
     setEditingCategory(null);

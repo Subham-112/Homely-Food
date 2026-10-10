@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Save, Loader2, Store, MapPin, Phone, Mail, Clock, ShieldCheck, Plus, X, Truck, Percent } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
@@ -45,43 +45,52 @@ export default function AdminProfilePage() {
   const [newEmailInput, setNewEmailInput] = useState("");
   const [newPhoneInput, setNewPhoneInput] = useState("");
 
-  useEffect(() => {
-    const fetchDetails = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const details = await getShopDetails();
-        setShopName(details.shopName || "");
-        setOwnerName(details.ownerName || "");
-        setEmails(details.emails || []);
-        setPhones(details.phones || []);
-        setStreet(details.address?.street || "");
-        setArea(details.address?.area || "");
-        setCity(details.address?.city || "");
-        setState(details.address?.state || "");
-        setPincode(details.address?.pincode || "");
-        setLandmark(details.address?.landmark || "");
-        setServiceablePincodes(details.serviceablePincodes || []);
-        setOpeningTime(details.openingTime || "08:00 AM");
-        setClosingTime(details.closingTime || "10:00 PM");
-        setIsStoreOpen(details.isStoreOpen ?? true);
-        setIsDeliveryEnabled(details.isDeliveryEnabled ?? true);
-        setMinimumOrderAmount(details.minimumOrderAmount || 0);
-        setDeliveryCharge(details.deliveryCharge || 0);
-        setFreeDeliveryThreshold(details.freeDeliveryThreshold || 0);
-        setDiscountMode(details.discountMode || "hybrid");
-        setGlobalDiscountPercent(details.globalDiscountPercent || 0);
-        setFssaiLicenseNumber(details.fssaiLicenseNumber || "");
-        setGstNumber(details.gstNumber || "");
-      } catch (err: any) {
-        setError(err?.message || "Failed to load store settings.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDetails();
+  const fetchDetails = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const details = await getShopDetails();
+      setShopName(details.shopName || "");
+      setOwnerName(details.ownerName || "");
+      setEmails(details.emails || []);
+      setPhones(details.phones || []);
+      setStreet(details.address?.street || "");
+      setArea(details.address?.area || "");
+      setCity(details.address?.city || "");
+      setState(details.address?.state || "");
+      setPincode(details.address?.pincode || "");
+      setLandmark(details.address?.landmark || "");
+      setServiceablePincodes(details.serviceablePincodes || []);
+      setOpeningTime(details.openingTime || "08:00 AM");
+      setClosingTime(details.closingTime || "10:00 PM");
+      setIsStoreOpen(details.isStoreOpen ?? true);
+      setIsDeliveryEnabled(details.isDeliveryEnabled ?? true);
+      setMinimumOrderAmount(details.minimumOrderAmount || 0);
+      setDeliveryCharge(details.deliveryCharge || 0);
+      setFreeDeliveryThreshold(details.freeDeliveryThreshold || 0);
+      setDiscountMode(details.discountMode || "hybrid");
+      setGlobalDiscountPercent(details.globalDiscountPercent || 0);
+      setFssaiLicenseNumber(details.fssaiLicenseNumber || "");
+      setGstNumber(details.gstNumber || "");
+    } catch (err: any) {
+      setError(err?.message || "Failed to load store settings.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  // Listen to header refresh button
+  useEffect(() => {
+    const onRefresh = () => {
+      fetchDetails();
+    };
+    window.addEventListener("admin:refresh-data", onRefresh);
+    return () => window.removeEventListener("admin:refresh-data", onRefresh);
+  }, [fetchDetails]);
 
   // Add/Remove Email
   const handleAddEmail = () => {

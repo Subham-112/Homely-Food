@@ -41,6 +41,15 @@ export default function AdminHomePage() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  // Listen to header refresh button
+  useEffect(() => {
+    const onRefresh = () => {
+      fetchDashboardData();
+    };
+    window.addEventListener("admin:refresh-data", onRefresh);
+    return () => window.removeEventListener("admin:refresh-data", onRefresh);
+  }, [fetchDashboardData]);
+
   // Real-Time Socket.io Listeners (Replaces old 5-minute timer polling)
   useEffect(() => {
     joinAdminRoom();

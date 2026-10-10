@@ -33,6 +33,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCoins } from "@/context/CoinContext";
 import { getOffers, Offer } from "@/services/offerService";
 import { getShopDetails } from "@/services/shopDetailsService";
+import { getCustomerPerk } from "@/services/customerService";
 
 export default function CartPage() {
   const router = useRouter();
@@ -51,8 +52,11 @@ export default function CartPage() {
     appliedOfferCode,
     discountType,
     coinsUsed,
+    groupPerk,
     applyCoupon,
     removeCoupon,
+    applyGroupPerk,
+    removeGroupPerk,
     coinDeductionInfo,
     isLoadingDeduction,
     applyCoins,
@@ -89,6 +93,51 @@ export default function CartPage() {
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [couponFeedback, setCouponFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [availableOffers, setAvailableOffers] = useState<Offer[]>([]);
+
+  // Customer Group Perk State
+  const [userPerk, setUserPerk] = useState<{
+    group: { id: string; name: string; color?: string };
+    discount: {
+      type: "percentage" | "flat";
+      value: number;
+      maxOrdersPerCustomer: number;
+      minOrderAmount: number;
+      active: boolean;
+      validUntil?: string;
+    };
+    usedOrdersCount: number;
+    remainingOrders: number | null;
+  } | null>(null);
+  const [isApplyingPerk, setIsApplyingPerk] = useState(false);
+  const [perkFeedback, setPerkFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Modal to confirm switching between mutually exclusive discounts
+  const [confirmSwitchDiscountModal, setConfirmSwitchDiscountModal] = useState<{
+    isOpen: boolean;
+    target: "coins" | "group";
+    title: string;
+    message: string;
+  } | null>(null);
+
+  // Fetch Group Perk for logged in user
+  useEffect(() => {
+    if (user) {
+      const lookupKey = user.phone || (user as any)._id;
+      if (lookupKey) {
+        getCustomerPerk(lookupKey)
+          .then((p) => {
+            if (p && p.group && p.discount) {
+              setUserPerk(p);
+            } else {
+              setUserPerk(null);
+            }
+          })
+          .catch(() => setUserPerk(null));
+      }
+    } else {
+      setUserPerk(null);
+    }
+  }, [user]);
 
   // Modals State
   const [showCoinConfirmModal, setShowCoinConfirmModal] = useState(false);
@@ -209,6 +258,58 @@ export default function CartPage() {
     setCouponFeedback(result);
     if (result.success) {
       setCouponCodeInput("");
+    }
+  };
+
+  const handleApplyGroupPerk = async () => {
+    if (!userPerk?.group?.id) return;
+    setIsApplyingPerk(true);
+    setPerkFeedback(null);
+    try {
+      const res = await applyGroupPerk(userPerk.group.id);
+      setPerkFeedback(res);
+    } catch (err: any) {
+      setPerkFeedback({ success: false, message: err?.message || "Failed to apply special discount." });
+    } finally {
+      setIsApplyingPerk(false);
+    }
+  };
+
+  const handleInitiateGroupPerk = () => {
+    if (discountType === "coins") {
+      setConfirmSwitchDiscountModal({
+        isOpen: true,
+        target: "group",
+        title: "Replace Coins Discount?",
+        message: `Applying this Special Discount will remove your applied Homely Coins discount of ₹${discountAmount}. Do you want to continue?`,
+      });
+      return;
+    }
+    handleApplyGroupPerk();
+  };
+
+  const handleInitiateCoins = () => {
+    if (discountType === "group") {
+      setConfirmSwitchDiscountModal({
+        isOpen: true,
+        target: "coins",
+        title: "Replace Special Discount?",
+        message: `Applying Homely Coins will remove your active Special Discount of ₹${discountAmount}. Do you want to continue?`,
+      });
+      return;
+    }
+    setShowCoinConfirmModal(true);
+  };
+
+  const handleRemoveGroupPerk = async () => {
+    setIsApplyingPerk(true);
+    try {
+      await removeGroupPerk();
+      setPerkFeedback(null);
+    } catch (err) {
+      console.error("Failed to remove special discount:", err);
+    } finally {
+      setIsApplyingPerk(false);
     }
   };
 
@@ -586,8 +687,8 @@ export default function CartPage() {
                     <Tag className="w-4 h-4 text-[#0B392B]" /> Rewards & Offers
                   </h2>
 
-                  {/* Tab Selector: Only show Offers tab if availableOffers.length > 0 */}
-                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg text-xs font-extrabold">
+                  {/* Tab Selector: Coins | Offers */}
+                  <div className="flex items-center bg-gray-100 p-0.5 rounded-lg text-xs font-extrabold flex-wrap gap-0.5">
                     <button
                       type="button"
                       onClick={() => setActiveOfferTab("coins")}
@@ -671,7 +772,7 @@ export default function CartPage() {
                                 <button
                                   type="button"
                                   disabled={isApplyingCoins}
-                                  onClick={() => setShowCoinConfirmModal(true)}
+                                  onClick={handleInitiateCoins}
                                   className="w-full bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-1.5 px-3 rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 disabled:opacity-75"
                                 >
                                   {isApplyingCoins ? (
@@ -817,6 +918,178 @@ export default function CartPage() {
                   </div>
                 )}
               </div>
+
+              {/* Standalone Special Discount Component for Eligible Users */}
+              {userPerk && (() => {
+                const isLimitReached = userPerk.remainingOrders !== null && userPerk.remainingOrders <= 0;
+                const isApplied = discountType === "group";
+                const minRequired = userPerk.discount.minOrderAmount || 0;
+                const isBelowMin = subTotal < minRequired;
+
+                let usageMessage = "";
+                if (isLimitReached) {
+                  usageMessage = "You have used all your eligible orders for this discount.";
+                } else if (userPerk.remainingOrders === 1) {
+                  usageMessage = "You can use this discount only 1 more time.";
+                } else if (userPerk.remainingOrders && userPerk.remainingOrders > 1) {
+                  usageMessage = `You can use this discount for ${userPerk.remainingOrders} more orders.`;
+                } else {
+                  usageMessage = "You can use this discount for unlimited orders.";
+                }
+
+                const discountBadgeText =
+                  userPerk.discount.type === "percentage"
+                    ? `${userPerk.discount.value}% OFF`
+                    : `Flat ₹${userPerk.discount.value} OFF`;
+
+                return (
+                  <div
+                    className={`rounded-2xl p-4 sm:p-5 border transition-all shadow-xs ${
+                      isLimitReached
+                        ? "bg-[#F3F4F6] border-gray-200 text-gray-400 opacity-80"
+                        : isApplied
+                        ? "bg-emerald-50/80 border-emerald-300"
+                        : "bg-white border-[#E8E1D3]"
+                    }`}
+                  >
+                    {isApplied ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#0B392B] text-white flex items-center justify-center font-extrabold text-base shadow-xs shrink-0">
+                            <Sparkles className="w-5 h-5 text-emerald-300" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-extrabold text-sm text-[#0B251C]">
+                              Special Discount Applied!
+                            </span>
+                            <span className="text-xs text-emerald-800 font-bold mt-0.5">
+                              Saving ₹{discountAmount} on this order ({discountBadgeText})
+                            </span>
+                            <span className="text-[11px] text-gray-500 font-medium mt-0.5">
+                              {usageMessage}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isApplyingPerk}
+                          onClick={handleRemoveGroupPerk}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Remove discount"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-base shrink-0 border ${
+                                isLimitReached
+                                  ? "bg-gray-200 text-gray-400 border-gray-300"
+                                  : "bg-emerald-50 text-[#0B392B] border-emerald-200"
+                              }`}
+                            >
+                              <Sparkles
+                                className={`w-5 h-5 ${
+                                  isLimitReached ? "text-gray-400" : "text-[#0B392B]"
+                                }`}
+                              />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`font-extrabold text-sm ${
+                                    isLimitReached ? "text-gray-500" : "text-[#0B251C]"
+                                  }`}
+                                >
+                                  Special Discount Available
+                                </span>
+                                <span
+                                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                    isLimitReached
+                                      ? "bg-gray-200 text-gray-500 border-gray-300"
+                                      : "bg-emerald-100 text-[#0B392B] border-emerald-200"
+                                  }`}
+                                >
+                                  {discountBadgeText}
+                                </span>
+                              </div>
+                              <p
+                                className={`text-xs mt-1 font-medium ${
+                                  isLimitReached ? "text-gray-400" : "text-gray-600"
+                                }`}
+                              >
+                                You are eligible for an exclusive{" "}
+                                <strong
+                                  className={isLimitReached ? "text-gray-500" : "text-[#0B251C]"}
+                                >
+                                  {discountBadgeText}
+                                </strong>{" "}
+                                on your order!
+                              </p>
+                              <span
+                                className={`text-[11px] font-semibold mt-0.5 ${
+                                  isLimitReached ? "text-gray-400" : "text-gray-500"
+                                }`}
+                              >
+                                {usageMessage}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Button / Limit Badge */}
+                          <div className="shrink-0 flex flex-col items-end">
+                            {isLimitReached ? (
+                              <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-2.5 py-1 rounded-md border border-gray-300 whitespace-nowrap">
+                                Limit Reached
+                              </span>
+                            ) : isBelowMin ? (
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 whitespace-nowrap">
+                                Min ₹{minRequired}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={isApplyingPerk}
+                                onClick={handleInitiateGroupPerk}
+                                className="bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-2 px-3.5 rounded-xl shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-75"
+                              >
+                                {isApplyingPerk ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                                ) : (
+                                  "Apply Discount"
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Below Min Order Amount Nudge */}
+                        {!isLimitReached && isBelowMin && (
+                          <div className="text-[11px] text-amber-800 font-bold bg-amber-50/80 border border-amber-200/70 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                            <span>✨</span>
+                            <span>Add ₹{minRequired - subTotal} more to unlock this discount!</span>
+                          </div>
+                        )}
+
+                        {perkFeedback && (
+                          <div
+                            className={`text-xs font-semibold px-3 py-2 rounded-xl border ${
+                              perkFeedback.success
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : "bg-red-50 text-red-700 border-red-200"
+                            }`}
+                          >
+                            {perkFeedback.message}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Right Column: Customer Details & Order Summary / Payment */}
@@ -930,7 +1203,13 @@ export default function CartPage() {
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex items-center justify-between text-emerald-700 font-bold">
-                      <span>{discountType === "coins" ? "🪙 Coins Discount" : "Coupon Discount"}</span>
+                      <span>
+                        {discountType === "group"
+                          ? `🎓 Group Perk (${groupPerk?.groupName || userPerk?.group?.name || "Member"})`
+                          : discountType === "coins"
+                          ? "🪙 Coins Discount"
+                          : "Coupon Discount"}
+                      </span>
                       <span>-₹{discountAmount}</span>
                     </div>
                   )}
@@ -1114,7 +1393,7 @@ export default function CartPage() {
                         type="button"
                         onClick={() => {
                           clearCoinRemovalNotice();
-                          setShowCoinConfirmModal(true);
+                          handleInitiateCoins();
                         }}
                         className="text-xs font-bold text-[#0B392B] bg-white border border-[#0B392B]/20 hover:border-[#0B392B] px-3 py-1.5 rounded-lg shadow-2xs hover:shadow-xs transition-all cursor-pointer"
                       >
@@ -1268,6 +1547,60 @@ export default function CartPage() {
                     <span>Confirm & Redeem</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mutual Exclusivity Switch Confirmation Modal */}
+      {confirmSwitchDiscountModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 border border-[#E8E1D3] relative animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+                <h3 className="text-sm font-extrabold text-[#0B251C]">
+                  {confirmSwitchDiscountModal.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmSwitchDiscountModal(null)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 font-medium leading-relaxed">
+              {confirmSwitchDiscountModal.message}
+            </p>
+
+            <div className="flex items-center gap-2.5 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setConfirmSwitchDiscountModal(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const target = confirmSwitchDiscountModal.target;
+                  setConfirmSwitchDiscountModal(null);
+                  if (target === "coins") {
+                    await removeGroupPerk();
+                    setShowCoinConfirmModal(true);
+                  } else if (target === "group") {
+                    removeCoins();
+                    await handleApplyGroupPerk();
+                  }
+                }}
+                className="flex-1 bg-[#0B392B] hover:bg-[#07281E] text-white font-extrabold text-xs py-2.5 rounded-xl transition-all shadow-md cursor-pointer text-center"
+              >
+                Confirm & Replace
               </button>
             </div>
           </div>

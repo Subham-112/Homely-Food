@@ -34,6 +34,15 @@ export default function AdminOffersPage() {
     fetchOffersList();
   }, [fetchOffersList]);
 
+  // Listen to header refresh button
+  useEffect(() => {
+    const onRefresh = () => {
+      fetchOffersList();
+    };
+    window.addEventListener("admin:refresh-data", onRefresh);
+    return () => window.removeEventListener("admin:refresh-data", onRefresh);
+  }, [fetchOffersList]);
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);

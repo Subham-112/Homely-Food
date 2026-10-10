@@ -23,10 +23,15 @@ export interface ICartTotal {
   totalAmount: number;
   offer?: mongoose.Types.ObjectId;
   offerCode?: string;
-  discountType?: "offer" | "coins";
+  discountType?: "offer" | "coins" | "group";
   coinsUsed?: number;
   coinStatus?: "none" | "applied" | "converted" | "cancelled";
   coinRemovalNotice?: ICoinRemovalNotice;
+  groupPerk?: {
+    groupId?: mongoose.Types.ObjectId;
+    groupName?: string;
+    discountValue?: number;
+  };
 }
 
 export interface ICart extends Document {
@@ -93,12 +98,17 @@ const CartTotalSchema = new Schema<ICartTotal>(
     },
     discountType: {
       type: String,
-      enum: ["offer", "coins"],
+      enum: ["offer", "coins", "group"],
       default: undefined,
     },
     coinsUsed: {
       type: Number,
       default: 0,
+    },
+    groupPerk: {
+      groupId: { type: Schema.Types.ObjectId, ref: "CustomerGroup" },
+      groupName: { type: String, trim: true },
+      discountValue: { type: Number },
     },
     coinStatus: {
       type: String,

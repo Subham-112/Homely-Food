@@ -105,10 +105,17 @@ interface CartContextType {
   finalAmount: number;
   totalAmount: number;
   appliedOfferCode: string | null;
-  discountType: "offer" | "coins" | null;
+  discountType: "offer" | "coins" | "group" | null;
   coinsUsed: number;
+  groupPerk: {
+    groupId?: string;
+    groupName?: string;
+    discountValue?: number;
+  } | null;
   applyCoupon: (code: string) => Promise<{ success: boolean; message: string }>;
   removeCoupon: () => Promise<void>;
+  applyGroupPerk: (groupId: string) => Promise<{ success: boolean; message: string }>;
+  removeGroupPerk: () => Promise<void>;
   coinDeductionInfo: CoinDeductionResponse | null;
   isLoadingDeduction: boolean;
   refreshCoinDeduction: () => Promise<void>;
@@ -644,6 +651,51 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const applyGroupPerk = async (groupId: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      const { applyGroupPerkToCart } = await import("@/services/cartService");
+      const resCart = await applyGroupPerkToCart(groupId, cartId || undefined);
+      if (resCart) {
+        setCartTotal(resCart.total);
+        const confirmedItems = formatBackendCartItems(resCart);
+        setCart(confirmedItems);
+        lastConfirmedCartRef.current = confirmedItems;
+        return {
+          success: true,
+          message: `Group Perk applied! Saved ₹${resCart.total.discount}`,
+        };
+      }
+      return { success: false, message: "Failed to apply group perk." };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || "Failed to apply group perk.",
+      };
+    }
+  };
+
+  const removeGroupPerk = async () => {
+    try {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      const { removeGroupPerkFromCart } = await import("@/services/cartService");
+      const resCart = await removeGroupPerkFromCart(cartId || undefined);
+      if (resCart) {
+        setCartTotal(resCart.total);
+        const confirmedItems = formatBackendCartItems(resCart);
+        setCart(confirmedItems);
+        lastConfirmedCartRef.current = confirmedItems;
+        fetchCoinDeduction(resCart._id);
+      }
+    } catch (err) {
+      console.error("Failed to remove group perk:", err);
+    }
+  };
+
   const reorderCart = async (orderId: string): Promise<void> => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -774,8 +826,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         appliedOfferCode,
         discountType,
         coinsUsed,
+        groupPerk: cartTotal.groupPerk || null,
         applyCoupon,
         removeCoupon,
+        applyGroupPerk,
+        removeGroupPerk,
         coinDeductionInfo,
         isLoadingDeduction,
         refreshCoinDeduction: () => fetchCoinDeduction(cartId || undefined),

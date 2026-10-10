@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Search,
@@ -11,6 +11,10 @@ import {
   ChevronRight,
   X,
   Calendar,
+  Filter,
+  ChevronDown,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import Header from "@/components/Header";
 import AdminBottomNav from "@/components/AdminBottomNav";
@@ -31,6 +35,15 @@ const getTodayDateString = (): string => {
 const getYesterdayDateString = (): string => {
   const now = new Date();
   now.setDate(now.getDate() - 1);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getTomorrowDateString = (): string => {
+  const now = new Date();
+  now.setDate(now.getDate() + 1);
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
@@ -98,6 +111,19 @@ function AdminOrdersManagementContent() {
   const [selectedOrderModal, setSelectedOrderModal] = useState<Order | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [isGoToOrderOpen, setIsGoToOrderOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Close filter dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Sync filter when URL search parameters change
   useEffect(() => {
@@ -191,6 +217,15 @@ function AdminOrdersManagementContent() {
     fetchOrders();
   }, [fetchOrders]);
 
+  // Listen to header refresh button
+  useEffect(() => {
+    const onRefresh = () => {
+      fetchOrders();
+    };
+    window.addEventListener("admin:refresh-data", onRefresh);
+    return () => window.removeEventListener("admin:refresh-data", onRefresh);
+  }, [fetchOrders]);
+
   // Selective single order status update handler (NO API RE-FETCH, NO PAGE SPINNER)
   const handleSingleOrderUpdated = useCallback((updatedOrder?: any) => {
     if (updatedOrder && (updatedOrder._id || updatedOrder.id)) {
@@ -268,110 +303,283 @@ function AdminOrdersManagementContent() {
           )}
         </div>
 
-        {/* Search Bar */}
-        <div className="relative flex items-center">
-          <Search className="w-4 h-4 absolute left-3.5 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by order ID, name, or phone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-[#E1ECEE] rounded-xl py-2.5 pl-10 pr-9 text-xs text-[#0F261C] placeholder:text-gray-400 focus:outline-none focus:border-[#0B392B]"
-          />
-          {searchQuery && (
+        {/* Search & Filter Bar */}
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex-1 flex items-center">
+            <Search className="w-4 h-4 absolute left-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by order ID, name, or phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-[#E1ECEE] rounded-xl py-2.5 pl-10 pr-9 text-xs text-[#0F261C] placeholder:text-gray-400 focus:outline-none focus:border-[#0B392B]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Dropdown Button */}
+          <div className="relative shrink-0" ref={filterRef}>
             <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+              type="button"
+              onClick={() => setIsFilterOpen((prev) => !prev)}
+              className={`flex items-center gap-1.5 border px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                selectedDate || selectedType !== "all" || selectedStatus !== "all"
+                  ? "bg-emerald-50 border-emerald-300 text-[#0B392B]"
+                  : "bg-white border-[#E1ECEE] hover:border-[#0B392B]/40 text-[#0B251C]"
+              }`}
             >
-              <X className="w-3.5 h-3.5" />
+              <Filter className="w-3.5 h-3.5 text-[#0B392B]" />
+              <span className="hidden sm:inline">Filters</span>
+              {(selectedDate || selectedType !== "all" || selectedStatus !== "all") && (
+                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              )}
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${isFilterOpen ? "rotate-180" : ""}`} />
             </button>
-          )}
+
+            {/* Content-Fit Filter Dropdown Menu */}
+            {isFilterOpen && (
+              <div className="absolute right-0 top-full mt-2 w-max max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100 gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-[#0B392B]" />
+                    <span className="text-xs font-extrabold text-[#0B251C] uppercase tracking-wider whitespace-nowrap">
+                      Filter Orders
+                    </span>
+                  </div>
+                  {(selectedDate || selectedType !== "all" || selectedStatus !== "all") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate("");
+                        setSelectedType("all");
+                        setSelectedStatus("all");
+                        setPage(1);
+                      }}
+                      className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg cursor-pointer transition-colors whitespace-nowrap"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset All</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Form Controls (Column-wise / Stacked content) */}
+                <div className="flex flex-col gap-3.5 py-3.5 min-w-[260px] sm:min-w-[300px]">
+                  {/* Date Filter */}
+                  <div className="flex flex-col gap-1.5">
+                    {/* Header with quick Today & Tomorrow buttons */}
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-[#0B392B]" /> Date
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(getTodayDateString());
+                            setPage(1);
+                          }}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                            selectedDate === getTodayDateString()
+                              ? "bg-[#0B392B] text-white border-[#0B392B]"
+                              : "bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(getTomorrowDateString());
+                            setPage(1);
+                          }}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                            selectedDate === getTomorrowDateString()
+                              ? "bg-[#0B392B] text-white border-[#0B392B]"
+                              : "bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
+                          }`}
+                        >
+                          Tomorrow
+                        </button>
+                      </div>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => {
+                          setSelectedDate(e.target.value);
+                          setPage(1);
+                        }}
+                        className="w-full bg-[#FAF6ED] border border-[#E1ECEE] rounded-xl py-2 px-2.5 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
+                      />
+                      {selectedDate && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate("");
+                            setPage(1);
+                          }}
+                          title="Clear Date"
+                          className="absolute right-7 text-gray-400 hover:text-red-600 p-0.5 cursor-pointer bg-[#FAF6ED] rounded"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Type Filter */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Type
+                    </label>
+                    <select
+                      value={selectedType}
+                      onChange={(e) => {
+                        setSelectedType(e.target.value);
+                        setPage(1);
+                      }}
+                      className="w-full bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="dine-in">Normally (Dine-in)</option>
+                      <option value="delivery">Delivery</option>
+                      <option value="pickup">Pickup</option>
+                    </select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Status
+                    </label>
+                    <select
+                      value={selectedStatus}
+                      onChange={(e) => {
+                        setSelectedStatus(e.target.value);
+                        setPage(1);
+                      }}
+                      className="w-full bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="accepted">Accepted</option>
+                      <option value="preparing">Preparing</option>
+                      <option value="ready">Ready</option>
+                      <option value="delivered">Delivered</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Footer Action */}
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsFilterOpen(false)}
+                    className="bg-[#0B392B] hover:bg-[#07281E] text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Filters Grid (Order Date, Order Type & Order Status) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
-          {/* Order Date Filter */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-[#0B392B]" /> Order Date
-              </label>
+        {/* Applied Filters Container (Horizontal Scroll with sticky Clear All) */}
+        {(selectedDate || selectedType !== "all" || selectedStatus !== "all") && (
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-[#E1ECEE] shadow-xs">
+            {/* Scrollable Chips Area */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+              <span className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider whitespace-nowrap shrink-0">
+                Applied:
+              </span>
+
+              {/* Date Chip */}
               {selectedDate && (
-                <span className="text-[10px] font-extrabold text-[#0B392B] bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                  {formatRelativeDateLabel(selectedDate)}
+                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-[#0B392B] border border-emerald-200/80 rounded-lg px-2.5 py-1 text-xs font-semibold whitespace-nowrap shrink-0 shadow-3xs animate-in fade-in">
+                  <Calendar className="w-3.5 h-3.5 text-[#0B392B] shrink-0" />
+                  <span>{formatRelativeDateLabel(selectedDate)}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate("");
+                      setPage(1);
+                    }}
+                    title="Remove Date filter"
+                    className="hover:bg-emerald-200/70 p-0.5 rounded-md text-[#0B392B] transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {/* Type Chip */}
+              {selectedType !== "all" && (
+                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-[#0B392B] border border-emerald-200/80 rounded-lg px-2.5 py-1 text-xs font-semibold whitespace-nowrap shrink-0 shadow-3xs animate-in fade-in">
+                  <span className="capitalize">{selectedType === "dine-in" ? "Normally" : selectedType}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedType("all");
+                      setPage(1);
+                    }}
+                    title="Remove Type filter"
+                    className="hover:bg-emerald-200/70 p-0.5 rounded-md text-[#0B392B] transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {/* Status Chip */}
+              {selectedStatus !== "all" && (
+                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-[#0B392B] border border-emerald-200/80 rounded-lg px-2.5 py-1 text-xs font-semibold whitespace-nowrap shrink-0 shadow-3xs animate-in fade-in">
+                  <span className="capitalize">{selectedStatus}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStatus("all");
+                      setPage(1);
+                    }}
+                    title="Remove Status filter"
+                    className="hover:bg-emerald-200/70 p-0.5 rounded-md text-[#0B392B] transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </span>
               )}
             </div>
-            <div className="relative flex items-center">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
+
+            {/* Sticky Reset All X Button at the Rightmost End */}
+            <div className="shrink-0 pl-2 border-l border-gray-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDate("");
+                  setSelectedType("all");
+                  setSelectedStatus("all");
                   setPage(1);
                 }}
-                className="w-full bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
-              />
-              {selectedDate && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDate("");
-                    setPage(1);
-                  }}
-                  title="Clear Date Filter"
-                  className="absolute right-8 text-gray-400 hover:text-red-600 p-0.5 cursor-pointer bg-white rounded"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+                title="Reset all filters"
+                className="flex items-center justify-center w-7 h-7 rounded-lg bg-red-500 hover:bg-red-600 active:bg-red-700 text-white shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
+              >
+                <X className="w-4 h-4 stroke-[2.5]" />
+              </button>
             </div>
           </div>
-
-          {/* Order Type Dropdown */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Order Type
-            </label>
-            <select
-              value={selectedType}
-              onChange={(e) => {
-                setSelectedType(e.target.value);
-                setPage(1);
-              }}
-              className="bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
-            >
-              <option value="all">All Types</option>
-              <option value="dine-in">Normally (Dine-in)</option>
-              <option value="delivery">Delivery</option>
-              <option value="pickup">Pickup</option>
-            </select>
-          </div>
-
-          {/* Order Status Dropdown */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Order Status
-            </label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => {
-                setSelectedStatus(e.target.value);
-                setPage(1);
-              }}
-              className="bg-white border border-[#E1ECEE] rounded-xl py-2 px-3 text-xs text-[#0F261C] font-bold focus:outline-none focus:border-[#0B392B] cursor-pointer"
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="accepted">Accepted</option>
-              <option value="preparing">Preparing</option>
-              <option value="ready">Ready</option>
-              <option value="delivered">Delivered</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-        </div>
+        )}
 
         {/* Error Alert */}
         {error && (

@@ -18,8 +18,10 @@ export const CustomerReadyOrderAlert: React.FC = () => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
 
-  // Setup Web Audio and one-time global interaction unlocker
+  // Setup Web Audio safely
   useEffect(() => {
+    let isCancelled = false;
+
     const initAudio = async () => {
       try {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -27,9 +29,13 @@ export const CustomerReadyOrderAlert: React.FC = () => {
           const ctx = new AudioContextClass();
           audioCtxRef.current = ctx;
           const response = await fetch("/sound/Order-status-update.mp3");
+          if (!response.ok) return;
           const arrayBuffer = await response.arrayBuffer();
+          if (isCancelled) return;
           const decoded = await ctx.decodeAudioData(arrayBuffer);
-          audioBufferRef.current = decoded;
+          if (!isCancelled) {
+            audioBufferRef.current = decoded;
+          }
         }
       } catch (err) {
         console.warn("Customer audio init notice:", err);
@@ -37,25 +43,28 @@ export const CustomerReadyOrderAlert: React.FC = () => {
     };
     initAudio();
 
-    const unlockAudio = () => {
+    const resumeContextOnGesture = () => {
       if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
-        audioCtxRef.current.resume();
-      }
-      const el = audioRef.current;
-      if (el) {
-        el.play().then(() => {
-          el.pause();
-          el.currentTime = 0;
-        }).catch(() => {});
+        audioCtxRef.current.resume().catch(() => {});
       }
     };
 
-    window.addEventListener("pointerdown", unlockAudio, { once: true });
-    window.addEventListener("keydown", unlockAudio, { once: true });
+    window.addEventListener("pointerdown", resumeContextOnGesture, { once: true });
+    window.addEventListener("keydown", resumeContextOnGesture, { once: true });
 
     return () => {
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
+      isCancelled = true;
+      window.removeEventListener("pointerdown", resumeContextOnGesture);
+      window.removeEventListener("keydown", resumeContextOnGesture);
+
+      if (audioCtxRef.current) {
+        try {
+          if (audioCtxRef.current.state !== "closed") {
+            audioCtxRef.current.close().catch(() => {});
+          }
+        } catch (_) {}
+        audioCtxRef.current = null;
+      }
     };
   }, []);
 

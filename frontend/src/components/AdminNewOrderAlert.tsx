@@ -18,8 +18,10 @@ export const AdminNewOrderAlert: React.FC = () => {
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
-  // 1. Fetch & decode Web Audio buffer and setup global interaction unlocker
+  // 1. Fetch & decode Web Audio buffer and set up AudioContext safely
   useEffect(() => {
+    let isCancelled = false;
+
     const initWebAudio = async () => {
       try {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -27,42 +29,69 @@ export const AdminNewOrderAlert: React.FC = () => {
           const ctx = new AudioContextClass();
           audioCtxRef.current = ctx;
           const response = await fetch("/sound/Bell-ring.mp3");
+          if (!response.ok) return;
           const arrayBuffer = await response.arrayBuffer();
+          if (isCancelled) return;
           const decoded = await ctx.decodeAudioData(arrayBuffer);
-          audioBufferRef.current = decoded;
+          if (!isCancelled) {
+            audioBufferRef.current = decoded;
+          }
         }
       } catch (err) {
         console.warn("Web Audio API decode notice:", err);
       }
     };
+
     initWebAudio();
 
-    // Unlock browser audio restriction on very first user interaction anywhere on the screen
-    const unlockAudio = () => {
+    // User gesture listener to resume suspended AudioContext only (without playing sound)
+    const resumeContextOnGesture = () => {
       if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
-        audioCtxRef.current.resume();
-      }
-      const el = audioRef.current;
-      if (el) {
-        el.play().then(() => {
-          el.pause();
-          el.currentTime = 0;
-        }).catch(() => {});
+        audioCtxRef.current.resume().catch(() => {});
       }
     };
 
-    window.addEventListener("pointerdown", unlockAudio, { once: true });
-    window.addEventListener("keydown", unlockAudio, { once: true });
+    window.addEventListener("pointerdown", resumeContextOnGesture, { once: true });
+    window.addEventListener("keydown", resumeContextOnGesture, { once: true });
 
     return () => {
-      window.removeEventListener("pointerdown", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
+      isCancelled = true;
+      window.removeEventListener("pointerdown", resumeContextOnGesture);
+      window.removeEventListener("keydown", resumeContextOnGesture);
+
+      // Clean up audio sources and close AudioContext on unmount
+      if (sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.stop();
+          sourceNodeRef.current.disconnect();
+          sourceNodeRef.current = null;
+        } catch (_) {}
+      }
+
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        } catch (_) {}
+      }
+
+      if (audioCtxRef.current) {
+        try {
+          if (audioCtxRef.current.state !== "closed") {
+            audioCtxRef.current.close().catch(() => {});
+          }
+        } catch (_) {}
+        audioCtxRef.current = null;
+      }
     };
   }, []);
 
   // Play fallback synthesized chime if buffer is not yet ready
   const playFallbackOscillator = (ctx: AudioContext) => {
     try {
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sine";
@@ -77,38 +106,38 @@ export const AdminNewOrderAlert: React.FC = () => {
     } catch (_) {}
   };
 
-  // Start looping sound using Web Audio API + HTML5 Audio fallback
+  // Start looping sound using Web Audio API or HTML5 Audio
   const startLoopingSound = () => {
     setIsPlayingSound(true);
 
-    // Strategy 1: Web Audio API
-    if (audioCtxRef.current) {
+    // Stop any previously playing node first
+    if (sourceNodeRef.current) {
+      try {
+        sourceNodeRef.current.stop();
+        sourceNodeRef.current.disconnect();
+      } catch (_) {}
+      sourceNodeRef.current = null;
+    }
+
+    // Try Web Audio API first
+    if (audioCtxRef.current && audioBufferRef.current) {
       try {
         if (audioCtxRef.current.state === "suspended") {
-          audioCtxRef.current.resume();
+          audioCtxRef.current.resume().catch(() => {});
         }
-        if (sourceNodeRef.current) {
-          try {
-            sourceNodeRef.current.stop();
-          } catch (_) {}
-        }
-
-        if (audioBufferRef.current) {
-          const source = audioCtxRef.current.createBufferSource();
-          source.buffer = audioBufferRef.current;
-          source.loop = true;
-          source.connect(audioCtxRef.current.destination);
-          source.start(0);
-          sourceNodeRef.current = source;
-        } else {
-          playFallbackOscillator(audioCtxRef.current);
-        }
+        const source = audioCtxRef.current.createBufferSource();
+        source.buffer = audioBufferRef.current;
+        source.loop = true;
+        source.connect(audioCtxRef.current.destination);
+        source.start(0);
+        sourceNodeRef.current = source;
+        return; // Web Audio started successfully; no need for HTML5 Audio fallback
       } catch (err) {
         console.warn("Web Audio start error:", err);
       }
     }
 
-    // Strategy 2: HTML5 Audio Tag
+    // Strategy 2: HTML5 Audio Tag fallback
     if (audioRef.current) {
       try {
         audioRef.current.currentTime = 0;
@@ -119,6 +148,8 @@ export const AdminNewOrderAlert: React.FC = () => {
       } catch (err) {
         console.error("HTML5 Audio error:", err);
       }
+    } else if (audioCtxRef.current) {
+      playFallbackOscillator(audioCtxRef.current);
     }
   };
 

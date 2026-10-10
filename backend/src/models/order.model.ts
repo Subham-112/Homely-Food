@@ -24,8 +24,13 @@ export interface IPaymentInfo {
   discount?: number;
   deliveryCharge?: number;
   totalAmount: number;
-  discountType?: "offer" | "coins";
+  discountType?: "offer" | "coins" | "group";
   coinsUsed?: number;
+  groupPerk?: {
+    groupId?: mongoose.Types.ObjectId;
+    groupName?: string;
+    discountValue?: number;
+  };
 }
 
 export interface IGuestInfo {
@@ -126,11 +131,16 @@ const PaymentInfoSchema = new Schema<IPaymentInfo>(
     },
     discountType: {
       type: String,
-      enum: ["offer", "coins"],
+      enum: ["offer", "coins", "group"],
     },
     coinsUsed: {
       type: Number,
       default: 0,
+    },
+    groupPerk: {
+      groupId: { type: Schema.Types.ObjectId, ref: "CustomerGroup" },
+      groupName: { type: String, trim: true },
+      discountValue: { type: Number },
     },
     totalAmount: {
       type: Number,

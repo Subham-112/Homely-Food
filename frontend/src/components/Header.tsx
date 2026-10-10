@@ -3,10 +3,11 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins, ArrowLeft } from "lucide-react";
+import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins, ArrowLeft, RefreshCw } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCoins } from "@/context/CoinContext";
+import { getCustomerPerk } from "@/services/customerService";
 
 export interface HeaderProps {
   showMenu?: boolean;
@@ -25,8 +26,26 @@ export const Header: React.FC<HeaderProps> = ({
   const { user, isAuthenticated, isAdminAuthenticated, logout, adminLogout } = useAuth();
   const { wallet, floatingAnimation } = useCoins();
   const [drawerOpen, setDrawerOpen] = useState(false);
-
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isAdmin = pathname.startsWith("/admin");
+
+  const handleAdminRefresh = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+
+    // Dispatch custom event for current admin page to trigger its specific data re-fetch
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("admin:refresh-data", { detail: { pathname } }));
+    }
+
+    // Also call Next.js router.refresh() to re-validate any server components / layout data
+    router.refresh();
+
+    // Reset spinner after 800ms
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 800);
+  };
 
   return (
     <>
@@ -55,11 +74,11 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Middle Side: Centered Logo Image */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center z-10">
+          {/* Middle Side: Centered Logo Image / Admin Panel Title */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center text-center z-10">
             {isAdmin ? (
               <Link href="/admin" className="flex flex-col items-center">
-                <span className="font-extrabold text-base sm:text-lg text-[#0B392B] tracking-tight font-poppins leading-tight">
+                <span className="font-extrabold text-base sm:text-lg text-[#0B392B] tracking-tight font-poppins leading-tight hover:opacity-80 transition-opacity">
                   Admin Panel
                 </span>
               </Link>
@@ -74,59 +93,76 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Right Side: Homely Coins Badge & Auth */}
-          <div className="flex items-center gap-2 z-20 pr-2">
-            {!isAdmin && isAuthenticated && (
-              <Link
-                href="/wallet"
-                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100/90 hover:bg-amber-200 text-amber-900 border border-amber-300/80 text-xs sm:text-sm font-extrabold transition cursor-pointer shadow-xs"
-                title="Homely Coins Wallet"
+          {/* Right Side: Refresh Icon (Admin) OR Homely Coins Badge & Auth (Customer) */}
+          <div className="flex items-center gap-2 z-20">
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={handleAdminRefresh}
+                disabled={isRefreshing}
+                title="Refresh page data"
+                className="p-1.5 text-[#0B392B] hover:bg-[#E3EEF0] active:scale-95 rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                aria-label="Refresh page data"
               >
-                <Coins className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 animate-pulse shrink-0" />
-                <span>{wallet?.balance ?? 0}</span>
-
-                {/* Upwards Floating Coin Animation Badge */}
-                {floatingAnimation && (
-                  <span
-                    key={floatingAnimation.id}
-                    className="absolute top-10 right-1 bg-emerald-600 text-white font-extrabold text-sm px-1.5 py-0.5 rounded-lg shadow-md animate-bounce border border-emerald-300 pointer-events-none"
-                    style={{
-                      animation: "floatUp 1.8s ease-out forwards",
-                    }}
+                <RefreshCw
+                  className={`w-5 h-5 text-[#0B392B] ${
+                    isRefreshing ? "animate-spin text-emerald-600" : ""
+                  }`}
+                />
+              </button>
+            ) : (
+              <>
+                {isAuthenticated && (
+                  <Link
+                    href="/wallet"
+                    className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-100/90 hover:bg-amber-200 text-amber-900 border border-amber-300/80 text-xs sm:text-sm font-extrabold transition cursor-pointer shadow-xs"
+                    title="Homely Coins Wallet"
                   >
-                    +{floatingAnimation.amount}
-                  </span>
-                )}
-              </Link>
-            )}
+                    <Coins className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 animate-pulse shrink-0" />
+                    <span>{wallet?.balance ?? 0}</span>
 
-            {!isAdmin && (
-              <div className="hidden md:flex items-center gap-2">
-                {!isAuthenticated ? (
-                  <>
-                    <Link
-                      href="/login"
-                      className="text-xs font-bold text-[#0B392B] hover:bg-[#0B392B]/10 px-3 py-1.5 rounded-xl transition-all"
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      href="/signup"
-                      className="text-xs font-bold bg-[#0B392B] text-white hover:bg-[#07281E] px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
-                    >
-                      Sign Up
-                    </Link>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => logout()}
-                    className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Logout
-                  </button>
+                    {/* Upwards Floating Coin Animation Badge */}
+                    {floatingAnimation && (
+                      <span
+                        key={floatingAnimation.id}
+                        className="absolute top-10 right-1 bg-emerald-600 text-white font-extrabold text-sm px-1.5 py-0.5 rounded-lg shadow-md animate-bounce border border-emerald-300 pointer-events-none"
+                        style={{
+                          animation: "floatUp 1.8s ease-out forwards",
+                        }}
+                      >
+                        +{floatingAnimation.amount}
+                      </span>
+                    )}
+                  </Link>
                 )}
-              </div>
+
+                <div className="hidden md:flex items-center gap-2">
+                  {!isAuthenticated ? (
+                    <>
+                      <Link
+                        href="/login"
+                        className="text-xs font-bold text-[#0B392B] hover:bg-[#0B392B]/10 px-3 py-1.5 rounded-xl transition-all"
+                      >
+                        Login
+                      </Link>
+                      <Link
+                        href="/signup"
+                        className="text-xs font-bold bg-[#0B392B] text-white hover:bg-[#07281E] px-3.5 py-1.5 rounded-xl transition-all shadow-xs"
+                      >
+                        Sign Up
+                      </Link>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => logout()}
+                      className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>

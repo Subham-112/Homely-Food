@@ -304,7 +304,22 @@ export default function GlobalOrderDetailsModal({
             </div>
             {Boolean(order.payment?.discount || order.discount) && (
               <div className="flex items-center justify-between text-emerald-700">
-                <span className="text-[11px]">Discount</span>
+                <span className="text-[11px] flex items-center gap-1">
+                  <span>Discount</span>
+                  {order.payment?.discountType === "group" || (order as any).discountType === "group" ? (
+                    <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-200">
+                      🎓 {(order.payment as any)?.groupPerk?.groupName || "Group Perk"}
+                    </span>
+                  ) : order.payment?.discountType === "coins" || (order as any).discountType === "coins" ? (
+                    <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded border border-amber-200">
+                      🪙 Coins
+                    </span>
+                  ) : (order.offerCode || (order as any).payment?.offerCode) ? (
+                    <span className="text-[10px] font-extrabold bg-gray-100 text-gray-700 px-1.5 py-0.2 rounded font-mono">
+                      {order.offerCode || (order as any).payment?.offerCode}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="font-bold text-[11px]">
                   -₹{order.payment?.discount ?? order.discount ?? 0}
                 </span>

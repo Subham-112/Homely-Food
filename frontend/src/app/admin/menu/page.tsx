@@ -182,6 +182,16 @@ export default function AdminMenuPage() {
     loadCategories();
   }, []);
 
+  // Listen to header refresh button
+  useEffect(() => {
+    const onRefresh = () => {
+      fetchItems();
+      loadCategories();
+    };
+    window.addEventListener("admin:refresh-data", onRefresh);
+    return () => window.removeEventListener("admin:refresh-data", onRefresh);
+  }, [fetchItems]);
+
   const handleCategoryChange = (catId: string) => {
     setSelectedCategory(catId);
     setPage(1);

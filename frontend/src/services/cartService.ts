@@ -50,9 +50,14 @@ export interface CartTotal {
     flatDiscountAmount?: number;
   };
   offerCode?: string;
-  discountType?: "offer" | "coins";
+  discountType?: "offer" | "coins" | "group";
   coinsUsed?: number;
   coinStatus?: "none" | "applied" | "converted" | "cancelled";
+  groupPerk?: {
+    groupId?: string;
+    groupName?: string;
+    discountValue?: number;
+  };
   coinRemovalNotice?: CoinRemovalNotice;
 }
 
@@ -143,5 +148,15 @@ export const checkoutCart = async (cartId: string, orderPayload: any): Promise<a
 
 export const reorderCartApi = async (orderId: string): Promise<CartResponse> => {
   const response = await Post<ApiResponse<CartResponse>>("/api/cart/reorder", { orderId });
+  return response.data;
+};
+
+export const applyGroupPerkToCart = async (groupId: string, cartId?: string): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/apply-group-perk", { groupId, cartId });
+  return response.data;
+};
+
+export const removeGroupPerkFromCart = async (cartId?: string): Promise<CartResponse> => {
+  const response = await Post<ApiResponse<CartResponse>>("/api/cart/remove-group-perk", { cartId });
   return response.data;
 };

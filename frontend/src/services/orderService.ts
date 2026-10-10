@@ -150,6 +150,13 @@ export interface Order {
     discount?: number;
     deliveryCharge?: number;
     totalAmount?: number;
+    discountType?: "offer" | "coins" | "group";
+    coinsUsed?: number;
+    groupPerk?: {
+      groupId?: string;
+      groupName?: string;
+      discountValue?: number;
+    };
   };
   status: string;
   orderType: "dine-in" | "delivery" | "pickup";
@@ -158,6 +165,8 @@ export interface Order {
   pickupTiming?: string;
   subTotal?: number;
   discount?: number;
+  discountType?: "offer" | "coins" | "group";
+  offerCode?: string;
   totalAmount?: number;
   notes?: string;
   rejectionReason?: string;

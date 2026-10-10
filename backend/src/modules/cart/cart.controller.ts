@@ -102,6 +102,37 @@ export class CartController {
     }
   }
 
+  static async applyGroupPerk(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized: User context missing.");
+      }
+      const { groupId, cartId } = req.body;
+      if (!groupId) {
+        throw new ApiError(400, "groupId is required.");
+      }
+      const cart = await CartService.applyGroupPerk(userId, groupId, cartId);
+      res.status(200).json(new ApiResponse(200, cart, "Group perk applied successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async removeGroupPerk(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new ApiError(401, "Unauthorized: User context missing.");
+      }
+      const { cartId } = req.body || {};
+      const cart = await CartService.removeGroupPerk(userId, cartId);
+      res.status(200).json(new ApiResponse(200, cart, "Group perk removed successfully"));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async clearCart(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?._id;

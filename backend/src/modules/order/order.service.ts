@@ -39,8 +39,13 @@ export interface ICreateOrderPayload {
   paymentPreference?: "CASH" | "ONLINE";
   notes?: string;
   discount?: number;
-  discountType?: "offer" | "coins";
+  discountType?: "offer" | "coins" | "group";
   coinsUsed?: number;
+  groupPerk?: {
+    groupId?: any;
+    groupName?: string;
+    discountValue?: number;
+  };
   offerCode?: string;
   offer?: string;
   orderType?: OrderType;
@@ -278,6 +283,7 @@ export class OrderService {
         totalAmount: validated.totalAmount,
         discountType: payload.discountType || (payload.payment as any)?.discountType,
         coinsUsed: payload.coinsUsed || (payload.payment as any)?.coinsUsed,
+        groupPerk: payload.groupPerk || (payload.payment as any)?.groupPerk,
       },
       status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
@@ -294,6 +300,21 @@ export class OrderService {
       notes: payload.notes?.trim() || "",
       createdBy: payload.createdBy || "admin",
     });
+
+    // Record group perk usage if discount was applied
+    const appliedDiscountType = payload.discountType || (payload.payment as any)?.discountType;
+    const appliedGroupPerk = payload.groupPerk || (payload.payment as any)?.groupPerk;
+    if (appliedDiscountType === "group" && appliedGroupPerk?.groupId && customerDoc?._id) {
+      try {
+        const { CustomerGroupService } = await import("../customer/customerGroup.service");
+        await CustomerGroupService.recordUsage(
+          appliedGroupPerk.groupId.toString(),
+          customerDoc._id.toString()
+        );
+      } catch (perkErr) {
+        console.error("Failed to record customer group perk usage:", perkErr);
+      }
+    }
 
     const orderObj = order.toObject ? order.toObject() : { ...order };
     if (Array.isArray(orderObj.items)) {

@@ -13,6 +13,8 @@ router.post("/remove-coins", ...userAccess, CartController.removeCoins);
 router.post("/reorder", ...userAccess, CartController.reorder);
 router.post("/apply-offer", ...userAccess, CartController.applyOffer);
 router.post("/remove-offer", ...userAccess, CartController.removeOffer);
+router.post("/apply-group-perk", ...userAccess, CartController.applyGroupPerk);
+router.post("/remove-group-perk", ...userAccess, CartController.removeGroupPerk);
 router.post("/checkout", ...userAccess, CartController.checkout);
 router.delete("/", ...userAccess, CartController.clearCart);
 

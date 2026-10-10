@@ -206,21 +206,48 @@ export class CartService {
           }
         }
       }
+    } else if (cart.total?.discountType === "group" && cart.total?.groupPerk?.groupId) {
+      // 3. Re-validate Group Perk Discount
+      try {
+        const { CustomerGroup } = await import("../../models/customerGroup.model");
+        const groupDoc = await CustomerGroup.findById(cart.total.groupPerk.groupId);
+        if (groupDoc && groupDoc.discount && groupDoc.discount.active) {
+          const minOrder = groupDoc.discount.minOrderAmount || 0;
+          if (subTotal >= minOrder) {
+            if (groupDoc.discount.type === "percentage") {
+              discount = Math.round((subTotal * groupDoc.discount.value) / 100);
+            } else {
+              discount = groupDoc.discount.value;
+            }
+          } else {
+            discount = 0;
+          }
+        } else {
+          cart.total.discountType = undefined;
+          cart.total.groupPerk = undefined;
+          discount = 0;
+        }
+      } catch (perkErr) {
+        discount = 0;
+      }
     }
 
     // Ensure discount never exceeds subTotal
     discount = Math.min(subTotal, Math.max(0, discount));
     const totalAmount = Math.max(0, subTotal - discount);
 
+    const isGroupType = cart.total?.discountType === "group" && Boolean(cart.total?.groupPerk?.groupId);
+
     cart.total = {
       subTotal,
       discount,
       totalAmount,
-      offer: appliedOfferDoc ? appliedOfferDoc._id : undefined,
-      offerCode: appliedOfferDoc ? appliedOfferDoc.code : undefined,
-      discountType: cart.total?.discountType === "coins" ? "coins" : appliedOfferDoc ? "offer" : undefined,
+      offer: isGroupType ? undefined : (appliedOfferDoc ? appliedOfferDoc._id : undefined),
+      offerCode: isGroupType ? undefined : (appliedOfferDoc ? appliedOfferDoc.code : undefined),
+      discountType: isGroupType ? "group" : (cart.total?.discountType === "coins" ? "coins" : appliedOfferDoc ? "offer" : undefined),
       coinsUsed: cart.total?.discountType === "coins" ? discount : 0,
       coinStatus: cart.total?.discountType === "coins" ? (cart.total.coinStatus || "applied") : "none",
+      groupPerk: isGroupType ? cart.total?.groupPerk : undefined,
       coinRemovalNotice: coinRemovalNotice || undefined,
     };
 
@@ -638,6 +665,85 @@ export class CartService {
     return this.getCart(userId, true);
   }
 
+  /**
+   * Apply customer group discount perk to cart
+   */
+  static async applyGroupPerk(userId: string, groupId: string, cartId?: string) {
+    const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
+    const cart = await Cart.findOne(query);
+
+    if (!cart || !cart.items || cart.items.length === 0) {
+      throw new ApiError(400, "Cannot apply discount to an empty cart.");
+    }
+
+    const { CustomerGroupService } = await import("../customer/customerGroup.service");
+    const perk = await CustomerGroupService.getCustomerPerk(userId);
+
+    if (!perk || !perk.group || perk.group.id.toString() !== groupId) {
+      throw new ApiError(400, "You are not eligible for this group perk.");
+    }
+
+    if (!perk.discount || !perk.discount.active) {
+      throw new ApiError(400, "This group discount is currently inactive.");
+    }
+
+    if (perk.remainingOrders !== null && perk.remainingOrders <= 0) {
+      throw new ApiError(400, "You have reached the order usage limit for this perk.");
+    }
+
+    await this.recalculateCartTotals(cart);
+
+    const subTotal = cart.total.subTotal || 0;
+    const minOrder = perk.discount.minOrderAmount || 0;
+    if (subTotal < minOrder) {
+      throw new ApiError(400, `Minimum order amount of ₹${minOrder} is required to apply this perk.`);
+    }
+
+    let discount = 0;
+    if (perk.discount.type === "percentage") {
+      discount = Math.round((subTotal * perk.discount.value) / 100);
+    } else {
+      discount = perk.discount.value;
+    }
+    discount = Math.min(subTotal, Math.max(0, discount));
+
+    // Clear mutually exclusive coupon or coins
+    cart.total.offer = undefined;
+    cart.total.offerCode = undefined;
+    cart.total.coinsUsed = 0;
+    cart.total.coinStatus = "none";
+
+    cart.total.discountType = "group";
+    cart.total.groupPerk = {
+      groupId: perk.group.id as any,
+      groupName: perk.group.name,
+      discountValue: perk.discount.value,
+    };
+    cart.total.discount = discount;
+    cart.total.totalAmount = Math.max(0, subTotal - discount);
+    cart.total.coinRemovalNotice = undefined;
+
+    await cart.save();
+    return this.getCart(userId, true);
+  }
+
+  /**
+   * Remove applied group discount perk from cart
+   */
+  static async removeGroupPerk(userId: string, cartId?: string) {
+    const query = cartId ? { _id: cartId, user: userId } : { user: userId, status: "active" };
+    const cart = await Cart.findOne(query);
+
+    if (cart) {
+      cart.total.discountType = undefined;
+      cart.total.groupPerk = undefined;
+      cart.total.discount = 0;
+      await this.recalculateCartTotals(cart);
+      await cart.save();
+    }
+    return this.getCart(userId, true);
+  }
+
   static async clearCart(userId: string) {
     const cart = await Cart.findOne({ user: userId, status: "active" });
     if (cart) {
@@ -707,6 +813,7 @@ export class CartService {
         discountType: rawTotal?.discountType,
         coinsUsed: rawTotal?.coinsUsed,
         coinStatus: rawTotal?.coinStatus,
+        groupPerk: rawTotal?.groupPerk,
       },
     };
     await this.recalculateCartTotals(tempCart as any);
@@ -742,6 +849,7 @@ export class CartService {
         amount: tempCart.total.totalAmount,
         discountType: tempCart.total.discountType,
         coinsUsed: tempCart.total.coinsUsed,
+        groupPerk: tempCart.total.groupPerk,
       },
       status: OrderStatus.ACCEPTED,
       orderType: payload.orderType || OrderType.DINE_IN,
@@ -752,6 +860,7 @@ export class CartService {
       totalAmount: tempCart.total.totalAmount,
       discountType: tempCart.total.discountType,
       coinsUsed: tempCart.total.coinsUsed,
+      groupPerk: tempCart.total.groupPerk,
       offer: tempCart.total.offer,
       offerCode: tempCart.total.offerCode,
       notes: payload.notes,
