@@ -50,7 +50,9 @@ export default function PublicAllItemsPage() {
   const targetCartUrl = isRegisteredUser ? "/cart" : "/public/cart";
 
   const [menuItems, setMenuItems] = useState<PublicCartItem[]>([]);
-  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categories, setCategories] = useState<{ _id: string; name: string }[]>([
+    { _id: "All", name: "All" },
+  ]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -69,6 +71,7 @@ export default function PublicAllItemsPage() {
         : typeof i.image === "string" && i.image.trim()
         ? i.image
         : "";
+    const catId = typeof i.category === "object" ? (i.category as any)?._id : i.category || "";
     return {
       id: i._id,
       name: i.name,
@@ -77,6 +80,7 @@ export default function PublicAllItemsPage() {
       image: imgUrl || "/default-food.jpg",
       category:
         typeof i.category === "object" ? (i.category as any)?.name || "" : i.category || "",
+      categoryId: catId,
       preparationTime: i.preparationTime,
       quantity: 0,
     };
@@ -91,7 +95,11 @@ export default function PublicAllItemsPage() {
           getCategoryList(),
           getMenuItems({ page: 1, limit: 10 }),
         ]);
-        setCategories(["All", ...catRes.map((c) => c.name)]);
+        const catItems = [
+          { _id: "All", name: "All" },
+          ...catRes.map((c) => ({ _id: c._id, name: c.name })),
+        ];
+        setCategories(catItems);
         const items = menuRes.items.map(mapItem);
         setMenuItems(items);
         setPage(1);
@@ -154,7 +162,9 @@ export default function PublicAllItemsPage() {
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
-      selectedCategory === "All" || item.category === selectedCategory;
+      selectedCategory === "All" ||
+      item.categoryId === selectedCategory ||
+      item.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -267,15 +277,15 @@ export default function PublicAllItemsPage() {
           <div className="flex gap-2 pb-1">
             {categories.map((cat) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                key={cat._id}
+                onClick={() => setSelectedCategory(cat._id)}
                 className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  selectedCategory === cat
+                  selectedCategory === cat._id
                     ? "bg-[#0B392B] text-white shadow-sm"
                     : "bg-white text-[#0B392B] border border-[#E8E1D3] hover:bg-[#0B392B]/10"
                 }`}
               >
-                {cat}
+                {cat.name}
               </button>
             ))}
           </div>

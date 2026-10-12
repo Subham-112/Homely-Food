@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import { MenuItemService } from "./menu-items.service";
 import { z } from "zod";
 import ApiError from "../../utils/ApiError";
@@ -121,6 +122,13 @@ export class MenuItemController {
   static async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { category, isTodaySpecial, search, name, page, limit } = req.query;
+
+      if (category !== undefined && typeof category === "string" && category.trim() && category !== "All" && category !== "all") {
+        if (!mongoose.Types.ObjectId.isValid(category.trim())) {
+          throw new ApiError(400, "Invalid Category ID format. Category filter must be a valid MongoDB ObjectId.");
+        }
+      }
+
       const result = await MenuItemService.getAll({
         category: typeof category === "string" ? category : undefined,
         status: MenuItemStatus.AVAILABLE,
@@ -138,6 +146,13 @@ export class MenuItemController {
   static async getAllForAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { category, status, isTodaySpecial, search, name, page, limit } = req.query;
+
+      if (category !== undefined && typeof category === "string" && category.trim() && category !== "All" && category !== "all") {
+        if (!mongoose.Types.ObjectId.isValid(category.trim())) {
+          throw new ApiError(400, "Invalid Category ID format. Category filter must be a valid MongoDB ObjectId.");
+        }
+      }
+
       const result = await MenuItemService.getAll({
         category: typeof category === "string" ? category : undefined,
         status: typeof status === "string" ? (status as MenuItemStatus) : undefined,

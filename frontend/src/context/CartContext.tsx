@@ -27,6 +27,7 @@ export interface MenuItem {
   isSpecial?: boolean;
   tag?: string;
   category: string;
+  categoryId?: string;
   preparationTime?: number;
   tags?: string[];
   allergens?: string[];

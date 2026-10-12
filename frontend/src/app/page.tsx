@@ -53,7 +53,9 @@ export default function HomePage() {
     checkWelcomeModal();
   }, [user]);
 
-  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categories, setCategories] = useState<{ _id: string; name: string }[]>([
+    { _id: "All", name: "All" },
+  ]);
   const [menuItems, setMenuItems] = useState<CartMenuItem[]>([]);
   const [specialItems, setSpecialItems] = useState<CartMenuItem[]>([]);
   const [activeOffers, setActiveOffers] = useState<Offer[]>([]);
@@ -78,8 +80,11 @@ export default function HomePage() {
 
         // 2. Middle Section: Category List
         const catRes = await getCategoryList();
-        const catNames = ["All", ...catRes.map((c) => c.name)];
-        setCategories(catNames);
+        const catItems = [
+          { _id: "All", name: "All" },
+          ...catRes.map((c) => ({ _id: c._id, name: c.name })),
+        ];
+        setCategories(catItems);
 
         // 3. Middle Section: Today's Special Items (isTodaySpecial=true API call)
         const specialRes = await getMenuItems({ isTodaySpecial: true, limit: 20 });
@@ -106,7 +111,11 @@ export default function HomePage() {
         setSpecialItems(specials);
 
         // 4. Bottom Section: Menu Items (Paginated: Page 1, Limit 10)
-        const menuRes = await getMenuItems({ page: 1, limit: 10 });
+        const menuRes = await getMenuItems({
+          page: 1,
+          limit: 10,
+          category: selectedCategory !== "All" ? selectedCategory : undefined,
+        });
         const items = menuRes.items.map((i: ApiMenuItem) => {
           const imgUrl = typeof i.image === "object" ? i.image?.url : (typeof i.image === "string" && i.image.trim()) ? i.image : "";
           return {

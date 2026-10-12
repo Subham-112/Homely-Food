@@ -16,7 +16,9 @@ export default function AllItemsPage() {
   const { cart, addToCart, updateQuantity, totalItems, totalAmount } = useCart();
 
   const [menuItems, setMenuItems] = useState<CartMenuItem[]>([]);
-  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [categories, setCategories] = useState<{ _id: string; name: string }[]>([
+    { _id: "All", name: "All" },
+  ]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,7 @@ export default function AllItemsPage() {
         : typeof i.image === "string" && i.image.trim()
         ? i.image
         : "";
+    const catId = typeof i.category === "object" ? (i.category as any)?._id : i.category || "";
     return {
       id: i._id,
       name: i.name,
@@ -46,6 +49,7 @@ export default function AllItemsPage() {
       isSpecial: i.isTodaySpecial,
       tag: i.isTodaySpecial ? "Special" : undefined,
       category: typeof i.category === "object" ? (i.category as any)?.name : i.category || "",
+      categoryId: catId,
       preparationTime: i.preparationTime,
       status: i.status,
       tags: i.tags,
@@ -64,8 +68,11 @@ export default function AllItemsPage() {
           getMenuItems({ page: 1, limit: 10 }),
         ]);
 
-        const catNames = ["All", ...catList.map((c: any) => c.name)];
-        setCategories(catNames);
+        const catItems = [
+          { _id: "All", name: "All" },
+          ...catList.map((c: any) => ({ _id: c._id, name: c.name })),
+        ];
+        setCategories(catItems);
         const mapped = menuRes.items.map(mapItem);
         setMenuItems(mapped);
         setPage(1);
@@ -118,7 +125,10 @@ export default function AllItemsPage() {
 
   // Filtered Menu Items
   const filteredItems = menuItems.filter((item) => {
-    const matchesCategory = selectedCategory === "All" || item.category === selectedCategory;
+    const matchesCategory =
+      selectedCategory === "All" ||
+      item.categoryId === selectedCategory ||
+      item.category === selectedCategory;
     const matchesSearch =
       !searchQuery ||
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

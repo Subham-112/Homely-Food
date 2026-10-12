@@ -160,13 +160,15 @@ export class MenuItemService {
     const filter: any = { deleted: { $ne: true } };
     const requireActiveCategory = query.requireActiveCategory !== false;
 
-    if (query.category && query.category.trim() && query.category !== "All") {
+    if (query.category && query.category.trim() && query.category !== "All" && query.category !== "all") {
       const catVal = query.category.trim();
       const isObjectId = mongoose.Types.ObjectId.isValid(catVal);
 
-      const catFilter: any = isObjectId
-        ? { _id: new mongoose.Types.ObjectId(catVal) }
-        : { name: { $regex: `^${catVal}$`, $options: "i" } };
+      if (!isObjectId) {
+        throw new ApiError(400, "Invalid Category ID format. Category filter must be a valid MongoDB ObjectId.");
+      }
+
+      const catFilter: any = { _id: new mongoose.Types.ObjectId(catVal) };
 
       if (requireActiveCategory) {
         catFilter.status = CategoryStatus.ACTIVE;

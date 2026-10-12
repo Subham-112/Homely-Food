@@ -11,6 +11,7 @@ export interface PublicCartItem {
   description?: string;
   image: string;
   category: string;
+  categoryId?: string;
   preparationTime?: number;
   quantity: number;
   variant?: {
