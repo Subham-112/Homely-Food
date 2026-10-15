@@ -172,5 +172,39 @@ export const authorize =
     return next();
   };
 
+export const optionalAuth: RequestHandler = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  const accessToken =
+    req.header("Authorization")?.replace("Bearer ", "") ||
+    req.cookies?.user_access ||
+    req.cookies?.admin_access ||
+    req.cookies?.accessToken;
+  if (!accessToken) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(accessToken, config.jwt.secret) as {
+      _id?: string;
+      role?: string;
+      email?: string;
+      mobile?: string;
+      sub?: string;
+    };
+    const subject = decoded._id || decoded.sub;
+    if (subject) {
+      (req as AuthenticatedRequest).user = {
+        _id: subject,
+        role: (decoded.role as Role) || "user",
+        email: decoded.email,
+        mobile: decoded.mobile,
+      };
+    }
+  } catch {
+    // Silently continue as guest if token is expired/invalid
+  }
+  return next();
+};
+
 export const userAccess = [authenticateToken, authorize("user", "admin")];
 export const adminAccess = [authenticateToken, authorize("admin")];
+

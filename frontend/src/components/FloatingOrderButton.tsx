@@ -8,13 +8,24 @@ export default function FloatingOrderButton() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Hide on non-admin pages, admin login, or when already on the quick-order page
-  if (
-    !pathname ||
-    !pathname.startsWith("/admin") ||
-    pathname === "/admin/login" ||
-    pathname === "/admin/quick-order"
-  ) {
+  // Show only on:
+  // - Dashboard: exact match '/admin'
+  // - Orders: '/admin/orders' and its sub-paths
+  // - Menu: '/admin/menu' and its sub-paths
+  // - Customers: '/admin/customers' and its sub-paths
+  const allowedAdminRoutes = [
+    "/admin/orders",
+    "/admin/menu",
+    "/admin/customers",
+  ];
+
+  const isAllowed =
+    pathname === "/admin" ||
+    allowedAdminRoutes.some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`)
+    );
+
+  if (!isAllowed) {
     return null;
   }
 

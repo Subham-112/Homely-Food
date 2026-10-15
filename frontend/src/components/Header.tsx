@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins, ArrowLeft, RefreshCw } from "lucide-react";
+import { Menu, ShoppingCart, X, Home, Clock, User, ShieldCheck, Leaf, Utensils, LogOut, Tag, Coins, ArrowLeft, RefreshCw, Trophy } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useCoins } from "@/context/CoinContext";
@@ -243,6 +243,14 @@ export const Header: React.FC<HeaderProps> = ({
                       <Tag className="w-5 h-5" />
                       Category Management
                     </Link>
+                    <Link
+                      href="/admin/leaderboard"
+                      onClick={() => setDrawerOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-amber-700 hover:bg-amber-500 hover:text-white font-bold transition-colors"
+                    >
+                      <Trophy className="w-5 h-5 text-amber-500" />
+                      Leaderboard
+                    </Link>
                     {isAdminAuthenticated && (
                       <button
                         onClick={() => {
@@ -281,6 +289,14 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <Clock className="w-5 h-5" />
                       My Orders
+                    </Link>
+                    <Link
+                      href="/leaderboard"
+                      onClick={() => setDrawerOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-amber-700 hover:bg-amber-500 hover:text-white font-semibold transition-colors"
+                    >
+                      <Trophy className="w-5 h-5 text-amber-500 group-hover:text-white" />
+                      Leaderboard
                     </Link>
 
                     {!isAuthenticated ? (

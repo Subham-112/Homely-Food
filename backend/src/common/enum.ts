@@ -101,6 +101,7 @@ export enum CoinTransactionType {
   ORDER_REWARD_FIXED = "ORDER_REWARD_FIXED",
   ORDER_REWARD_PERCENT = "ORDER_REWARD_PERCENT",
   ADMIN_GRANT = "ADMIN_GRANT",
+  LEADERBOARD_REWARD = "LEADERBOARD_REWARD",
   EXPIRED = "EXPIRED",
   SPENT = "SPENT",
 }
@@ -109,4 +110,40 @@ export enum CoinTransactionDirection {
   CREDIT = "CREDIT",
   DEBIT = "DEBIT",
 }
+
+export enum LeaderboardRewardType {
+  DISCOUNT_VOUCHER = "DISCOUNT_VOUCHER",
+  COINS = "COINS",
+  FREE_ITEM = "FREE_ITEM",
+}
+
+export enum LeaderboardRankingMetric {
+  TOTAL_SPENDING = "TOTAL_SPENDING",
+  ORDER_COUNT = "ORDER_COUNT",
+}
+
+export enum LeaderboardPeriod {
+  WEEKLY = "weekly",
+  MONTHLY = "monthly",
+  ALL_TIME = "all_time",
+}
+
+export enum LeaderboardPeriodMode {
+  MONTHLY_ONLY = "MONTHLY_ONLY",
+  MULTI_PERIOD = "MULTI_PERIOD",
+}
+
+export enum NameDisplayFormat {
+  INITIALS = "INITIALS",
+  FIRST_NAME_INITIAL = "FIRST_NAME_INITIAL",
+}
+
+export enum LeaderboardRewardStatus {
+  NONE = "NONE",
+  ELIGIBLE = "ELIGIBLE",
+  PENDING_ADMIN_DECISION = "PENDING_ADMIN_DECISION",
+  CLAIMED = "CLAIMED",
+}
+
+
 

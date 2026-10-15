@@ -7,6 +7,7 @@ import { initSocket } from "./socket/socketService";
 
 import { initPaymentReconciliationJob } from "./jobs/reconcilePayments.job";
 import { initCoinExpiryJob } from "./jobs/coinExpiry.job";
+import { initLeaderboardDailyJob } from "./jobs/leaderboardDaily.job";
 import { CoinRuleService } from "./modules/coin/coinRule.service";
 
 const startServer = async () => {
@@ -22,6 +23,9 @@ const startServer = async () => {
 
     // Initialize daily coin expiry cron job
     initCoinExpiryJob();
+
+    // Initialize daily leaderboard streak & position evaluation cron job
+    initLeaderboardDailyJob();
 
     server.listen(config.port, () => {
       logger.info(`Server is running on port ${config.port} in ${config.env} mode (with Socket.io support)`);
